@@ -136,4 +136,21 @@ How git behaves here (GitHub ruleset "Protect main" on the default branch):
    `git checkout main && git pull`. To bring an open branch up to date, merge `main` into it;
    never rebase or force-push a pushed branch.
 
+### Tracking work in GitHub Projects
+All work is tracked on the **AskTravel** project: https://github.com/users/stoicdataguy/projects/1
+(linked to the repo). Every issue lives on the board; the board is where sprints and progress are
+read, so keep it in step with the work.
+- **Fields:** Status (Todo / In Progress / Done), Sprint (2-week iterations), Story Points,
+  Phase (MVP, Feedback, Memory, Production, Agent), Priority (P0–P2).
+- **New issue → add it to the board** with Status, Phase, Priority and Story Points (issues are
+  not auto-added): `gh project item-add 1 --owner stoicdataguy --url <issue url>`, then
+  `gh project item-edit` per field. Field and option ids: `gh project field-list 1 --owner stoicdataguy --format json`.
+- **Starting work → Status = In Progress** on the issue's item (find it with
+  `gh project item-list 1 --owner stoicdataguy --format json`).
+- **Done is automatic:** a merged PR with `Closes #N` closes the issue, and the project's
+  built-in workflow moves it to Done. Check the board after merging.
+- **Scope changes** (split, deferred, new bug found mid-feature) become new issues on the board,
+  not unchecked TODOs in a PR.
+- `gh` needs the `project` scope: `gh auth refresh -s project` if a project command says it's missing.
+
 <!-- Add new sections below as the project evolves -->

@@ -14,6 +14,7 @@ import uuid
 from collections.abc import AsyncIterator
 from typing import Any
 
+import openai
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import AIMessage, ToolMessage
@@ -98,27 +99,46 @@ def displayed_artifacts(messages: list) -> list[str]:
     ]
 
 
+RATE_LIMITED = (
+    "⚠️ The AI model provider is rate-limiting requests right now, so I couldn't finish this "
+    "answer. Please try again in a minute."
+)
+
+
+def error_message(exc: Exception) -> str:
+    """What the user sees in the chat when a turn fails."""
+    if isinstance(exc, openai.RateLimitError) or getattr(exc, "status_code", None) == 429:
+        return RATE_LIMITED
+    return f"⚠️ Something went wrong while answering ({type(exc).__name__}). Please try again."
+
+
 async def _stream(agent, inputs, config, context, model: str) -> AsyncIterator[str]:
     completion_id = f"chatcmpl-{uuid.uuid4().hex}"
     yield _chunk(completion_id, model, {"role": "assistant", "content": ""})
     # "messages" streams model tokens; "updates" delivers each completed model turn, whose
     # tool_calls (with full args) we surface as status lines
-    async for mode, payload in agent.astream(
-        inputs, config, context=context, stream_mode=["messages", "updates"]
-    ):
-        if mode == "messages":
-            message, metadata = payload
-            # Token chunks when the model streams; one whole AIMessage when it doesn't
-            if metadata.get("langgraph_node") == "model" and isinstance(message, AIMessage):
-                if message.text:
-                    yield _chunk(completion_id, model, {"content": message.text})
-        elif "model" in payload and isinstance(payload["model"], dict):
-            for message in payload["model"].get("messages", []):
-                for tool_call in getattr(message, "tool_calls", None) or []:
-                    yield _chunk(completion_id, model, {"content": tool_status(tool_call)})
-        elif "tools" in payload and isinstance(payload["tools"], dict):
-            for artifact in displayed_artifacts(payload["tools"].get("messages", [])):
-                yield _chunk(completion_id, model, {"content": f"\n\n{artifact}\n\n"})
+    try:
+        async for mode, payload in agent.astream(
+            inputs, config, context=context, stream_mode=["messages", "updates"]
+        ):
+            if mode == "messages":
+                message, metadata = payload
+                # Token chunks when the model streams; one whole AIMessage when it doesn't
+                if metadata.get("langgraph_node") == "model" and isinstance(message, AIMessage):
+                    if message.text:
+                        yield _chunk(completion_id, model, {"content": message.text})
+            elif "model" in payload and isinstance(payload["model"], dict):
+                for message in payload["model"].get("messages", []):
+                    for tool_call in getattr(message, "tool_calls", None) or []:
+                        yield _chunk(completion_id, model, {"content": tool_status(tool_call)})
+            elif "tools" in payload and isinstance(payload["tools"], dict):
+                for artifact in displayed_artifacts(payload["tools"].get("messages", [])):
+                    yield _chunk(completion_id, model, {"content": f"\n\n{artifact}\n\n"})
+    except Exception as exc:
+        # Headers are already sent: end the stream properly with a readable message instead of
+        # dropping the connection mid-answer
+        logger.exception("agent run failed mid-stream")
+        yield _chunk(completion_id, model, {"content": f"\n\n{error_message(exc)}"})
     yield _chunk(completion_id, model, {}, finish_reason="stop")
     yield "data: [DONE]\n\n"
 
@@ -149,11 +169,16 @@ async def chat_completions(body: ChatCompletionRequest, request: Request):
             _stream(agent, inputs, config, context, body.model), media_type="text/event-stream"
         )
 
-    result = await agent.ainvoke(inputs, config, context=context)
-    # Only this turn's messages: everything after the last human message
-    last_human = max(i for i, m in enumerate(result["messages"]) if m.type == "human")
-    turn = result["messages"][last_human + 1 :]
-    content = "\n\n".join([*displayed_artifacts(turn), result["messages"][-1].text]).strip()
+    try:
+        result = await agent.ainvoke(inputs, config, context=context)
+    except Exception as exc:
+        logger.exception("agent run failed")
+        content = error_message(exc)
+    else:
+        # Only this turn's messages: everything after the last human message
+        last_human = max(i for i, m in enumerate(result["messages"]) if m.type == "human")
+        turn = result["messages"][last_human + 1 :]
+        content = "\n\n".join([*displayed_artifacts(turn), result["messages"][-1].text]).strip()
     return {
         "id": f"chatcmpl-{uuid.uuid4().hex}",
         "object": "chat.completion",

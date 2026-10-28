@@ -49,6 +49,7 @@ validated and shown to the user as a formatted itinerary.
 - `start_date` when the user gave dates, and `trip_id` when the plan is for a trip already
   listed in your instructions, so the plan is filed under that trip.
 - `stays`: each base with its number of nights and why it suits the plan.
+- `hotels`: only hotels the user chose from `search_hotels` results.
 - `flights`: only flights the user chose from `search_flights` results (keep the airline,
   legs and price exactly as returned).
 - `assumptions`: anything you assumed (pace, budget, travellers).

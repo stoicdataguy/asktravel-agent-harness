@@ -64,7 +64,7 @@ Open WebUI (:3000) ── OpenAI-compatible HTTP + X-OpenWebUI-User-Email / -Cha
 | Observability | Self-hosted Langfuse v4 in compose. LangSmith removed. | Built |
 | Guidebooks | PDFs in `reference/` → `travel-agent-ingest` → `data/guidebooks/<slug>.md`, keyword search (no embeddings). Both gitignored. | Built |
 | Flights | `search_flights` via `fast-flights` (reads Google Flights; no API key). Prices are totals for all travellers; results come with a Google Flights booking link. | Built |
-| Hotels | Playwright scraping of Google Hotels. | Planned (#7) |
+| Hotels | `search_hotels`: Playwright drives Google Hotels (picks dates in its calendar, reads result cards). Nightly prices as Google shows them, stay totals, star class, rating, deals, amenities, booking link. | Built |
 | Web pages | Playwright: fetch URL → extract readable text. No search provider. | Planned (#7) |
 | Deployment | ECS Fargate + RDS + Cognito, CDK in Python. | Planned (#14) |
 
@@ -80,7 +80,7 @@ Open WebUI (:3000) ── OpenAI-compatible HTTP + X-OpenWebUI-User-Email / -Cha
 | 4 | Guidebook ingestion | ✅ Done |
 | 5 | Observability: Langfuse | ✅ Done |
 | 6 | Guidebook tools + tool-call status lines in the stream | ✅ Done |
-| 7 | Flight, hotel and web tools | 🟨 Flights done ([PR #8](https://github.com/stoicdataguy/travel-agent-react/pull/8)); hotels next |
+| 7 | Flight, hotel and web tools | 🟨 Flights ([PR #8](https://github.com/stoicdataguy/travel-agent-react/pull/8)) and hotels ([PR #10](https://github.com/stoicdataguy/travel-agent-react/pull/10)) built; `fetch_page` still to do |
 | 8 | Long-term memory | ✅ Done ([PR #1](https://github.com/stoicdataguy/travel-agent-react/pull/1)) |
 | 9 | Structured output | ✅ Done ([PR #2](https://github.com/stoicdataguy/travel-agent-react/pull/2)) |
 | 10 | Skills + trigger eval | ✅ Done |
@@ -150,6 +150,11 @@ worth doing even before any deployment.
   per-person prices, times, stops and a booking link; `FlightOption` can be added to an itinerary.
   `scripts/e2e_flights.py` checks in a real browser that quoted fares match a live Google Flights
   lookup and that a chosen flight is saved to the trip.
+- **#7 Hotel search (issue #9):** `search_hotels` scrapes Google Hotels with Playwright: URL date
+  parameters are ignored, so it picks check-in/out in the calendar (`[data-iso]` day cells) and
+  confirms the date box changed before reading cards. `parse_card` is a pure function unit-tested
+  on captured card text. `scripts/e2e_hotels.py` checks that hotels and nightly prices in the reply
+  match a live lookup and that the chosen hotel becomes the trip's lodging.
 - **#10 Skills:** see [Skills](#skills). `scripts/eval_skills.py` checks against the real model
   that each skill triggers (9/9 passing).
 

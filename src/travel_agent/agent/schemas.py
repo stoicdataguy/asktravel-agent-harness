@@ -71,6 +71,32 @@ class FlightOption(BaseModel):
         )
 
 
+class HotelOption(BaseModel):
+    """A place to stay from `search_hotels`. Prices are per night, as Google Hotels shows them."""
+
+    name: str
+    price_per_night: int | None = None
+    currency: str = "USD"
+    rating: float | None = Field(default=None, description="Guest rating out of 5.")
+    reviews: str | None = Field(default=None, description="Review count as shown, e.g. '7.2K'.")
+    hotel_class: int | None = Field(default=None, description="Star class, e.g. 4.")
+    amenities: list[str] = Field(default_factory=list)
+    deal: str | None = Field(
+        default=None, description="Google's tag, e.g. 'DEAL 18% less than usual'."
+    )
+    vacation_rental: bool = False
+
+    def summary(self) -> str:
+        parts = [self.name]
+        if self.price_per_night is not None:
+            parts.append(f"${self.price_per_night:,}/night")
+        if self.hotel_class:
+            parts.append(f"{self.hotel_class}-star")
+        if self.rating is not None:
+            parts.append(f"{self.rating}★" + (f" ({self.reviews} reviews)" if self.reviews else ""))
+        return " · ".join(parts)
+
+
 class Itinerary(BaseModel):
     """A complete day-by-day trip plan."""
 
@@ -91,6 +117,9 @@ class Itinerary(BaseModel):
         default_factory=list, description="Assumptions made where the user gave no details."
     )
     stays: list[Stay] = Field(default_factory=list)
+    hotels: list[HotelOption] = Field(
+        default_factory=list, description="Hotels the user chose, from search_hotels results."
+    )
     flights: list[FlightOption] = Field(
         default_factory=list, description="Flights the user chose, from search_flights results."
     )
@@ -138,6 +167,8 @@ def render_itinerary(itinerary: Itinerary) -> str:
         lines += ["**Where to stay**", ""]
         lines += [f"- **{s.area}** ({s.nights} nights): {s.why}" for s in itinerary.stays]
         lines.append("")
+    if itinerary.hotels:
+        lines += ["**Hotels**", ""] + [f"- {h.summary()}" for h in itinerary.hotels] + [""]
     if itinerary.flights:
         lines += ["**Flights**", ""] + [f"- {f.summary()}" for f in itinerary.flights] + [""]
     for day in itinerary.days:

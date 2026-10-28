@@ -35,6 +35,7 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
 - `src/travel_agent/agent/schemas.py` — `Itinerary` schema + `render_itinerary()` markdown.
 - `src/travel_agent/tools/itinerary.py` — `present_itinerary` (structured plan → store + chat).
 - `src/travel_agent/tools/flights.py` — `search_flights` (Google Flights via fast-flights; sync lib run in a thread).
+- `src/travel_agent/tools/hotels.py` — `search_hotels` (Playwright on Google Hotels; `parse_card` is pure and unit-tested).
 - `src/travel_agent/tools/trips.py` — trip memory (`Trip`, `save_trip_details`, `get_trip`, `delete_trip`, startup backfill).
 - `src/travel_agent/tools/memory.py` — long-term memory tools (`save_memory`, `delete_memory`) + loaders.
 - `src/travel_agent/skills/` — skill playbooks (`<name>.md` with name/description frontmatter) + `load_skill` tool.
@@ -68,7 +69,9 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
   empty (forked) thread from the transcript, or rewind/replace on regenerate and edit. Clients must
   send the full transcript, as OpenAI-style clients do.
 - After changing memory, prompts or tools, run `uv run python scripts/e2e_memory.py` (cross-chat memory).
-- After changing flight search, run `uv run python scripts/e2e_flights.py` (checks fares against live Google).
+- After changing flight or hotel search, run `uv run python scripts/e2e_flights.py` / `e2e_hotels.py`
+  (both check quoted prices against a live Google lookup). If Google changes its markup, update
+  the selectors in `tools/hotels.py` and the captured card texts in `tests/test_hotels.py`.
 - OpenRouter limits new accounts to 20 requests/min on gpt-6-luna: run e2e suites one at a time and
   `eval_skills.py --concurrency 1` right after other suites, or you'll see 429s.
 - After changing anything in the request path, run the browser test

@@ -12,6 +12,7 @@ from travel_agent.llm import get_chat_model
 from travel_agent.skills import load_skill, skills_index
 from travel_agent.tools.flights import search_flights
 from travel_agent.tools.guidebooks import GUIDEBOOK_TOOLS
+from travel_agent.tools.hotels import search_hotels
 from travel_agent.tools.itinerary import present_itinerary
 from travel_agent.tools.memory import MEMORY_TOOLS, format_memories, load_memories
 from travel_agent.tools.trips import TRIP_TOOLS, format_trips, load_trips
@@ -47,6 +48,7 @@ def build_agent(
         tools=[
             *GUIDEBOOK_TOOLS,
             search_flights,
+            search_hotels,
             load_skill,
             *MEMORY_TOOLS,
             *TRIP_TOOLS,

@@ -1,64 +1,160 @@
-# Plan
+# Travel Agent: Plan
+
+A lightweight LangChain ReAct agent that helps plan trips. It is served through an
+OpenAI-compatible API so an off-the-shelf chat UI (Open WebUI) is the frontend. This document
+covers the architecture, the decisions behind it, what's built, what's next, and how to deploy it.
+
+*Last updated: 2026-10-28. Milestone numbers (#1–#14) are stable and referenced from PRs.*
+
+## Contents
+
+- [Architecture](#architecture)
+- [Key decisions](#key-decisions)
+- [Roadmap](#roadmap)
+  - [Status at a glance](#status-at-a-glance)
+  - [Next up](#next-up)
+  - [Done: notes and deviations](#done-notes-and-deviations)
+- [Skills](#skills)
+- [Deployment on AWS](#deployment-on-aws)
+  - [Target architecture](#target-architecture)
+  - [Required changes before deploying](#required-changes-before-deploying)
+  - [Infrastructure as code](#infrastructure-as-code)
+  - [Phasing and cost](#phasing-and-cost)
+- [Known limitations](#known-limitations)
+- [Open questions](#open-questions)
 
 ## Architecture
 
 ```
-Open WebUI (docker, :3000) ── OpenAI-compatible HTTP + X-OpenWebUI-User-Email / -Chat-Id ──▶ FastAPI (:8000)
-                                                                                              │
-                                                              create_agent (LangChain v1 ReAct loop)
-                                                                                              │
-              ┌──────────────┬────────────────┬──────────────┬────────────────┬───────────────┼─────────────────┐
-          OpenRouter     Python tools      MCP tools      Skills (.md)     Subagent:         Memory (Postgres :5433)
-          (ChatOpenAI,   flights (fast-    (langchain-    load_skill tool  knowledge_base    checkpointer → thread
-           sonnet 5.5)   flights), hotels  mcp-adapters)                   (grep guidebooks)  store → user facts
-                         + web (playwright)
+Open WebUI (:3000) ── OpenAI-compatible HTTP + X-OpenWebUI-User-Email / -Chat-Id ──▶ agent API (FastAPI :8000)
+                                                                                          │
+                                                            create_agent (LangChain v1 ReAct loop)
+                                                            middleware: system prompt + skills index + user memories
+                                                                                          │
+   ┌──────────────┬─────────────────┬──────────────┬────────────────┬───────────────────┼────────────────────────┐
+ OpenRouter    Guidebook tools   Skills          Memory tools     present_itinerary     Planned
+ (Sonnet 5.5)  list / search /   load_skill      save_memory /    (Pydantic Itinerary   · flights, hotels, web (#7)
+               read pages        (7 playbooks)   delete_memory    → chat + store)       · guidebook subagent (#11)
+                                                                                         · MCP tools (#12)
+
+ Postgres (:5433)  checkpointer = chat history per thread · store = user facts + itineraries
+ Langfuse (:3001)  traces: session = chat, user = email
 ```
 
-## Decisions
+- **Threads:** `thread_id = "<email>:<chat id>"`. The API passes only the newest user message;
+  the checkpointer owns the history.
+- **Users:** the signed-in email (forwarded by Open WebUI) is the `user_id` for memory, saved
+  itineraries and traces.
 
-| Topic | Decision |
-|---|---|
-| Frontend | Open WebUI via docker-compose, talking to our OpenAI-compatible `/v1` API. No UI code. |
-| LLM | OpenRouter, `anthropic/claude-sonnet-5.5` via `ChatOpenAI(base_url=...)`. |
-| Users | Open WebUI's own signup used as a dummy login: any email, active immediately. Email → `user_id`. |
-| Threads | `thread_id = "<email>:<X-OpenWebUI-Chat-Id>"`; falls back to a hash of the first message. |
-| Memory | Postgres from day one: `AsyncPostgresSaver` + `AsyncPostgresStore` sharing one pool. |
-| Flights | `fast-flights` (reads Google Flights; no API key). |
-| Hotels | Playwright scraping of Google Hotels. |
-| Web | Playwright: fetch URL → extract readable text. No search provider. |
-| Observability | Self-hosted Langfuse v4 in compose (:3001), chat = session, email = user. |
-| Guidebooks | PDFs in `reference/` → `travel-agent-ingest` → `data/guidebooks/<slug>.md` (both gitignored). |
+## Key decisions
 
-## Known limitations
-- Open WebUI's background LLM tasks (title/tag/follow-up generation) are disabled in compose, since they
-  would otherwise run through the agent and pollute threads. Chats are titled by their first message.
-- Editing or regenerating an earlier message in the UI doesn't rewind the agent's checkpointed thread;
-  the agent only sees the newest user message. Fix later by detecting divergence and forking the thread.
+| Topic | Decision | Status |
+|---|---|---|
+| Frontend | Open WebUI via docker compose, talking to our OpenAI-compatible `/v1` API. No UI code. | Built |
+| LLM | OpenRouter, `anthropic/claude-sonnet-5.5` via `ChatOpenAI(base_url=...)`. | Built |
+| Users | Open WebUI signup as a dummy login: any email, active immediately. `ENABLE_PERSISTENT_CONFIG=false` keeps signup open. | Built |
+| Short-term memory | `AsyncPostgresSaver` checkpointer, one thread per user + chat. | Built |
+| Long-term memory | `AsyncPostgresStore`, facts keyed by topic, injected into the prompt every model call. | Built |
+| Structured output | Pydantic schema as the argument of a `present_itinerary` tool, not `response_format` (which forces a tool call on every turn). | Built |
+| Skills | Markdown playbooks with name/description frontmatter, loaded on demand via `load_skill`. | Built |
+| Observability | Self-hosted Langfuse v4 in compose. LangSmith removed. | Built |
+| Guidebooks | PDFs in `reference/` → `travel-agent-ingest` → `data/guidebooks/<slug>.md`, keyword search (no embeddings). Both gitignored. | Built |
+| Flights | `fast-flights` (reads Google Flights; no API key). | Planned (#7) |
+| Hotels | Playwright scraping of Google Hotels. | Planned (#7) |
+| Web pages | Playwright: fetch URL → extract readable text. No search provider. | Planned (#7) |
+| Deployment | ECS Fargate + RDS + Cognito, CDK in Python. | Planned (#14) |
 
-## Milestones
+## Roadmap
 
-1. ✅ **Skeleton**: uv, FastAPI, compose, CLAUDE.md.
-2. ✅ **Chat round-trip**: `/v1/chat/completions` (stream + non-stream) → `create_agent`.
-3. ✅ **Short-term memory**: Postgres checkpointer keyed by user + chat id.
-4. ✅ **Guidebook ingestion**: one paragraph per line, TOC headings, `[p. N]` page markers.
-5. ✅ **Observability**: self-hosted Langfuse with per-session and per-user traces.
-6. ✅ **Guidebook tools** (on the main agent for now): `list_guidebooks`, `search_guidebooks`,
-   `read_guidebook_pages`; tool calls streamed to the chat as status lines.
-7. **Tools**: `search_flights` (fast-flights), `search_hotels` + `fetch_page` (Playwright; run
-   `uv run playwright install chromium` once). Unit tests against recorded fixtures.
-8. ✅ **Long-term memory**: `save_memory` / `delete_memory` tools on the Postgres store, keyed by topic;
-   a middleware injects all of the user's facts into the prompt every model call (no recall tool needed).
-9. ✅ **Structured output**: Pydantic `Itinerary` / `DayPlan` / `Activity` / `Stay` as the argument schema of a
-   `present_itinerary` tool (not `response_format`, which forces `tool_choice="any"` on every turn of a chat
-   agent). Validated plans are saved per user + chat (`GET /api/itineraries`) and rendered to markdown in the
-   chat. `FlightOption` / `HotelOption` land with the flight/hotel tools (#7).
-10. ✅ **Skills**: 7 markdown playbooks + `load_skill` tool; trigger eval in `scripts/eval_skills.py`.
-11. **Knowledge-base subagent**: move the guidebook tools into their own `create_agent` with `list_guidebooks`, `grep_guidebook`
-   (returns hits with section heading + page) and `read_pages`; exposed to the main agent as `ask_guidebook`.
-12. **MCP**: load servers from `mcp.json` via `langchain-mcp-adapters`.
-13. **Streaming polish**: collapse tool status lines (e.g. Open WebUI `<details>` blocks).
-14. **AWS deployment**: lock down the agent API, Dockerfile, CDK in `infra/`, CI/CD. See
-   [Deployment on AWS](#deployment-on-aws).
+### Status at a glance
+
+| # | Milestone | Status |
+|---|---|---|
+| 1 | Skeleton: uv, FastAPI, compose, CLAUDE.md | ✅ Done |
+| 2 | Chat round-trip: `/v1/chat/completions` (stream + non-stream) → `create_agent` | ✅ Done |
+| 3 | Short-term memory: Postgres checkpointer | ✅ Done |
+| 4 | Guidebook ingestion | ✅ Done |
+| 5 | Observability: Langfuse | ✅ Done |
+| 6 | Guidebook tools + tool-call status lines in the stream | ✅ Done |
+| 7 | Flight, hotel and web tools | ⬜ Next |
+| 8 | Long-term memory | ✅ Done ([PR #1](https://github.com/stoicdataguy/travel-agent-react/pull/1)) |
+| 9 | Structured output | ✅ Done ([PR #2](https://github.com/stoicdataguy/travel-agent-react/pull/2)) |
+| 10 | Skills + trigger eval | ✅ Done |
+| 11 | Knowledge-base subagent | ⬜ Planned |
+| 12 | MCP tools | ⬜ Planned |
+| 13 | Streaming polish | ⬜ Planned |
+| 14 | AWS deployment | ⬜ Planned |
+
+### Next up
+
+#### #7 Flight, hotel and web tools
+- `search_flights` with `fast-flights`: origin, destination, dates, passengers → a short list of
+  `FlightOption` (Pydantic: airline, times, stops, duration, price).
+- `search_hotels` with Playwright on Google Hotels → `HotelOption` (name, area, rating, price
+  per night). Scraping is fragile; keep selectors in one place and fail with a clear message.
+- `fetch_page(url)` with Playwright → readable text, trimmed for the LLM.
+- Add optional `flights` / `hotels` to the `Itinerary` schema, and update `budget-planner` to use
+  live prices instead of guidebook estimates.
+- Tests against recorded fixtures (saved HTML/JSON), never live sites. One-time setup:
+  `uv run playwright install chromium`.
+
+#### #11 Knowledge-base subagent
+- Move the guidebook tools into their own `create_agent`, exposed to the main agent as a single
+  `ask_guidebook(question, destination)` tool that returns a cited summary.
+- Why: a single itinerary request made 13 guidebook calls on the main agent, and every page read
+  stays in the main conversation's context. A subagent keeps that out and returns only the answer.
+- Trace it as a child run so Langfuse shows the nesting.
+
+#### #12 MCP tools
+- Load servers from an `mcp.json` file via `langchain-mcp-adapters` (`MultiServerMCPClient`) at
+  startup and add their tools to the agent.
+- Candidates: weather or currency conversion servers. Status lines and tracing already cover
+  any tool.
+
+#### #13 Streaming polish
+- Collapse the `🔧 tool(...)` status lines into a single expandable block (e.g. a `<details>`
+  element in Open WebUI) so long research runs don't push the answer down.
+- Use Open WebUI's background task settings to bring back chat titles without routing them
+  through the agent (see [Known limitations](#known-limitations)).
+
+#### #14 AWS deployment
+See [Deployment on AWS](#deployment-on-aws). The first step, locking down the agent API, is
+worth doing even before any deployment.
+
+### Done: notes and deviations
+
+- **#4 Guidebook ingestion:** one paragraph per line, PDF bookmarks as markdown headings, `[p. N]`
+  page markers. Icon-font glyphs and soft hyphens are stripped.
+- **#6 Guidebook tools:** `list_guidebooks`, `search_guidebooks` (accent- and ʻokina-insensitive,
+  skips contents/index/map-key noise), `read_guidebook_pages`. Currently on the main agent;
+  moving to a subagent in #11.
+- **#8 Long-term memory:** the planned `recall_memories` tool was dropped. All of a user's facts
+  are injected into the prompt every model call instead, so recall is automatic. Store
+  namespaces percent-encode dots in emails (`memory.user_namespace()`).
+- **#9 Structured output:** `Itinerary` → `DayPlan` → `Activity`, plus `Stay`, as the argument
+  schema of `present_itinerary`. Validation errors go back to the model to fix. Plans are saved
+  per user + chat (`GET /api/itineraries`) and rendered to markdown in the chat.
+  `FlightOption` / `HotelOption` are deferred to #7.
+- **#10 Skills:** see [Skills](#skills). `scripts/eval_skills.py` checks against the real model
+  that each skill triggers (9/9 passing).
+
+## Skills
+
+Markdown playbooks in `src/travel_agent/skills/`. The system prompt lists each name and
+description; the agent calls `load_skill(name)` when a request matches.
+
+| Skill | Triggers on | What it does |
+|---|---|---|
+| `trip-intake` | Vague requests ("help me plan a trip") | Asks at most 4 questions, uses sensible defaults, writes a trip brief |
+| `itinerary-builder` | Day-by-day plans, reworking a plan | Starts from the guidebook's own itineraries, clusters by area, delivers via `present_itinerary` |
+| `budget-planner` | Costs, "does it fit my budget" | Per-person cost table; flags guidebook prices as old |
+| `packing-list` | What to pack | Checks climate in the guidebook; checkbox list |
+| `visa-and-entry` | Visas, passports, vaccinations | Asks nationality, never states rules as certain, links official sources |
+| `local-transport` | Trains, ferries, airports, car rental | Compares options in a table; car vs no car; pass break-even |
+| `food-and-culture` | Dishes, restaurants, tipping, etiquette | Dishes to try, cited places to eat, dietary needs, customs |
+
+To add one: create `<name>.md` with `name` / `description` frontmatter, and add a case to
+`scripts/eval_skills.py`.
 
 ## Deployment on AWS
 
@@ -66,7 +162,9 @@ Goal: a private, authenticated deployment for a small group, with the same archi
 Everything is already containerised or a managed equivalent exists, so this is mostly packaging,
 hardening the two trust boundaries, and infrastructure as code.
 
-### Target architecture (ECS Fargate)
+### Target architecture
+
+ECS Fargate, two services behind one public load balancer:
 
 ```
                     Route 53 + ACM (HTTPS)
@@ -97,14 +195,14 @@ hardening the two trust boundaries, and infrastructure as code.
 | Local (compose) | AWS | Notes |
 |---|---|---|
 | `uv run travel-agent` | ECS Fargate service, image in ECR | 1 vCPU / 2 GB to start; scale on CPU or request count |
-| Open WebUI container | ECS Fargate service (official image) | `DATABASE_URL` → RDS instead of SQLite volume; uploads to S3 (`STORAGE_PROVIDER=s3`); Redis for websockets if >1 task |
+| Open WebUI container | ECS Fargate service (official image) | `DATABASE_URL` → RDS instead of the SQLite volume; uploads to S3 (`STORAGE_PROVIDER=s3`); Redis for websockets if >1 task |
 | `postgres` | RDS PostgreSQL (db.t4g.micro → small) | Separate databases for agent and Open WebUI; `sslmode=require`; automated backups |
-| Langfuse stack (6 containers) | **Langfuse Cloud** (recommended), or self-host | Self-hosting means ClickHouse + Redis + S3 + Postgres. Only worth it for data-residency needs; Langfuse publishes AWS self-hosting guidance |
+| Langfuse stack (6 containers) | **Langfuse Cloud** (recommended), or self-host | Self-hosting means ClickHouse + Redis + S3 + Postgres; only worth it for data-residency needs |
 | `data/guidebooks/*.md` | Private S3 bucket, synced at container start | Keep out of the image and the public repo (copyrighted); ~10 MB |
-| `.env` | Secrets Manager + ECS task-definition env | Settings already come from env via pydantic-settings, so no code changes are needed for config |
-| Dummy email signup | Cognito user pool via Open WebUI OIDC (`ENABLE_OAUTH_SIGNUP`, `OPENID_PROVIDER_URL`), password signup disabled | Email from the OIDC token still becomes `user_id` |
+| `.env` | Secrets Manager + ECS task-definition env | Settings already come from env via pydantic-settings |
+| Dummy email signup | Cognito user pool via Open WebUI OIDC (`ENABLE_OAUTH_SIGNUP`, `OPENID_PROVIDER_URL`), password signup off | The email from the OIDC token still becomes `user_id` |
 
-### Required code/config changes before deploying
+### Required changes before deploying
 
 1. **Lock down the agent API.** Today it trusts `X-OpenWebUI-User-Email` from anyone. Require a
    bearer token: Open WebUI already sends `OPENAI_API_KEY` as `Authorization: Bearer …`, so set
@@ -128,36 +226,51 @@ hardening the two trust boundaries, and infrastructure as code.
 ### Infrastructure as code
 
 AWS CDK in Python, in `infra/` (same language and uv tooling as the app). Stacks:
-`Network` (VPC with 2 AZs), `Data` (RDS, S3, Secrets), `Services` (ECS cluster, two services,
-ALB, Cognito), `Pipeline` (ECR, GitHub OIDC role). Terraform is equally fine if that's the
-team's standard.
 
-To keep costs down: put Fargate tasks in public subnets with security groups but no inbound
-ports except from the ALB / Open WebUI, which avoids a NAT gateway (~$35/month). Alternatively,
-use private subnets with VPC endpoints for ECR, S3, Secrets Manager and Logs.
+- `Network`: VPC across 2 AZs.
+- `Data`: RDS, S3, Secrets Manager.
+- `Services`: ECS cluster, the two services, ALB, Cognito.
+- `Pipeline`: ECR, GitHub OIDC role.
 
-### Phasing
+Terraform is equally fine if that's the team's standard.
+
+To keep costs down, put Fargate tasks in public subnets with security groups that allow no
+inbound traffic except from the ALB / Open WebUI; this avoids a NAT gateway (~$35/month).
+Alternatively, use private subnets with VPC endpoints for ECR, S3, Secrets Manager and Logs.
+
+### Phasing and cost
 
 | Phase | What | When to use | Rough cost / month (us-east-1) |
 |---|---|---|---|
-| 0. Demo box | One EC2 instance (t3.large, or t3.xlarge if Langfuse is self-hosted on it) running today's `docker compose`, Caddy for HTTPS, data on EBS, nightly EBS snapshots | Fastest path to a shareable URL; single point of failure | ~$60–120 |
+| 0. Demo box | One EC2 instance (t3.large, or t3.xlarge if Langfuse is self-hosted on it) running today's `docker compose`, Caddy for HTTPS, data on EBS, nightly snapshots | Fastest path to a shareable URL; single point of failure | ~$60–120 |
 | 1. Managed | ECS Fargate + RDS + ALB + Cognito + Langfuse Cloud, as above | Real users, backups, rolling deploys | ~$110–150 (2 tasks ~$72, ALB ~$20, RDS ~$15, misc) |
-| 2. Scale | Multiple agent tasks (stateless already: state is in Postgres), Open WebUI with Redis (ElastiCache) for websockets, RDS Multi-AZ | More users / uptime needs | depends on load |
+| 2. Scale | Multiple agent tasks (already stateless: state is in Postgres), Open WebUI with Redis (ElastiCache) for websockets, RDS Multi-AZ | More users / uptime needs | Depends on load |
 
-Figures exclude LLM usage, which will dominate: a tool-heavy itinerary run is 15+ model calls.
-Check current prices in the AWS Pricing Calculator.
+These are rough estimates; check the AWS Pricing Calculator. They exclude LLM usage, which will
+likely dominate: a tool-heavy itinerary run is 15+ model calls.
 
-### Open questions
-- Langfuse Cloud vs self-hosted (data residency, budget)?
-- Who are the users: invite-only Cognito pool, or an existing IdP (Google Workspace, Okta)?
-- Region, and a custom domain?
-- Keep OpenRouter or call providers directly (e.g. Bedrock) to keep traffic inside AWS?
+## Known limitations
 
-## Skill ideas (`skills/*.md`)
-- `trip-intake`: questions to ask before planning (dates, origin, party, budget, interests, mobility).
-- `itinerary-builder`: sequencing days, pacing, buffer time, filling the `Itinerary` schema.
-- `budget-planner`: cost breakdown (flights/stay/food/transport/activities), currency handling.
-- `packing-list`: climate- and activity-aware packing list.
-- `visa-and-entry`: what to verify (visa, passport validity, vaccines), always pointing to official sources.
-- `local-transport`: rail passes, airport transfers, when to rent a car.
-- `food-and-culture`: etiquette, tipping, dishes to try (pairs with the guidebook subagent).
+- **Open WebUI background tasks are off.** Title, tag and follow-up generation would otherwise
+  run through the agent and pollute threads, so chats are titled by their first message.
+- **Editing or regenerating an earlier message doesn't rewind the agent.** The agent only sees
+  the newest user message; the checkpointed thread keeps the old turns. Fix by detecting
+  divergence and forking the thread.
+- **The agent API is unauthenticated** and trusts the user-email header. Fine on a laptop; must
+  be fixed before any deployment (see [Required changes](#required-changes-before-deploying)).
+- **Open WebUI admin-panel changes don't persist** across restarts
+  (`ENABLE_PERSISTENT_CONFIG=false`); `docker-compose.yml` is the source of truth for its settings.
+- **Guidebooks are 2016-era editions.** The agent flags prices, hours and contacts as possibly
+  outdated; live flight and hotel data arrive with #7.
+- **Guidebook search is keyword-only.** Vague queries ("romantic dinner") work less well than
+  specific ones ("restaurant Trastevere"); the agent compensates with several focused searches.
+
+## Open questions
+
+- **Langfuse:** Cloud or self-hosted (data residency, budget)?
+- **Users in production:** invite-only Cognito pool, or an existing identity provider (Google
+  Workspace, Okta)?
+- **AWS:** which region, and a custom domain?
+- **LLM provider:** keep OpenRouter, or call providers directly (e.g. Bedrock) to keep traffic
+  inside AWS?
+- **#11 subagent model:** same model as the main agent, or a cheaper one for guidebook research?

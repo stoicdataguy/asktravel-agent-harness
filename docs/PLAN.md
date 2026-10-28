@@ -25,7 +25,7 @@ covers the architecture, the decisions behind it, what's built, what's next, and
 
 ## Architecture
 
-> A visual version, with a second page on data flow and state persistence, is in
+> A visual version, with pages on data flow / state persistence and on the MVP's tools and skills, is in
 > [architecture.html](architecture.html) ([view rendered](https://raw.githack.com/stoicdataguy/travel-agent-react/main/docs/architecture.html)).
 
 ```

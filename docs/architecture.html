@@ -303,6 +303,53 @@ ul.gaps li b { font-weight: 600; }
 ul.gaps li span { color: var(--muted); }
 ul.gaps .sev { font: 600 11px var(--font-body); letter-spacing: 0.06em; text-transform: uppercase; color: var(--warn); }
 
+/* ---------- Tools & skills page ---------- */
+.counts { display: flex; flex-wrap: wrap; gap: 10px 28px; font-size: 14px; color: var(--muted); }
+.counts b { font: 700 22px var(--font-display); color: var(--ink); margin-right: 6px; font-variant-numeric: tabular-nums; }
+.kinds { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.kind { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; display: flex; flex-direction: column; gap: 6px; }
+.kind h3 { font-size: 17px; }
+.kind p { font-size: 14px; color: var(--muted); }
+table.tools td:first-child { white-space: normal; font-weight: 400; }
+table.tools td.sig { font: 500 12.5px var(--font-mono); color: var(--ink); white-space: nowrap; }
+table.tools tr.group td {
+  background: var(--surface-2); font: 600 12px var(--font-body); letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--muted); padding-block: 7px;
+}
+table.tools tr.planned td { color: var(--muted); }
+table.tools tr.planned td.sig { color: var(--muted); }
+.badge {
+  display: inline-block; font: 500 11.5px var(--font-body); padding: 1px 7px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--surface-2); white-space: nowrap; margin: 1px 2px 1px 0;
+}
+.badge.long { color: var(--long); background: var(--long-bg); border-color: color-mix(in srgb, var(--long) 40%, transparent); }
+.badge.files { color: var(--ink); }
+.badge.chat { color: var(--accent); background: var(--accent-bg); border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
+.badge.planned { border-style: dashed; background: transparent; color: var(--muted); }
+.skills-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+.skill {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0;
+}
+.skill h3 { font: 600 15px var(--font-mono); }
+.skill .when { font-size: 13.5px; color: var(--muted); }
+.skill ol { margin: 0; padding-left: 18px; font-size: 13.5px; display: grid; gap: 2px; }
+.skill .row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; font-size: 12.5px; }
+.skill .row > span:first-child { color: var(--muted); font-weight: 500; margin-right: 4px; min-width: 76px; }
+.trigger { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; counter-reset: t; list-style: none; margin: 0; padding: 0; }
+.trigger li {
+  counter-increment: t; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 12px 14px; font-size: 13.5px; display: flex; flex-direction: column; gap: 4px;
+}
+.trigger li::before { content: "Step " counter(t); font: 600 11px var(--font-body); letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); }
+.trigger li span { color: var(--muted); }
+td.pass { color: var(--accent); font-weight: 600; white-space: nowrap; }
+@media (max-width: 900px) {
+  .kinds { grid-template-columns: minmax(0, 1fr); }
+  .trigger { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 520px) { .trigger { grid-template-columns: minmax(0, 1fr); } }
+
 footer { color: var(--muted); font-size: 13px; padding-block: 0 40px; }
 
 @media (max-width: 900px) {
@@ -332,6 +379,7 @@ body { margin: 0; }
     <nav class="tabs" role="tablist" aria-label="Pages">
       <button role="tab" id="tab-architecture" aria-controls="architecture" aria-selected="true" data-view="architecture">Architecture</button>
       <button role="tab" id="tab-data-flow" aria-controls="data-flow" aria-selected="false" data-view="data-flow">Data flow &amp; state</button>
+      <button role="tab" id="tab-tools" aria-controls="tools" aria-selected="false" data-view="tools">Tools &amp; skills</button>
     </nav>
   </div>
 </header>
@@ -384,7 +432,7 @@ body { margin: 0; }
       <div class="layer">
         <div class="layer-head"><h2>Agent runtime</h2><span class="tag">langchain create_agent · ReAct loop</span></div>
         <div class="loop"><span>model</span><span class="arrow">→</span><span>tool calls</span><span class="arrow">→</span><span>tools</span><span class="arrow">→</span><span>model</span><span class="arrow">…</span><span>final answer</span></div>
-        <p>Before every model call, a middleware rebuilds the system prompt: base instructions + the skills index + this user's saved facts.</p>
+        <p>Before every model call, a middleware rebuilds the system prompt: base instructions + the skills index + this user's saved facts. Every tool and skill is described on the <a href="#tools">Tools &amp; skills</a> tab.</p>
         <div class="runtime-grid">
           <div class="unit">
             <h3>Guidebook tools</h3>
@@ -664,6 +712,144 @@ conversations. What you know so far:
   </div>
 </section>
 
+<!-- ================= TOOLS & SKILLS ================= -->
+<section class="view" id="tools" role="tabpanel" aria-labelledby="tab-tools" hidden>
+  <div class="intro">
+    <span class="eyebrow">Current MVP</span>
+    <h1>What the agent can do</h1>
+    <p class="lead">Tools are actions the agent can take: Python functions it calls with arguments. Skills are instructions: markdown playbooks it reads before tackling a kind of request. Skills tell the agent which tools to use and how.</p>
+    <div class="counts"><span><b>7</b>tools</span><span><b>7</b>skills</span><span><b>9/9</b>skill trigger cases passing</span><span><b>5</b>tools planned</span></div>
+  </div>
+
+  <div class="kinds">
+    <div class="kind">
+      <span class="eyebrow">Tools</span>
+      <h3>Typed functions the model calls</h3>
+      <p>The model sees each tool's name, arguments and docstring. Every call appears in the chat as a <code>🔧 name(args)</code> line and in Langfuse as its own step. Tools never raise into the loop; they return an error message the model can act on.</p>
+    </div>
+    <div class="kind">
+      <span class="eyebrow">Skills</span>
+      <h3>Playbooks loaded on demand</h3>
+      <p>Only each skill's name and "Use when…" description sit in the system prompt. When a request matches, the agent calls <code>load_skill</code> and the full playbook enters the conversation, so unused skills cost almost nothing.</p>
+    </div>
+  </div>
+
+  <div class="block">
+    <h2>Tools</h2>
+    <div class="table-wrap">
+      <table class="tools">
+        <thead><tr><th>Tool</th><th>Signature</th><th>What it does</th><th>Reads / writes</th></tr></thead>
+        <tbody>
+          <tr class="group"><td colspan="4">Guidebook research</td></tr>
+          <tr><td>List guidebooks</td><td class="sig">list_guidebooks()</td><td>Lists the 5 Lonely Planet books with page counts and chapters, so the agent knows what's covered.</td><td><span class="badge files">data/guidebooks/*.md</span></td></tr>
+          <tr><td>Search guidebooks</td><td class="sig">search_guidebooks(query, book?, max_results?)</td><td>Keyword search over paragraphs. Each hit carries its book, page and section path. Ignores accents and ʻokina; skips contents, index and map keys.</td><td><span class="badge files">data/guidebooks/*.md</span></td></tr>
+          <tr><td>Read pages</td><td class="sig">read_guidebook_pages(book, start_page, end_page?)</td><td>Full text of up to 4 pages around a hit, grouped by section, for detail and citations.</td><td><span class="badge files">data/guidebooks/*.md</span></td></tr>
+          <tr class="group"><td colspan="4">Skills</td></tr>
+          <tr><td>Load skill</td><td class="sig">load_skill(name)</td><td>Returns a playbook's full instructions. Unknown names get the list of available skills.</td><td><span class="badge files">skills/*.md</span></td></tr>
+          <tr class="group"><td colspan="4">Long-term memory</td></tr>
+          <tr><td>Save memory</td><td class="sig">save_memory(key, value)</td><td>Stores a lasting fact under a snake_case topic (diet, home_airport…). Reusing a key updates it.</td><td><span class="badge long">store · (email, memories)</span></td></tr>
+          <tr><td>Delete memory</td><td class="sig">delete_memory(key)</td><td>Forgets a saved fact when the user asks or it's wrong.</td><td><span class="badge long">store · (email, memories)</span></td></tr>
+          <tr class="group"><td colspan="4">Structured output</td></tr>
+          <tr><td>Present itinerary</td><td class="sig">present_itinerary(itinerary)</td><td>Takes a Pydantic <code>Itinerary</code> (days → activities, stays, bookings, caveats). Validation errors go back to the model; valid plans render as formatted markdown in the chat.</td><td><span class="badge long">store · (email, itineraries)</span><span class="badge chat">chat output</span></td></tr>
+          <tr class="group"><td colspan="4">Planned</td></tr>
+          <tr class="planned"><td>Flight search</td><td class="sig">search_flights(…)</td><td>Google Flights via fast-flights → FlightOption list.</td><td><span class="badge planned">#7</span></td></tr>
+          <tr class="planned"><td>Hotel search</td><td class="sig">search_hotels(…)</td><td>Google Hotels via Playwright → HotelOption list.</td><td><span class="badge planned">#7</span></td></tr>
+          <tr class="planned"><td>Fetch page</td><td class="sig">fetch_page(url)</td><td>Playwright fetch → readable text.</td><td><span class="badge planned">#7</span></td></tr>
+          <tr class="planned"><td>Ask guidebook</td><td class="sig">ask_guidebook(question, destination)</td><td>Guidebook subagent that returns a cited summary, replacing the three guidebook tools on the main agent.</td><td><span class="badge planned">#11</span></td></tr>
+          <tr class="planned"><td>MCP tools</td><td class="sig">from mcp.json</td><td>Tools from MCP servers (e.g. weather, currency).</td><td><span class="badge planned">#12</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="block">
+    <h2>Skills</h2>
+    <p>The "When" line is each skill's description exactly as the agent sees it. Saved facts are long-term memories the skill can use without asking again.</p>
+    <div class="skills-grid">
+      <article class="skill">
+        <h3>trip-intake</h3>
+        <p class="when">Use when the user wants help planning a trip but hasn't said where to go or for how long, or their request is too vague to plan from. Not needed when the destination and trip length are already given.</p>
+        <ol><li>Check the essentials: destination, length, travellers, budget, interests, pace</li><li>Ask at most 4 questions in one message, with defaults</li><li>Write a one-line trip brief, then hand off</li></ol>
+        <div class="row"><span>Tools</span><span class="badge">list_guidebooks</span></div>
+        <div class="row"><span>Saved facts</span><span class="badge long">all, to avoid re-asking</span></div>
+      </article>
+      <article class="skill">
+        <h3>itinerary-builder</h3>
+        <p class="when">Use when the user asks for a day-by-day itinerary, schedule or route for a trip, or wants an existing plan reworked, shortened, extended or reordered.</p>
+        <ol><li>Make sure there's a brief (else trip-intake)</li><li>Research: the book's own itineraries, then each area</li><li>Shape the days: cluster by area, 2–3 big things a day</li><li>Deliver with present_itinerary</li></ol>
+        <div class="row"><span>Tools</span><span class="badge">search_guidebooks</span><span class="badge">read_guidebook_pages</span><span class="badge chat">present_itinerary</span></div>
+        <div class="row"><span>Saved facts</span><span class="badge long">travel_companions</span><span class="badge long">likes / dislikes</span></div>
+      </article>
+      <article class="skill">
+        <h3>budget-planner</h3>
+        <p class="when">Use when the user asks how much a trip will cost, wants a budget or cost breakdown, asks if a trip fits a budget, or wants to save money on a trip.</p>
+        <ol><li>Inputs: destination, days, travellers, budget level</li><li>Gather price signals from the guidebook, marked as old</li><li>Per-person cost table with a buffer</li><li>Name the biggest costs and how to cut them</li></ol>
+        <div class="row"><span>Tools</span><span class="badge">search_guidebooks</span><span class="badge">read_guidebook_pages</span></div>
+        <div class="row"><span>Saved facts</span><span class="badge long">budget_level</span><span class="badge long">home_airport</span></div>
+      </article>
+      <article class="skill">
+        <h3>packing-list</h3>
+        <p class="when">Use when the user asks what to pack or bring, or about clothing, gear, adapters or essentials for a destination, season or activity.</p>
+        <ol><li>Work out month, climate and altitude from the guidebook</li><li>Build a checkbox list by category, only what this trip needs</li><li>Call out the items people most often forget</li></ol>
+        <div class="row"><span>Tools</span><span class="badge">search_guidebooks</span><span class="badge">read_guidebook_pages</span></div>
+        <div class="row"><span>Saved facts</span><span class="badge long">mobility</span><span class="badge long">travel_companions</span></div>
+      </article>
+      <article class="skill">
+        <h3>visa-and-entry</h3>
+        <p class="when">Use when the user asks about visas, passports, entry or exit requirements, travel authorisations, vaccinations, health requirements, customs rules or travel insurance for a destination.</p>
+        <ol><li>Ask for nationality if unknown</li><li>Walk a checklist: visa, passport validity, transit, health, customs, insurance</li><li>Never state rules as certain; link official sources</li></ol>
+        <div class="row"><span>Tools</span><span class="badge">search_guidebooks</span><span>(background only)</span></div>
+        <div class="row"><span>Saved facts</span><span class="badge long">nationality</span></div>
+      </article>
+      <article class="skill">
+        <h3>local-transport</h3>
+        <p class="when">Use when the user asks how to get around, how to get between places or from the airport, or about trains, buses, ferries, rail passes, taxis, ride-hailing, car rental or driving.</p>
+        <ol><li>Read the book's "getting there &amp; away" sections</li><li>Compare options in a table: time, cost, frequency</li><li>Car or no car, pass break-even, what to book ahead</li></ol>
+        <div class="row"><span>Tools</span><span class="badge">search_guidebooks</span><span class="badge">read_guidebook_pages</span></div>
+        <div class="row"><span>Saved facts</span><span class="badge long">mobility</span><span class="badge long">budget_level</span></div>
+      </article>
+      <article class="skill">
+        <h3>food-and-culture</h3>
+        <p class="when">Use when the user asks what or where to eat or drink, about local dishes or specialities, food markets, dietary needs, etiquette, tipping, dress codes, customs, festivals or cultural do's and don'ts.</p>
+        <ol><li>Read the book's food and etiquette chapters</li><li>Dishes to try and cited places to eat</li><li>Dietary fit, etiquette, tipping, dress codes</li></ol>
+        <div class="row"><span>Tools</span><span class="badge">search_guidebooks</span><span class="badge">read_guidebook_pages</span></div>
+        <div class="row"><span>Saved facts</span><span class="badge long">diet</span></div>
+      </article>
+    </div>
+  </div>
+
+  <div class="block">
+    <h2>How a skill gets triggered</h2>
+    <ol class="trigger">
+      <li><b>The prompt lists every skill.</b><span>Name plus "Use when…" description, rebuilt each model call.</span></li>
+      <li><b>The model matches the request.</b><span>It can pick several, e.g. a budget itinerary needs two.</span></li>
+      <li><b>It calls load_skill.</b><span>The playbook text comes back as a tool result in the thread.</span></li>
+      <li><b>It follows the playbook.</b><span>Research with tools, then answer in the skill's format.</span></li>
+    </ol>
+  </div>
+
+  <div class="block">
+    <h2>Trigger test results</h2>
+    <p>From <code>scripts/eval_skills.py</code> against Claude Sonnet 5.5. A case passes when every expected skill loads; extra skills are allowed.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Result</th><th>Prompt</th><th>Expected</th><th>Loaded</th></tr></thead>
+        <tbody>
+          <tr><td class="pass">Pass</td><td>I want to go somewhere warm next year, can you help me plan a trip?</td><td class="mono">trip-intake</td><td class="mono">trip-intake</td></tr>
+          <tr><td class="pass">Pass</td><td>Make me a 5-day itinerary for Rome and Florence in May, 2 adults, mid-range, we love food and art.</td><td class="mono">itinerary-builder</td><td class="mono">itinerary-builder, food-and-culture</td></tr>
+          <tr><td class="pass">Pass</td><td>Roughly how much would 10 days in Thailand cost for two backpackers, excluding flights?</td><td class="mono">budget-planner</td><td class="mono">budget-planner</td></tr>
+          <tr><td class="pass">Pass</td><td>What should I pack for hiking in the Swiss Alps in October?</td><td class="mono">packing-list</td><td class="mono">packing-list</td></tr>
+          <tr><td class="pass">Pass</td><td>I'm a US citizen. Do I need a visa for Peru, and any vaccinations?</td><td class="mono">visa-and-entry</td><td class="mono">visa-and-entry</td></tr>
+          <tr><td class="pass">Pass</td><td>What's the best way to get from Florence to Cinque Terre without a car?</td><td class="mono">local-transport</td><td class="mono">local-transport</td></tr>
+          <tr><td class="pass">Pass</td><td>What dishes should I try in Bangkok, and is tipping expected?</td><td class="mono">food-and-culture</td><td class="mono">food-and-culture</td></tr>
+          <tr><td class="pass">Pass</td><td>Plan 4 days on the Big Island for 2 people on a $3000 budget, flights already booked.</td><td class="mono">itinerary-builder, budget-planner</td><td class="mono">itinerary-builder, budget-planner</td></tr>
+          <tr><td class="pass">Pass</td><td>Thanks, that's all for now!</td><td class="mono">none</td><td class="mono">none</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
 </main>
 <footer class="wrap">Generated from the travel-agent repo · facts checked against the running system on 2026-10-28.</footer>
 
@@ -735,7 +921,7 @@ conversations. What you know so far:
   // Tabs, with the view kept in the URL hash (#architecture / #data-flow)
   var tabs = document.querySelectorAll("nav.tabs button");
   function show(view) {
-    if (view !== "data-flow") view = "architecture";
+    if (view !== "data-flow" && view !== "tools") view = "architecture";
     document.querySelectorAll("section.view").forEach(function (s) { s.hidden = s.id !== view; });
     tabs.forEach(function (t) { t.setAttribute("aria-selected", String(t.dataset.view === view)); });
   }

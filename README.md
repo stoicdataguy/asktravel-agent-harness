@@ -9,7 +9,7 @@ can be the frontend.
 *Open WebUI talking to the agent: each `🔧` line is a tool call (guidebook search / page read)
 streamed live, followed by a day-by-day plan citing guidebook pages. Playback of the wait is 2× speed.*
 
-**Architecture & state persistence:** [docs/architecture.html](docs/architecture.html) ([view rendered](https://raw.githack.com/stoicdataguy/travel-agent-react/main/docs/architecture.html)). Two tabs: the system architecture, and a data-flow page on how short-term (checkpointer) and long-term (store) memory are kept in Postgres.
+**Architecture & state persistence:** [docs/architecture.html](docs/architecture.html) ([view rendered](https://raw.githack.com/stoicdataguy/travel-agent-react/main/docs/architecture.html)). Three tabs: the system architecture, a data-flow page on how short-term (checkpointer) and long-term (store) memory are kept in Postgres, and the tools and skills in the current MVP.
 
 ## Quickstart
 

@@ -312,14 +312,23 @@ ul.gaps .sev { font: 600 11px var(--font-body); letter-spacing: 0.06em; text-tra
 .kind p { font-size: 14px; color: var(--muted); }
 table.tools td:first-child { white-space: normal; font-weight: 400; }
 /* Long signatures wrap between arguments so the description column keeps its room */
-table.tools td.sig { font: 500 12.5px var(--font-mono); color: var(--ink); white-space: normal; width: 30ch; min-width: 22ch; }
+table.tools td.sig { width: 30ch; min-width: 22ch; }
+.sig .fn { display: block; font: 500 12.5px var(--font-mono); color: var(--ink); overflow-wrap: anywhere; }
+.sig .none { display: block; margin-top: 4px; font-size: 12px; color: var(--muted); }
+.params { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.arg {
+  font: 500 11.5px/1.5 var(--font-mono); padding: 0 6px; border-radius: 4px;
+  border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); white-space: nowrap;
+}
+.arg.opt { border-style: dashed; background: transparent; color: var(--muted); }
+.sig-key { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
 table.tools td:nth-child(3) { min-width: 28ch; }
 table.tools tr.group td {
   background: var(--surface-2); font: 600 12px var(--font-body); letter-spacing: 0.06em;
   text-transform: uppercase; color: var(--muted); padding-block: 7px;
 }
 table.tools tr.planned td { color: var(--muted); }
-table.tools tr.planned td.sig { color: var(--muted); }
+table.tools tr.planned .fn { color: var(--muted); }
 .badge {
   display: inline-block; font: 500 11.5px var(--font-body); padding: 1px 7px; border-radius: 10px;
   border: 1px solid var(--line); background: var(--surface-2); white-space: nowrap; margin: 1px 2px 1px 0;
@@ -765,31 +774,32 @@ conversations. What you know so far:
 
   <div class="block">
     <h2>Tools</h2>
+    <p class="sig-key">Arguments: <span class="arg">required</span><span class="arg opt">optional</span></p>
     <div class="table-wrap">
       <table class="tools">
-        <thead><tr><th>Tool</th><th>Signature</th><th>What it does</th><th>Reads / writes</th></tr></thead>
+        <thead><tr><th>Tool</th><th>Name and arguments</th><th>What it does</th><th>Reads / writes</th></tr></thead>
         <tbody>
           <tr class="group"><td colspan="4">Guidebook research</td></tr>
-          <tr><td>List guidebooks</td><td class="sig">list_guidebooks()</td><td>Lists the 5 Lonely Planet books with page counts and chapters, so the agent knows what's covered.</td><td><span class="badge files">data/guidebooks/*.md</span></td></tr>
-          <tr><td>Search guidebooks</td><td class="sig">search_guidebooks(query, book?, max_results?)</td><td>Keyword search over paragraphs. Each hit carries its book, page and section path. Ignores accents and ʻokina; skips contents, index and map keys.</td><td><span class="badge files">data/guidebooks/*.md</span></td></tr>
-          <tr><td>Read pages</td><td class="sig">read_guidebook_pages(book, start_page, end_page?)</td><td>Full text of up to 4 pages around a hit, grouped by section, for detail and citations.</td><td><span class="badge files">data/guidebooks/*.md</span></td></tr>
+          <tr><td>List guidebooks</td><td class="sig"><span class="fn">list_guidebooks</span><span class="none">no arguments</span></td><td>Lists the 5 Lonely Planet books with page counts and chapters, so the agent knows what's covered.</td><td><span class="badge files">data/guidebooks/*.md</span></td></tr>
+          <tr><td>Search guidebooks</td><td class="sig"><span class="fn">search_guidebooks</span><span class="params"><span class="arg">query</span><span class="arg opt">book</span><span class="arg opt">max_results</span></span></td><td>Keyword search over paragraphs. Each hit carries its book, page and section path. Ignores accents and ʻokina; skips contents, index and map keys.</td><td><span class="badge files">data/guidebooks/*.md</span></td></tr>
+          <tr><td>Read pages</td><td class="sig"><span class="fn">read_guidebook_pages</span><span class="params"><span class="arg">book</span><span class="arg">start_page</span><span class="arg opt">end_page</span></span></td><td>Full text of up to 4 pages around a hit, grouped by section, for detail and citations.</td><td><span class="badge files">data/guidebooks/*.md</span></td></tr>
           <tr class="group"><td colspan="4">Live travel search</td></tr>
-          <tr><td>Search flights</td><td class="sig">search_flights(origin, destination, depart_date, return_date?, adults?, children?, cabin?, max_stops?, max_results?)</td><td>Live Google Flights results via fast-flights, cheapest first: airline, times, stops, duration, total and per-person price, plus a booking link. Round trips list outbound flights at round-trip prices.</td><td><span class="badge">Google Flights</span></td></tr>
-          <tr><td>Search hotels</td><td class="sig">search_hotels(location, check_in, check_out, max_price_per_night?, min_rating?, include_vacation_rentals?, max_results?)</td><td>Live Google Hotels results via Playwright (dates picked in Google's calendar): nightly price, stay total, star class, rating, deals, amenities, plus a booking link with the dates set.</td><td><span class="badge">Google Hotels</span></td></tr>
+          <tr><td>Search flights</td><td class="sig"><span class="fn">search_flights</span><span class="params"><span class="arg">origin</span><span class="arg">destination</span><span class="arg">depart_date</span><span class="arg opt">return_date</span><span class="arg opt">adults</span><span class="arg opt">children</span><span class="arg opt">cabin</span><span class="arg opt">max_stops</span><span class="arg opt">max_results</span></span></td><td>Live Google Flights results via fast-flights, cheapest first: airline, times, stops, duration, total and per-person price, plus a booking link. Round trips list outbound flights at round-trip prices.</td><td><span class="badge">Google Flights</span></td></tr>
+          <tr><td>Search hotels</td><td class="sig"><span class="fn">search_hotels</span><span class="params"><span class="arg">location</span><span class="arg">check_in</span><span class="arg">check_out</span><span class="arg opt">max_price_per_night</span><span class="arg opt">min_rating</span><span class="arg opt">include_vacation_rentals</span><span class="arg opt">max_results</span></span></td><td>Live Google Hotels results via Playwright (dates picked in Google's calendar): nightly price, stay total, star class, rating, deals, amenities, plus a booking link with the dates set.</td><td><span class="badge">Google Hotels</span></td></tr>
           <tr class="group"><td colspan="4">Skills</td></tr>
-          <tr><td>Load skill</td><td class="sig">load_skill(name)</td><td>Returns a playbook's full instructions. Unknown names get the list of available skills.</td><td><span class="badge files">skills/*.md</span></td></tr>
+          <tr><td>Load skill</td><td class="sig"><span class="fn">load_skill</span><span class="params"><span class="arg">name</span></span></td><td>Returns a playbook's full instructions. Unknown names get the list of available skills.</td><td><span class="badge files">skills/*.md</span></td></tr>
           <tr class="group"><td colspan="4">Long-term memory</td></tr>
-          <tr><td>Save memory</td><td class="sig">save_memory(key, value)</td><td>Stores a lasting fact under a snake_case topic (diet, home_airport…). Reusing a key updates it.</td><td><span class="badge long">store · (email, memories)</span></td></tr>
-          <tr><td>Delete memory</td><td class="sig">delete_memory(key)</td><td>Forgets a saved fact when the user asks or it's wrong.</td><td><span class="badge long">store · (email, memories)</span></td></tr>
-          <tr><td>Save trip details</td><td class="sig">save_trip_details(destination, trip_id?, start_date?, end_date?, travellers?, lodging?, transport?, budget?, note?)</td><td>Creates or updates a trip. Scalars overwrite; lodging, transport and notes accumulate.</td><td><span class="badge long">store · (email, trips)</span></td></tr>
-          <tr><td>Get trip</td><td class="sig">get_trip(trip_id)</td><td>Everything saved about a trip, plus its full day-by-day itinerary, for use in a new chat.</td><td><span class="badge long">store · trips + itineraries</span></td></tr>
-          <tr><td>Delete trip</td><td class="sig">delete_trip(trip_id)</td><td>Forgets a trip when it's cancelled or the user asks.</td><td><span class="badge long">store · (email, trips)</span></td></tr>
+          <tr><td>Save memory</td><td class="sig"><span class="fn">save_memory</span><span class="params"><span class="arg">key</span><span class="arg">value</span></span></td><td>Stores a lasting fact under a snake_case topic (diet, home_airport…). Reusing a key updates it.</td><td><span class="badge long">store · (email, memories)</span></td></tr>
+          <tr><td>Delete memory</td><td class="sig"><span class="fn">delete_memory</span><span class="params"><span class="arg">key</span></span></td><td>Forgets a saved fact when the user asks or it's wrong.</td><td><span class="badge long">store · (email, memories)</span></td></tr>
+          <tr><td>Save trip details</td><td class="sig"><span class="fn">save_trip_details</span><span class="params"><span class="arg">destination</span><span class="arg opt">trip_id</span><span class="arg opt">start_date</span><span class="arg opt">end_date</span><span class="arg opt">travellers</span><span class="arg opt">lodging</span><span class="arg opt">transport</span><span class="arg opt">budget</span><span class="arg opt">note</span></span></td><td>Creates or updates a trip. Scalars overwrite; lodging, transport and notes accumulate.</td><td><span class="badge long">store · (email, trips)</span></td></tr>
+          <tr><td>Get trip</td><td class="sig"><span class="fn">get_trip</span><span class="params"><span class="arg">trip_id</span></span></td><td>Everything saved about a trip, plus its full day-by-day itinerary, for use in a new chat.</td><td><span class="badge long">store · trips + itineraries</span></td></tr>
+          <tr><td>Delete trip</td><td class="sig"><span class="fn">delete_trip</span><span class="params"><span class="arg">trip_id</span></span></td><td>Forgets a trip when it's cancelled or the user asks.</td><td><span class="badge long">store · (email, trips)</span></td></tr>
           <tr class="group"><td colspan="4">Structured output</td></tr>
-          <tr><td>Present itinerary</td><td class="sig">present_itinerary(itinerary)</td><td>Takes a Pydantic <code>Itinerary</code> (days → activities, stays, bookings, caveats). Validation errors go back to the model; valid plans render as formatted markdown in the chat and are filed under a trip (created if new).</td><td><span class="badge long">store · (email, itineraries)</span><span class="badge chat">chat output</span></td></tr>
+          <tr><td>Present itinerary</td><td class="sig"><span class="fn">present_itinerary</span><span class="params"><span class="arg">itinerary</span></span></td><td>Takes a Pydantic <code>Itinerary</code> (days → activities, stays, bookings, caveats). Validation errors go back to the model; valid plans render as formatted markdown in the chat and are filed under a trip (created if new).</td><td><span class="badge long">store · (email, itineraries)</span><span class="badge chat">chat output</span></td></tr>
           <tr class="group"><td colspan="4">Planned</td></tr>
-          <tr class="planned"><td>Fetch page</td><td class="sig">fetch_page(url)</td><td>Playwright fetch → readable text.</td><td><span class="badge planned">#7</span></td></tr>
-          <tr class="planned"><td>Ask guidebook</td><td class="sig">ask_guidebook(question, destination)</td><td>Guidebook subagent that returns a cited summary, replacing the three guidebook tools on the main agent.</td><td><span class="badge planned">#11</span></td></tr>
-          <tr class="planned"><td>MCP tools</td><td class="sig">from mcp.json</td><td>Tools from MCP servers (e.g. weather, currency).</td><td><span class="badge planned">#12</span></td></tr>
+          <tr class="planned"><td>Fetch page</td><td class="sig"><span class="fn">fetch_page</span><span class="params"><span class="arg">url</span></span></td><td>Playwright fetch → readable text.</td><td><span class="badge planned">#7</span></td></tr>
+          <tr class="planned"><td>Ask guidebook</td><td class="sig"><span class="fn">ask_guidebook</span><span class="params"><span class="arg">question</span><span class="arg">destination</span></span></td><td>Guidebook subagent that returns a cited summary, replacing the three guidebook tools on the main agent.</td><td><span class="badge planned">#11</span></td></tr>
+          <tr class="planned"><td>MCP tools</td><td class="sig"><span class="fn">from mcp.json</span></td><td>Tools from MCP servers (e.g. weather, currency).</td><td><span class="badge planned">#12</span></td></tr>
         </tbody>
       </table>
     </div>

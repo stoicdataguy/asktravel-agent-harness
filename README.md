@@ -9,9 +9,14 @@ can be the frontend.
 ```bash
 cp .env.example .env          # add your OPENROUTER_API_KEY
 uv sync
+docker compose up -d          # Postgres (:5433) + Open WebUI (:3000)
+uv run travel-agent-ingest    # one-time: reference/*.pdf -> data/guidebooks/*.md
 uv run travel-agent           # API on http://localhost:8000
-docker compose up -d          # chat UI on http://localhost:3000
 ```
+
+Open http://localhost:3000 and sign up with any email (the password isn't checked by the agent).
+Each email is a separate user with its own long-term memory, so you can sign up several to
+simulate multiple users.
 
 Tests and lint: `uv run pytest` · `uv run ruff check . && uv run ruff format --check .`
 

@@ -8,19 +8,23 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
+    "fast-flights>=3.1.0",
     "fastapi>=0.162.0",
     "langchain>=1.0",
     "langchain-mcp-adapters>=0.3.2",
     "langchain-openai>=1.7.3",
     "langgraph>=1.0",
-    "langgraph-checkpoint-sqlite>=3.1.2",
+    "langgraph-checkpoint-postgres>=3.2.0",
+    "playwright>=1.64.1",
+    "psycopg[binary,pool]>=3.3.6",
     "pydantic-settings>=2.16.1",
-    "sse-starlette>=3.6.0",
+    "pymupdf>=2.0",
     "uvicorn[standard]>=0.54.0",
 ]
 
 [project.scripts]
 travel-agent = "travel_agent:main"
+travel-agent-ingest = "travel_agent.kb.ingest:main"
 
 [build-system]
 requires = ["uv_build>=0.11.14,<0.12.0"]

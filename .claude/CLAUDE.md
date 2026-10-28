@@ -11,13 +11,17 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
   and use Open WebUI (docker-compose) as the chat client. Don't build UI code.
 
 ## Commands
+- Infra: `docker compose up -d` → Postgres on :5433, Open WebUI on http://localhost:3000
 - Run API: `uv run travel-agent` (or `uv run uvicorn travel_agent.api.app:app --reload`)
-- Chat UI: `docker compose up -d` → http://localhost:3000
+- Guidebooks: `uv run travel-agent-ingest [--force]` converts `reference/*.pdf` → `data/guidebooks/*.md`
 - Tests: `uv run pytest` · Lint/format: `uv run ruff check --fix . && uv run ruff format .`
 
 ## Layout
 - `src/travel_agent/` — package (src layout). `config.py` holds all settings (pydantic-settings, `.env`).
 - `src/travel_agent/api/` — FastAPI app and OpenAI-compatible routes.
+- `src/travel_agent/agent/` — `build_agent()` (create_agent + middleware), prompts, `UserContext`.
+- `src/travel_agent/memory.py` — Postgres checkpointer + store on one connection pool.
+- `src/travel_agent/kb/` — guidebook ingestion (PDF → markdown with `[p. N]` markers + TOC headings).
 - See `docs/PLAN.md` for the target architecture and milestones.
 
 ## Conventions
@@ -26,8 +30,13 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
 - Tools: plain typed Python functions with docstrings (docstring = tool description the LLM sees).
   Tools must return compact, LLM-friendly output (trim large payloads) and never raise into the agent
   loop — return an error string instead.
-- Memory: thread-level via checkpointer keyed by `thread_id`; cross-thread facts via LangGraph `Store`
-  namespaced by `(user_id, "memories")`.
+- Memory is **Postgres only** (no SQLite/in-memory outside tests). Thread memory via checkpointer keyed
+  `thread_id = "<user_email>:<chat_id>"`; cross-thread facts via `Store` namespaced `(user_id, "memories")`.
+- Identity: `user_id` = `X-OpenWebUI-User-Email` header (lowercased), passed as `UserContext` runtime
+  context. Tools read it from `runtime.context.user_id`; never take user_id as an LLM-visible argument.
+- The API passes only the latest user message to the agent; the checkpointer owns history.
+- Flights: `fast-flights`. Hotels and web pages: Playwright scraping. No paid search APIs.
+- `reference/` (raw PDFs) and `data/guidebooks/*.md` are copyrighted material: never commit them.
 - Async first in the API layer (`ainvoke` / `astream`).
 - Secrets live in `.env` (gitignored). Keep `.env.example` in sync when adding settings.
 

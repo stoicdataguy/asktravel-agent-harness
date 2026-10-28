@@ -6,7 +6,8 @@ __pycache__/
 .ruff_cache/
 *.sqlite
 *.db
-# Guidebooks are copyrighted — keep them local
+# Guidebooks are copyrighted — keep PDFs and extracted text local
+reference/
 data/guidebooks/*
 !data/guidebooks/.gitkeep
 .DS_Store

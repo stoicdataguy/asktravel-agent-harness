@@ -18,7 +18,12 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8000
 
-    data_dir: Path = Path("data")
+    # Checkpointer (thread memory) and store (long-term memory) both live here
+    database_url: str = "postgresql://travel:travel@localhost:5433/travel_agent"
+
+    # Raw guidebook PDFs (local only, gitignored) and their extracted markdown
+    reference_dir: Path = Path("reference")
+    guidebooks_dir: Path = Path("data/guidebooks")
 
 
 @lru_cache

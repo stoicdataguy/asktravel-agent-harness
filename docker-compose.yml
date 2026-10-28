@@ -1,6 +1,21 @@
-# Open WebUI as the chat client (Ollama-style UI). It talks to our FastAPI
-# agent through the OpenAI-compatible API at /v1.
 services:
+  # Agent memory: LangGraph checkpointer (thread history) + store (long-term facts)
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: travel
+      POSTGRES_PASSWORD: travel
+      POSTGRES_DB: travel_agent
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U travel -d travel_agent"]
+      interval: 5s
+      retries: 10
+
+  # Chat client (Ollama-style UI). Talks to our FastAPI agent via the OpenAI-compatible /v1 API.
   open-webui:
     image: ghcr.io/open-webui/open-webui:main
     ports:
@@ -9,12 +24,27 @@ services:
       OPENAI_API_BASE_URL: http://host.docker.internal:8000/v1
       OPENAI_API_KEY: not-used
       ENABLE_OLLAMA_API: "false"
-      WEBUI_AUTH: "false"
-      # Sends X-OpenWebUI-Chat-Id / X-OpenWebUI-User-Id headers -> thread_id / user_id
+      # Dummy multi-user login: anyone can sign up with an email (password is required but unchecked
+      # by us) and is active immediately. The email becomes the agent's user_id.
+      WEBUI_AUTH: "true"
+      ENABLE_SIGNUP: "true"
+      DEFAULT_USER_ROLE: user
+      DEFAULT_MODELS: travel-agent
+      BYPASS_MODEL_ACCESS_CONTROL: "true"
+      # Sends X-OpenWebUI-User-Email / X-OpenWebUI-Chat-Id headers -> user_id / thread_id
       ENABLE_FORWARD_USER_INFO_HEADERS: "true"
+      # Open WebUI's background LLM tasks would otherwise hit the agent and pollute threads
+      ENABLE_TITLE_GENERATION: "false"
+      ENABLE_TAGS_GENERATION: "false"
+      ENABLE_FOLLOW_UP_GENERATION: "false"
+      ENABLE_AUTOCOMPLETE_GENERATION: "false"
+      ENABLE_SEARCH_QUERY_GENERATION: "false"
+      ENABLE_RETRIEVAL_QUERY_GENERATION: "false"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
       - open-webui:/app/backend/data
+
 volumes:
+  pgdata:
   open-webui:

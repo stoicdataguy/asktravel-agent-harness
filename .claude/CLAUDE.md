@@ -102,4 +102,30 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
   consumes `GenericFakeChatModel`'s message iterator (seen with LangChain tracers). For agents with tools use `tests.fakes.FakeToolModel`
   (script tool calls as `AIMessage(tool_calls=...)`, with `disable_streaming=True`).
 
+## Feature-driven development
+Every change reaches `main` through a pull request: `main` is protected by a ruleset that blocks
+direct pushes, force pushes and deletion.
+
+1. **Issue first.** File every feature or bug as a GitHub issue (`gh issue create`). Features
+   state the problem, acceptance criteria written as checks an end-to-end test can make, and what
+   is out of scope. Bugs give steps to reproduce, expected and actual behaviour.
+2. **Plan when it's big.** Work spanning several PRs or changing architecture gets a plan in
+   `docs/plans/<name>.md`, linked from `docs/PLAN.md`, before any code.
+3. **One feature, one branch, one PR.** Branch from an up-to-date `main` as `feat/<slug>`,
+   `fix/<slug>` or `docs/<slug>`. Don't stack PRs on each other's branches: deleting the base
+   branch on merge auto-closes the stacked PR (#10).
+4. **Test end to end.** Unit tests stay offline (see Workflow). A user-visible feature also gets
+   a browser or live suite, `scripts/e2e_<feature>.py`, that checks the acceptance criteria
+   against the full stack and the real model. Before opening the PR, run it plus the regression
+   suites the change can affect (the e2e scripts named under Conventions, `eval_skills.py`).
+5. **Docs in the same PR.** Update this file for new conventions, `docs/PLAN.md` status,
+   `docs/architecture.html` when components or storage change, and `.env.example` for new settings.
+6. **Open the PR.** Title = the user-visible outcome. Body: summary, `Closes #N` / `Fixes #N`, and
+   how it was tested with the suite results (pass counts). Commit and PR attribution lines as the
+   harness specifies.
+7. **Merge only with explicit approval, one PR at a time.** The user approves each merge;
+   approval of one PR doesn't carry to the next. Squash-merge (`gh pr merge N --squash`), then
+   `git checkout main && git pull`. To bring an open branch up to date, merge `main` into it;
+   never rebase or force-push a pushed branch.
+
 <!-- Add new sections below as the project evolves -->

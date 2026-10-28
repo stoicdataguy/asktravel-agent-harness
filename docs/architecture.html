@@ -88,6 +88,11 @@ nav.tabs button {
   border: 0; border-radius: 6px; padding: 6px 14px; cursor: pointer;
 }
 nav.tabs button[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgb(0 0 0 / 0.12); }
+button.theme {
+  font: 500 14px var(--font-body); color: var(--muted); background: var(--surface-2);
+  border: 0; border-radius: 8px; padding: 9px 12px; cursor: pointer; white-space: nowrap;
+}
+button.theme:hover { color: var(--ink); }
 
 main { padding-block: 32px 64px; }
 section.view { display: flex; flex-direction: column; gap: 40px; }
@@ -378,6 +383,7 @@ body { margin: 0; }
 <header class="top">
   <div class="wrap">
     <div class="brand"><b>AskTravel</b><span>LangChain ReAct agent · Open WebUI · Postgres</span></div>
+    <button type="button" class="theme" aria-label="Switch to dark mode">☾ Dark</button>
     <nav class="tabs" role="tablist" aria-label="Pages">
       <button role="tab" id="tab-architecture" aria-controls="architecture" aria-selected="true" data-view="architecture">Architecture</button>
       <button role="tab" id="tab-data-flow" aria-controls="data-flow" aria-selected="false" data-view="data-flow">Data flow &amp; state</button>
@@ -966,6 +972,27 @@ conversations. What you know so far:
   });
   window.addEventListener("hashchange", function () { show(location.hash.slice(1)); });
   show(location.hash.slice(1));
+
+  // Theme toggle: follows the system until the reader picks one; the choice is remembered in this browser
+  var root = document.documentElement, themeBtn = document.querySelector("button.theme");
+  var systemDark = window.matchMedia("(prefers-color-scheme: dark)");
+  function theme() { return root.dataset.theme || (systemDark.matches ? "dark" : "light"); }
+  function label() {
+    var next = theme() === "dark" ? "light" : "dark";
+    themeBtn.textContent = next === "dark" ? "☾ Dark" : "☀ Light";
+    themeBtn.setAttribute("aria-label", "Switch to " + next + " mode");
+  }
+  try {
+    var saved = localStorage.getItem("asktravel-theme");
+    if (saved === "dark" || saved === "light") root.dataset.theme = saved;
+  } catch (e) {}
+  themeBtn.addEventListener("click", function () {
+    root.dataset.theme = theme() === "dark" ? "light" : "dark";
+    try { localStorage.setItem("asktravel-theme", root.dataset.theme); } catch (e) {}
+    label();
+  });
+  systemDark.addEventListener("change", label);
+  label();
 })();
 </script>
 

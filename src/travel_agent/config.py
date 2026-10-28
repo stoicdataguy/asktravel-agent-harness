@@ -21,6 +21,12 @@ class Settings(BaseSettings):
     # Checkpointer (thread memory) and store (long-term memory) both live here
     database_url: str = "postgresql://travel:travel@localhost:5433/travel_agent"
 
+    # LangSmith tracing (https://smith.langchain.com); off unless enabled in .env
+    langsmith_tracing: bool = False
+    langsmith_api_key: SecretStr = SecretStr("")
+    langsmith_project: str = "travel-agent"
+    langsmith_endpoint: str = "https://api.smith.langchain.com"
+
     # Raw guidebook PDFs (local only, gitignored) and their extracted markdown
     reference_dir: Path = Path("reference")
     guidebooks_dir: Path = Path("data/guidebooks")

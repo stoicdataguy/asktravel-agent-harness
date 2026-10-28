@@ -21,6 +21,7 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
 - `src/travel_agent/api/` — FastAPI app and OpenAI-compatible routes.
 - `src/travel_agent/agent/` — `build_agent()` (create_agent + middleware), prompts, `UserContext`.
 - `src/travel_agent/memory.py` — Postgres checkpointer + store on one connection pool.
+- `src/travel_agent/observability.py` — LangSmith tracer + `run_config()` for every agent invocation.
 - `src/travel_agent/kb/` — guidebook ingestion (PDF → markdown with `[p. N]` markers + TOC headings).
 - See `docs/PLAN.md` for the target architecture and milestones.
 
@@ -37,11 +38,15 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
 - The API passes only the latest user message to the agent; the checkpointer owns history.
 - Flights: `fast-flights`. Hotels and web pages: Playwright scraping. No paid search APIs.
 - `reference/` (raw PDFs) and `data/guidebooks/*.md` are copyrighted material: never commit them.
+- Every agent invocation (incl. future subagents) uses `observability.run_config(user_id, thread_id)`
+  so traces get the tracer callback plus `thread_id` / `user_id` metadata.
 - Async first in the API layer (`ainvoke` / `astream`).
 - Secrets live in `.env` (gitignored). Keep `.env.example` in sync when adding settings.
 
 ## Workflow
 - Small commits; run ruff + pytest before committing.
-- Tests must not hit real LLMs or the network — use fake chat models / mocks.
+- Tests must not hit real LLMs or the network — use fake chat models / mocks. `tests/conftest.py`
+  forces tracing off. If a test needs tracing on, use `FakeListChatModel`: tracer serialization
+  consumes `GenericFakeChatModel`'s message iterator.
 
 <!-- Add new sections below as the project evolves -->

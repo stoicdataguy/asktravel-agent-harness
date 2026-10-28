@@ -18,6 +18,7 @@ from langchain_core.messages import AIMessageChunk, HumanMessage
 from pydantic import BaseModel, ConfigDict
 
 from travel_agent.agent.graph import UserContext
+from travel_agent.observability import run_config
 
 router = APIRouter()
 
@@ -90,7 +91,7 @@ async def chat_completions(body: ChatCompletionRequest, request: Request):
     user_id, thread_id = resolve_ids(request.headers, body.messages)
     agent = request.app.state.agent
     inputs = {"messages": [HumanMessage(message_text(user_messages[-1]))]}
-    config = {"configurable": {"thread_id": thread_id}}
+    config = run_config(user_id, thread_id)
     context = UserContext(user_id=user_id)
 
     if body.stream:

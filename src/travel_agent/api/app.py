@@ -7,6 +7,7 @@ from travel_agent.agent.graph import build_agent
 from travel_agent.api.openai_compat import router as openai_router
 from travel_agent.config import get_settings
 from travel_agent.memory import open_memory
+from travel_agent.observability import flush_traces
 
 
 @asynccontextmanager
@@ -14,6 +15,7 @@ async def lifespan(app: FastAPI):
     async with open_memory(get_settings().database_url) as (checkpointer, store):
         app.state.agent = build_agent(checkpointer, store)
         yield
+    flush_traces()
 
 
 app = FastAPI(title="Travel Agent", lifespan=lifespan)

@@ -26,6 +26,7 @@ Open WebUI (docker, :3000) ── OpenAI-compatible HTTP + X-OpenWebUI-User-Emai
 | Flights | `fast-flights` (reads Google Flights; no API key). |
 | Hotels | Playwright scraping of Google Hotels. |
 | Web | Playwright: fetch URL → extract readable text. No search provider. |
+| Observability | LangSmith (hosted), tracer built from settings; `thread_id`/`user_id` metadata on every run. |
 | Guidebooks | PDFs in `reference/` → `travel-agent-ingest` → `data/guidebooks/<slug>.md` (both gitignored). |
 
 ## Known limitations
@@ -40,18 +41,19 @@ Open WebUI (docker, :3000) ── OpenAI-compatible HTTP + X-OpenWebUI-User-Emai
 2. ✅ **Chat round-trip**: `/v1/chat/completions` (stream + non-stream) → `create_agent`.
 3. ✅ **Short-term memory**: Postgres checkpointer keyed by user + chat id.
 4. ✅ **Guidebook ingestion**: one paragraph per line, TOC headings, `[p. N]` page markers.
-5. **Tools**: `search_flights` (fast-flights), `search_hotels` + `fetch_page` (Playwright; run
+5. ✅ **Observability**: LangSmith tracing with per-thread and per-user metadata.
+6. **Tools**: `search_flights` (fast-flights), `search_hotels` + `fetch_page` (Playwright; run
    `uv run playwright install chromium` once). Unit tests against recorded fixtures.
-6. **Long-term memory**: `save_memory` / `recall_memories` tools on the store + a middleware that injects
+7. **Long-term memory**: `save_memory` / `recall_memories` tools on the store + a middleware that injects
    the user's saved facts (home airport, budget, diet, companions, loyalty programs) into the prompt.
-7. **Structured output**: Pydantic `Itinerary` / `DayPlan` / `FlightOption` / `HotelOption`; an
+8. **Structured output**: Pydantic `Itinerary` / `DayPlan` / `FlightOption` / `HotelOption`; an
    `build_itinerary` path with `response_format`, rendered to markdown for the chat UI.
-8. **Skills**: `skills/*.md` with frontmatter; system prompt lists name + description, `load_skill(name)`
+9. **Skills**: `skills/*.md` with frontmatter; system prompt lists name + description, `load_skill(name)`
    returns the body (progressive disclosure).
-9. **Knowledge-base subagent**: its own `create_agent` with `list_guidebooks`, `grep_guidebook`
+10. **Knowledge-base subagent**: its own `create_agent` with `list_guidebooks`, `grep_guidebook`
    (returns hits with section heading + page) and `read_pages`; exposed to the main agent as `ask_guidebook`.
-10. **MCP**: load servers from `mcp.json` via `langchain-mcp-adapters`.
-11. **Streaming polish**: surface tool calls as short status lines in the stream.
+11. **MCP**: load servers from `mcp.json` via `langchain-mcp-adapters`.
+12. **Streaming polish**: surface tool calls as short status lines in the stream.
 
 ## Skill ideas (`skills/*.md`)
 - `trip-intake`: questions to ask before planning (dates, origin, party, budget, interests, mobility).

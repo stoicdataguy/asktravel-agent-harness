@@ -103,8 +103,16 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
   (script tool calls as `AIMessage(tool_calls=...)`, with `disable_streaming=True`).
 
 ## Feature-driven development
-Every change reaches `main` through a pull request: `main` is protected by a ruleset that blocks
-direct pushes, force pushes and deletion.
+**Every feature and every bug fix is built on a branch and lands through a pull request.** No
+exceptions for small fixes or docs.
+
+How git behaves here (GitHub ruleset "Protect main" on the default branch):
+- `git push origin main` is **rejected** by GitHub. Commit on a branch, push the branch, open a PR.
+- Force pushes (`--force`, rewritten history) to `main` are rejected, and `main` can't be deleted.
+- Merging is done through the PR (`gh pr merge`), never by pushing a local merge to `main`.
+- Locally, `main` only moves by `git pull` after a PR merges. If you committed on `main` by
+  mistake, move the commit to a new branch (`git switch -c feat/<slug>`) and push that.
+- No CI yet, so the PR itself is the gate: run the tests below before opening it.
 
 1. **Issue first.** File every feature or bug as a GitHub issue (`gh issue create`). Features
    state the problem, acceptance criteria written as checks an end-to-end test can make, and what

@@ -24,7 +24,7 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
 - `src/travel_agent/api/` — FastAPI app and OpenAI-compatible routes.
 - `src/travel_agent/agent/` — `build_agent()` (create_agent + middleware), prompts, `UserContext`.
 - `src/travel_agent/memory.py` — Postgres checkpointer + store on one connection pool.
-- `src/travel_agent/observability.py` — Langfuse (primary) / LangSmith (optional) callbacks + `run_config()`.
+- `src/travel_agent/observability.py` — Langfuse callback + `run_config()`. Tracing is Langfuse only (no LangSmith).
 - `src/travel_agent/tools/` — agent tools; `guidebooks.py` = keyword search / page reads over extracted guidebooks.
 - `src/travel_agent/skills/` — skill playbooks (`<name>.md` with name/description frontmatter) + `load_skill` tool.
 - `src/travel_agent/kb/` — guidebook ingestion (PDF → markdown with `[p. N]` markers + TOC headings).
@@ -61,7 +61,7 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
 - Small commits; run ruff + pytest before committing.
 - Tests must not hit real LLMs or the network — use fake chat models / mocks. `tests/conftest.py`
   forces tracing off. If a test needs tracing on, use `FakeListChatModel`: tracer serialization
-  consumes `GenericFakeChatModel`'s message iterator. For agents with tools use `tests.fakes.FakeToolModel`
+  consumes `GenericFakeChatModel`'s message iterator (seen with LangChain tracers). For agents with tools use `tests.fakes.FakeToolModel`
   (script tool calls as `AIMessage(tool_calls=...)`, with `disable_streaming=True`).
 
 <!-- Add new sections below as the project evolves -->

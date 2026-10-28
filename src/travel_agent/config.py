@@ -28,12 +28,6 @@ class Settings(BaseSettings):
     langfuse_secret_key: SecretStr = SecretStr("sk-lf-travel-agent-dev")
     langfuse_host: str = "http://localhost:3001"
 
-    # LangSmith tracing (https://smith.langchain.com); optional, independent of Langfuse
-    langsmith_tracing: bool = False
-    langsmith_api_key: SecretStr = SecretStr("")
-    langsmith_project: str = "travel-agent"
-    langsmith_endpoint: str = "https://api.smith.langchain.com"
-
     # Raw guidebook PDFs (local only, gitignored) and their extracted markdown
     reference_dir: Path = Path("reference")
     guidebooks_dir: Path = Path("data/guidebooks")

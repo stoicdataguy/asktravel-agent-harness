@@ -1,5 +1,5 @@
-import pytest
-from langchain_core.tracers.langchain import LangChainTracer
+import logging
+
 from langfuse.langchain import CallbackHandler as LangfuseHandler
 
 from travel_agent import observability
@@ -11,9 +11,10 @@ def test_tracing_off_by_default():
     config = observability.run_config("ana@example.com", "ana@example.com:c1")
     assert "callbacks" not in config
     assert config["configurable"]["thread_id"] == "ana@example.com:c1"
-    assert config["metadata"]["langfuse_session_id"] == "ana@example.com:c1"
-    assert config["metadata"]["langfuse_user_id"] == "ana@example.com"
-    assert config["metadata"]["thread_id"] == "ana@example.com:c1"
+    assert config["metadata"] == {
+        "langfuse_session_id": "ana@example.com:c1",
+        "langfuse_user_id": "ana@example.com",
+    }
 
 
 def test_langfuse_attaches_handler(monkeypatch):
@@ -22,31 +23,12 @@ def test_langfuse_attaches_handler(monkeypatch):
     assert isinstance(handler, LangfuseHandler)
 
 
-def test_langsmith_attaches_tracer(monkeypatch):
-    monkeypatch.setenv("LANGSMITH_TRACING", "true")
-    monkeypatch.setenv("LANGSMITH_API_KEY", "lsv2-test")
-    monkeypatch.setenv("LANGSMITH_PROJECT", "test-project")
-    [tracer] = observability.run_config("u", "u:c")["callbacks"]
-    assert isinstance(tracer, LangChainTracer)
-    assert tracer.project_name == "test-project"
-
-
-def test_both_backends(monkeypatch):
+def test_unreachable_langfuse_warns_instead_of_failing(monkeypatch, caplog):
     monkeypatch.setenv("LANGFUSE_TRACING", "true")
-    monkeypatch.setenv("LANGSMITH_TRACING", "true")
-    monkeypatch.setenv("LANGSMITH_API_KEY", "lsv2-test")
-    assert len(observability.run_config("u", "u:c")["callbacks"]) == 2
-
-
-def test_langsmith_without_key_fails_loudly(monkeypatch):
-    monkeypatch.setenv("LANGSMITH_TRACING", "true")
-    monkeypatch.setenv("LANGSMITH_API_KEY", "")
-    with pytest.raises(RuntimeError, match="LANGSMITH_API_KEY"):
-        observability.run_config("u", "u:c")
-
-
-def test_langsmith_placeholder_key_fails_loudly(monkeypatch):
-    monkeypatch.setenv("LANGSMITH_TRACING", "true")
-    monkeypatch.setenv("LANGSMITH_API_KEY", "lsv2_...")
-    with pytest.raises(RuntimeError, match="LANGSMITH_API_KEY"):
+    monkeypatch.setenv("LANGFUSE_HOST", "http://127.0.0.1:9")  # nothing listens on the discard port
+    # The SDK keeps one client per public key per process; a fresh key avoids reusing one that an
+    # earlier test pointed at a real host
+    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk-lf-unreachable-test")
+    with caplog.at_level(logging.WARNING):
         observability.check_tracing_config()
+    assert "unreachable or rejected the keys" in caplog.text

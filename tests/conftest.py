@@ -7,14 +7,12 @@ from travel_agent.config import get_settings
 def _clear_caches():
     get_settings.cache_clear()
     observability.get_langfuse.cache_clear()
-    observability.get_langsmith_tracer.cache_clear()
 
 
 @pytest.fixture(autouse=True)
 def no_tracing(monkeypatch):
     """Keep tests off the network even when .env enables tracing; env vars beat .env."""
     monkeypatch.setenv("LANGFUSE_TRACING", "false")
-    monkeypatch.setenv("LANGSMITH_TRACING", "false")
     _clear_caches()
     yield
     _clear_caches()

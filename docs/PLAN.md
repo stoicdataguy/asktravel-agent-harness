@@ -26,7 +26,7 @@ Open WebUI (docker, :3000) ── OpenAI-compatible HTTP + X-OpenWebUI-User-Emai
 | Flights | `fast-flights` (reads Google Flights; no API key). |
 | Hotels | Playwright scraping of Google Hotels. |
 | Web | Playwright: fetch URL → extract readable text. No search provider. |
-| Observability | Self-hosted Langfuse v4 in compose (:3001), chat = session, email = user. LangSmith optional. |
+| Observability | Self-hosted Langfuse v4 in compose (:3001), chat = session, email = user. |
 | Guidebooks | PDFs in `reference/` → `travel-agent-ingest` → `data/guidebooks/<slug>.md` (both gitignored). |
 
 ## Known limitations
@@ -41,7 +41,7 @@ Open WebUI (docker, :3000) ── OpenAI-compatible HTTP + X-OpenWebUI-User-Emai
 2. ✅ **Chat round-trip**: `/v1/chat/completions` (stream + non-stream) → `create_agent`.
 3. ✅ **Short-term memory**: Postgres checkpointer keyed by user + chat id.
 4. ✅ **Guidebook ingestion**: one paragraph per line, TOC headings, `[p. N]` page markers.
-5. ✅ **Observability**: self-hosted Langfuse (+ optional LangSmith) with per-session and per-user traces.
+5. ✅ **Observability**: self-hosted Langfuse with per-session and per-user traces.
 6. ✅ **Guidebook tools** (on the main agent for now): `list_guidebooks`, `search_guidebooks`,
    `read_guidebook_pages`; tool calls streamed to the chat as status lines.
 7. **Tools**: `search_flights` (fast-flights), `search_hotels` + `fetch_page` (Playwright; run

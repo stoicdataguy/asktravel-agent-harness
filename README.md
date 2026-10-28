@@ -31,8 +31,6 @@ is traced to the self-hosted Langfuse at http://localhost:3001 (login `admin@tra
 Sessions and Users views show whole conversations per (dummy) user. Langfuse is about six containers
 (incl. ClickHouse); to skip it run `docker compose up -d postgres open-webui`.
 
-LangSmith can be enabled alongside it with `LANGSMITH_TRACING=true` + `LANGSMITH_API_KEY`.
-
 ### Skills
 
 The agent has seven playbooks in [src/travel_agent/skills/](src/travel_agent/skills/):

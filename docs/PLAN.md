@@ -50,8 +50,7 @@ Open WebUI (docker, :3000) ── OpenAI-compatible HTTP + X-OpenWebUI-User-Emai
    the user's saved facts (home airport, budget, diet, companions, loyalty programs) into the prompt.
 9. **Structured output**: Pydantic `Itinerary` / `DayPlan` / `FlightOption` / `HotelOption`; an
    `build_itinerary` path with `response_format`, rendered to markdown for the chat UI.
-10. **Skills**: `skills/*.md` with frontmatter; system prompt lists name + description, `load_skill(name)`
-   returns the body (progressive disclosure).
+10. ✅ **Skills**: 7 markdown playbooks + `load_skill` tool; trigger eval in `scripts/eval_skills.py`.
 11. **Knowledge-base subagent**: move the guidebook tools into their own `create_agent` with `list_guidebooks`, `grep_guidebook`
    (returns hits with section heading + page) and `read_pages`; exposed to the main agent as `ask_guidebook`.
 12. **MCP**: load servers from `mcp.json` via `langchain-mcp-adapters`.

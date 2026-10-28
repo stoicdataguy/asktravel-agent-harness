@@ -16,6 +16,7 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
 - Run API: `uv run travel-agent` (or `uv run uvicorn travel_agent.api.app:app --reload`)
 - Guidebooks: `uv run travel-agent-ingest [--force]` converts `reference/*.pdf` → `data/guidebooks/*.md`
 - Demo GIF: `uv run python scripts/record_demo.py` → `docs/demo.gif` (needs the full stack running)
+- Skill triggering eval (real LLM): `uv run python scripts/eval_skills.py` — run after editing any skill description
 - Tests: `uv run pytest` · Lint/format: `uv run ruff check --fix . && uv run ruff format .`
 
 ## Layout
@@ -25,6 +26,7 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
 - `src/travel_agent/memory.py` — Postgres checkpointer + store on one connection pool.
 - `src/travel_agent/observability.py` — Langfuse (primary) / LangSmith (optional) callbacks + `run_config()`.
 - `src/travel_agent/tools/` — agent tools; `guidebooks.py` = keyword search / page reads over extracted guidebooks.
+- `src/travel_agent/skills/` — skill playbooks (`<name>.md` with name/description frontmatter) + `load_skill` tool.
 - `src/travel_agent/kb/` — guidebook ingestion (PDF → markdown with `[p. N]` markers + TOC headings).
 - See `docs/PLAN.md` for the target architecture and milestones.
 
@@ -49,6 +51,9 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
 - Open WebUI runs with `ENABLE_PERSISTENT_CONFIG=false`: docker-compose.yml is the source of truth for
   its settings (it otherwise disables signup in its DB after the first account). Admin-panel changes
   don't survive restarts; put them in compose instead.
+- Skills: the description decides when the agent loads it, so write it as "Use when …" with
+  concrete trigger phrases (and when NOT to use it). Filename must equal the `name`. Add a case to
+  `scripts/eval_skills.py` for every new skill.
 - Async first in the API layer (`ainvoke` / `astream`).
 - Secrets live in `.env` (gitignored). Keep `.env.example` in sync when adding settings.
 

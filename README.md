@@ -33,6 +33,19 @@ Sessions and Users views show whole conversations per (dummy) user. Langfuse is 
 
 LangSmith can be enabled alongside it with `LANGSMITH_TRACING=true` + `LANGSMITH_API_KEY`.
 
+### Skills
+
+The agent has seven playbooks in [src/travel_agent/skills/](src/travel_agent/skills/):
+trip-intake, itinerary-builder, budget-planner, packing-list, visa-and-entry, local-transport and
+food-and-culture. Only their names and descriptions sit in the system prompt; the agent calls
+`load_skill(name)` when a request matches (you'll see `🔧 load_skill(...)` in the chat).
+To add one, drop a `<name>.md` with `name` / `description` frontmatter in that folder and add a
+case to `scripts/eval_skills.py`, which checks against the real model that each skill triggers:
+
+```bash
+uv run python scripts/eval_skills.py   # 9/9 cases passing
+```
+
 ### Re-recording the demo
 
 With the stack running: `uv run python scripts/record_demo.py` (one-time:

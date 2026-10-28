@@ -32,13 +32,21 @@ def get_langsmith_tracer() -> LangChainTracer | None:
     settings = get_settings()
     if not settings.langsmith_tracing:
         return None
-    if not settings.langsmith_api_key.get_secret_value():
+    key = settings.langsmith_api_key.get_secret_value()
+    # ".env.example" ships "lsv2_..." as a placeholder; treat it as unset
+    if not key or key.endswith("..."):
         raise RuntimeError("LANGSMITH_TRACING is on but LANGSMITH_API_KEY is not set in .env")
     client = Client(
         api_url=settings.langsmith_endpoint,
         api_key=settings.langsmith_api_key.get_secret_value(),
     )
     return LangChainTracer(project_name=settings.langsmith_project, client=client)
+
+
+def check_tracing_config() -> None:
+    """Build the configured tracers once so misconfiguration fails at startup, not mid-request."""
+    get_langfuse()
+    get_langsmith_tracer()
 
 
 def run_config(user_id: str, thread_id: str) -> RunnableConfig:

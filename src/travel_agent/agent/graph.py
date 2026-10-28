@@ -9,6 +9,7 @@ from langgraph.store.base import BaseStore
 
 from travel_agent.agent.prompts import SYSTEM_PROMPT
 from travel_agent.llm import get_chat_model
+from travel_agent.skills import load_skill, skills_index
 from travel_agent.tools.guidebooks import GUIDEBOOK_TOOLS
 
 
@@ -21,7 +22,11 @@ class UserContext:
 
 @dynamic_prompt
 def system_prompt(request: ModelRequest) -> str:
-    return SYSTEM_PROMPT.format(today=date.today().isoformat())
+    return render_system_prompt()
+
+
+def render_system_prompt() -> str:
+    return SYSTEM_PROMPT.format(today=date.today().isoformat(), skills=skills_index())
 
 
 def build_agent(
@@ -31,7 +36,7 @@ def build_agent(
 ):
     return create_agent(
         model or get_chat_model(),
-        tools=[*GUIDEBOOK_TOOLS],
+        tools=[*GUIDEBOOK_TOOLS, load_skill],
         middleware=[system_prompt],
         context_schema=UserContext,
         checkpointer=checkpointer,

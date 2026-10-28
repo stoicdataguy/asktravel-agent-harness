@@ -43,3 +43,10 @@ def test_langsmith_without_key_fails_loudly(monkeypatch):
     monkeypatch.setenv("LANGSMITH_API_KEY", "")
     with pytest.raises(RuntimeError, match="LANGSMITH_API_KEY"):
         observability.run_config("u", "u:c")
+
+
+def test_langsmith_placeholder_key_fails_loudly(monkeypatch):
+    monkeypatch.setenv("LANGSMITH_TRACING", "true")
+    monkeypatch.setenv("LANGSMITH_API_KEY", "lsv2_...")
+    with pytest.raises(RuntimeError, match="LANGSMITH_API_KEY"):
+        observability.check_tracing_config()

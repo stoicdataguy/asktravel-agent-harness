@@ -421,7 +421,7 @@ body { margin: 0; }
           <span class="chip">GET /api/itineraries</span>
           <span class="chip">GET /health</span>
         </div>
-        <p>Turns the email into <code>user_id</code> and the chat into <code>thread_id = email:chat_id</code>, passes only the newest user message to the agent, and streams the result back in OpenAI's format.</p>
+        <p>Turns the email into <code>user_id</code> and the chat into <code>thread_id = email:chat_id</code>, lines the chat's transcript up with the agent's saved thread (append, or seed / rewind when the chat has branched), and streams the result back in OpenAI's format.</p>
       </div>
 
       <div class="pipe">
@@ -515,7 +515,7 @@ body { margin: 0; }
     <h2>One request, end to end</h2>
     <ol class="steps">
       <li><div><b>The user sends a message in Open WebUI.</b><span>Open WebUI posts the whole transcript plus the user's email and chat id.</span></div></li>
-      <li><div><b>The API resolves who and where.</b><span><code>user_id</code> = email, <code>thread_id</code> = email:chat_id. Only the newest user message goes on; the checkpointer already has the rest.</span></div></li>
+      <li><div><b>The API resolves who and where.</b><span><code>user_id</code> = email, <code>thread_id</code> = email:chat_id. If the transcript matches the saved thread, only the newest message goes on; if the chat was forked, regenerated or edited, the thread is seeded or rewound to match first.</span></div></li>
       <li><div><b>The agent loads the thread.</b><span>The checkpointer restores this chat's message history from Postgres.</span></div></li>
       <li><div><b>The middleware builds the prompt.</b><span>Base instructions, the skills list and the user's saved facts from the store.</span></div></li>
       <li><div><b>The model works through tools.</b><span>It may load a skill, search the guidebooks, save a fact or present an itinerary. Each step is checkpointed.</span></div></li>
@@ -592,7 +592,7 @@ body { margin: 0; }
           <tr class="short"><td>Checkpointer</td><td class="mono">email:chat_id</td><td>Every agent step</td><td>Start of each turn</td><td>Yes: the conversation it continues</td></tr>
           <tr class="long"><td>Store · memories</td><td class="mono">(email, "memories") / key</td><td>save_memory / delete_memory</td><td>Every model call</td><td>Yes: facts in the system prompt</td></tr>
           <tr class="long"><td>Store · itineraries</td><td class="mono">(email, "itineraries") / thread_id</td><td>present_itinerary (latest replaces)</td><td>GET /api/itineraries</td><td>No: kept for the API; the plan is also in the thread</td></tr>
-          <tr><td>Open WebUI database</td><td class="mono">Open WebUI chat id</td><td>Every message, by Open WebUI</td><td>When the chat is displayed</td><td>No: the agent ignores all but the newest message</td></tr>
+          <tr><td>Open WebUI database</td><td class="mono">Open WebUI chat id</td><td>Every message, by Open WebUI</td><td>When the chat is displayed</td><td>Only to resync the thread when the chat branches (fork, regenerate, edit)</td></tr>
           <tr class="ext"><td>Langfuse</td><td class="mono">session = thread_id, user = email</td><td>Every turn (when tracing is on)</td><td>When you inspect traces</td><td>No: observability only</td></tr>
         </tbody>
       </table>
@@ -605,7 +605,24 @@ body { margin: 0; }
     <div class="seq-wrap" tabindex="0" aria-label="Sequence diagram, scrolls horizontally">
       <div class="seq" id="seq"></div>
     </div>
-    <p class="seq-caption">The memory list is re-read before every model call, so a fact saved in step 7 is already in the prompt for step 9. Checkpoints are written after each step, not only at the end of the turn.</p>
+    <p class="seq-caption">The memory list is re-read before every model call, so a fact saved in step 7 is re-read in step 9 and already in the prompt for step 10. Checkpoints are written after each step, not only at the end of the turn.</p>
+  </div>
+
+  <div class="block">
+    <h2>When the chat branches</h2>
+    <p>Open WebUI lets people fork a chat, regenerate an answer or edit an earlier message. Before every turn the API compares the user messages in the transcript Open WebUI sends with the ones in the saved thread, and keeps the thread on the branch the person is looking at.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Action</th><th>When</th><th>What happens to the thread</th></tr></thead>
+        <tbody>
+          <tr class="short"><td>Append</td><td>Transcript and thread agree (the normal case)</td><td>Only the new message is added</td></tr>
+          <tr class="short"><td>Seed</td><td>Forked chat: new chat id, so an empty thread, but the transcript has earlier turns</td><td>The earlier turns are copied in from the transcript (tool status lines stripped), then the new message</td></tr>
+          <tr class="short"><td>Rewind</td><td>Regenerate, or an edited later message</td><td>The run starts from the last finished turn that matches the transcript (LangGraph checkpoint time travel). The old branch stays in history</td></tr>
+          <tr class="short"><td>Replace</td><td>No earlier turn matches, e.g. the first message was edited</td><td>The thread's messages are replaced with the transcript</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="seq-caption">Only user messages are compared: Open WebUI's copy of each answer includes tool status lines and rendered itineraries, so it never matches the model's own messages exactly. Covered by <code>tests/test_thread_sync.py</code> and the browser test <code>scripts/e2e_branching.py</code>.</p>
   </div>
 
   <div class="block">
@@ -703,7 +720,6 @@ conversations. What you know so far:
   <div class="block">
     <h2>Gaps to know about</h2>
     <ul class="gaps">
-      <li><span class="sev">Consistency</span><b>Editing or regenerating a message in Open WebUI doesn't rewind the agent.</b><span>The agent sees only the newest message; its thread still contains the original turns. Fix: detect divergence and fork from the matching checkpoint.</span></li>
       <li><span class="sev">Retention</span><b>Deleting a chat in Open WebUI leaves the agent's thread and saved itinerary.</b><span>Open WebUI doesn't notify the agent. Needs a cleanup job or a delete hook.</span></li>
       <li><span class="sev">Retention</span><b>Nothing expires.</b><span>Checkpoints are never pruned and memories have no TTL. The store table already supports <code>ttl_minutes</code>.</span></li>
       <li><span class="sev">Trust</span><b>Identity comes from a header.</b><span>The agent API trusts <code>X-OpenWebUI-User-Email</code>. Fine locally; it needs a bearer token and a private network before deployment.</span></li>
@@ -866,8 +882,7 @@ conversations. What you know so far:
   ];
   var steps = [
     [0, 1, "POST transcript + email, chat id", "req"],
-    [1, 1, "keep newest message, thread = email:chat", "req"],
-    [1, 2, "load thread", "short"],
+    [1, 2, "load thread, compare with transcript: in sync, append", "short"],
     [1, 3, "run agent with history + new message", "req"],
     [3, 4, "middleware: read memories", "long"],
     [3, 5, "model call: prompt + facts + history", "req"],

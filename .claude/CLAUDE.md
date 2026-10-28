@@ -55,7 +55,12 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
   `async def` and use `aput`/`asearch`/…; sync calls fail inside the event loop.
 - Identity: `user_id` = `X-OpenWebUI-User-Email` header (lowercased), passed as `UserContext` runtime
   context. Tools read it from `runtime.context.user_id`; never take user_id as an LLM-visible argument.
-- The API passes only the latest user message to the agent; the checkpointer owns history.
+- The checkpointer owns history. Before each run `api/thread_sync.plan_run` compares the UI
+  transcript's user messages with the thread: append the newest message when they agree, seed an
+  empty (forked) thread from the transcript, or rewind/replace on regenerate and edit. Clients must
+  send the full transcript, as OpenAI-style clients do.
+- After changing anything in the request path, run the browser test
+  `uv run python scripts/e2e_branching.py` (full stack running).
 - Flights: `fast-flights`. Hotels and web pages: Playwright scraping. No paid search APIs.
 - `reference/` (raw PDFs) and `data/guidebooks/*.md` are copyrighted material: never commit them.
 - Every agent invocation (incl. future subagents) uses `observability.run_config(user_id, thread_id)`

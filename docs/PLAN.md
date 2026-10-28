@@ -44,8 +44,9 @@ Open WebUI (:3000) ── OpenAI-compatible HTTP + X-OpenWebUI-User-Email / -Cha
  Langfuse (:3001)  traces: session = chat, user = email
 ```
 
-- **Threads:** `thread_id = "<email>:<chat id>"`. The API passes only the newest user message;
-  the checkpointer owns the history.
+- **Threads:** `thread_id = "<email>:<chat id>"`. The checkpointer owns the history; the API
+  passes only the newest user message unless the chat has branched (fork, regenerate, edit), in
+  which case `api/thread_sync.py` seeds or rewinds the thread to match the transcript first.
 - **Users:** the signed-in email (forwarded by Open WebUI) is the `user_id` for memory, saved
   itineraries and traces.
 
@@ -138,6 +139,9 @@ worth doing even before any deployment.
   schema of `present_itinerary`. Validation errors go back to the model to fix. Plans are saved
   per user + chat (`GET /api/itineraries`) and rendered to markdown in the chat.
   `FlightOption` / `HotelOption` are deferred to #7.
+- **Branching (issue #3):** forked chats lost the agent's history, and regenerate/edit didn't
+  rewind it. The API now reconciles the transcript with the thread before each turn (append /
+  seed / rewind / replace); verified by `scripts/e2e_branching.py` in a real browser.
 - **#10 Skills:** see [Skills](#skills). `scripts/eval_skills.py` checks against the real model
   that each skill triggers (9/9 passing).
 
@@ -256,9 +260,6 @@ likely dominate: a tool-heavy itinerary run is 15+ model calls.
 
 - **Open WebUI background tasks are off.** Title, tag and follow-up generation would otherwise
   run through the agent and pollute threads, so chats are titled by their first message.
-- **Editing or regenerating an earlier message doesn't rewind the agent.** The agent only sees
-  the newest user message; the checkpointed thread keeps the old turns. Fix by detecting
-  divergence and forking the thread.
 - **The agent API is unauthenticated** and trusts the user-email header. Fine on a laptop; must
   be fixed before any deployment (see [Required changes](#required-changes-before-deploying)).
 - **Open WebUI admin-panel changes don't persist** across restarts

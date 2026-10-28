@@ -15,6 +15,7 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
   (Langfuse stack lives in `docker/langfuse.compose.yml`; local dev secrets only)
 - Run API: `uv run travel-agent` (or `uv run uvicorn travel_agent.api.app:app --reload`)
 - Guidebooks: `uv run travel-agent-ingest [--force]` converts `reference/*.pdf` → `data/guidebooks/*.md`
+- Demo GIF: `uv run python scripts/record_demo.py` → `docs/demo.gif` (needs the full stack running)
 - Tests: `uv run pytest` · Lint/format: `uv run ruff check --fix . && uv run ruff format .`
 
 ## Layout
@@ -45,6 +46,9 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
 - Langfuse v4 runs in events-only mode: query traces via `/api/public/v2/observations`, not `/traces`.
 - Streaming shows each tool call to the user as a `🔧 name(args)` status line (from the agent's
   "updates" stream), so keep tool names and args human-readable.
+- Open WebUI runs with `ENABLE_PERSISTENT_CONFIG=false`: docker-compose.yml is the source of truth for
+  its settings (it otherwise disables signup in its DB after the first account). Admin-panel changes
+  don't survive restarts; put them in compose instead.
 - Async first in the API layer (`ainvoke` / `astream`).
 - Secrets live in `.env` (gitignored). Keep `.env.example` in sync when adding settings.
 

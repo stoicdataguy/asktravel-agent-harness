@@ -4,6 +4,11 @@ Lightweight LangChain ReAct agent for organizing travel itineraries. LLM calls g
 and the agent is served by FastAPI over an OpenAI-compatible API so Open WebUI (an Ollama-style chat UI)
 can be the frontend.
 
+![Demo: the agent searches Lonely Planet guidebooks with tool calls, then answers with a cited 3-day plan](docs/demo.gif)
+
+*Open WebUI talking to the agent: each `🔧` line is a tool call (guidebook search / page read)
+streamed live, followed by a day-by-day plan citing guidebook pages. Playback of the wait is 2× speed.*
+
 ## Quickstart
 
 ```bash
@@ -27,6 +32,12 @@ Sessions and Users views show whole conversations per (dummy) user. Langfuse is 
 (incl. ClickHouse); to skip it run `docker compose up -d postgres open-webui`.
 
 LangSmith can be enabled alongside it with `LANGSMITH_TRACING=true` + `LANGSMITH_API_KEY`.
+
+### Re-recording the demo
+
+With the stack running: `uv run python scripts/record_demo.py` (one-time:
+`uv run playwright install chromium`). It signs in a demo user, asks the prompt (`--prompt`),
+screenshots while the answer streams, and writes `docs/demo.gif`.
 
 Tests and lint: `uv run pytest` · `uv run ruff check . && uv run ruff format --check .`
 

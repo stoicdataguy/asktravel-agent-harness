@@ -30,10 +30,20 @@ services:
       ENABLE_OLLAMA_API: "false"
       # Dummy multi-user login: anyone can sign up with an email (password is required but unchecked
       # by us) and is active immediately. The email becomes the agent's user_id.
+      # Open WebUI turns signup off in its DB after the first (admin) account is created; with
+      # persistent config disabled, this file's settings are re-applied on every start instead.
+      ENABLE_PERSISTENT_CONFIG: "false"
       WEBUI_AUTH: "true"
       ENABLE_SIGNUP: "true"
       DEFAULT_USER_ROLE: user
       DEFAULT_MODELS: travel-agent
+      DEFAULT_PROMPT_SUGGESTIONS: >-
+        [{"title": ["Plan 3 days on the Big Island", "using Lonely Planet's picks"],
+          "content": "Plan 3 days on the Big Island of Hawaii using Lonely Planet's recommendations."},
+         {"title": ["Eat like a local in Rome", "food tips from the guidebook"],
+          "content": "What should I eat in Rome, and where? Use the Lonely Planet guide."},
+         {"title": ["Getting to Machu Picchu", "tickets, trains and timing"],
+          "content": "How do I get to Machu Picchu, and what should I know about tickets?"}]
       BYPASS_MODEL_ACCESS_CONTROL: "true"
       # Sends X-OpenWebUI-User-Email / X-OpenWebUI-Chat-Id headers -> user_id / thread_id
       ENABLE_FORWARD_USER_INFO_HEADERS: "true"

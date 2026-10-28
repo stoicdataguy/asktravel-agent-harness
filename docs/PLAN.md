@@ -63,7 +63,7 @@ Open WebUI (:3000) ── OpenAI-compatible HTTP + X-OpenWebUI-User-Email / -Cha
 | Skills | Markdown playbooks with name/description frontmatter, loaded on demand via `load_skill`. | Built |
 | Observability | Self-hosted Langfuse v4 in compose. LangSmith removed. | Built |
 | Guidebooks | PDFs in `reference/` → `travel-agent-ingest` → `data/guidebooks/<slug>.md`, keyword search (no embeddings). Both gitignored. | Built |
-| Flights | `fast-flights` (reads Google Flights; no API key). | Planned (#7) |
+| Flights | `search_flights` via `fast-flights` (reads Google Flights; no API key). Prices are totals for all travellers; results come with a Google Flights booking link. | Built |
 | Hotels | Playwright scraping of Google Hotels. | Planned (#7) |
 | Web pages | Playwright: fetch URL → extract readable text. No search provider. | Planned (#7) |
 | Deployment | ECS Fargate + RDS + Cognito, CDK in Python. | Planned (#14) |
@@ -80,7 +80,7 @@ Open WebUI (:3000) ── OpenAI-compatible HTTP + X-OpenWebUI-User-Email / -Cha
 | 4 | Guidebook ingestion | ✅ Done |
 | 5 | Observability: Langfuse | ✅ Done |
 | 6 | Guidebook tools + tool-call status lines in the stream | ✅ Done |
-| 7 | Flight, hotel and web tools | ⬜ Next |
+| 7 | Flight, hotel and web tools | 🟨 Flights done ([PR #8](https://github.com/stoicdataguy/travel-agent-react/pull/8)); hotels next |
 | 8 | Long-term memory | ✅ Done ([PR #1](https://github.com/stoicdataguy/travel-agent-react/pull/1)) |
 | 9 | Structured output | ✅ Done ([PR #2](https://github.com/stoicdataguy/travel-agent-react/pull/2)) |
 | 10 | Skills + trigger eval | ✅ Done |
@@ -146,6 +146,10 @@ worth doing even before any deployment.
   chat were unknown in the next. Trips are now a second kind of long-term memory
   (`save_trip_details`, `get_trip`, `delete_trip`); `present_itinerary` files every plan under a trip, and
   existing itineraries are backfilled at startup. Verified by `scripts/e2e_memory.py`.
+- **#7 Flight search (issue #7):** `search_flights` returns options cheapest first with total and
+  per-person prices, times, stops and a booking link; `FlightOption` can be added to an itinerary.
+  `scripts/e2e_flights.py` checks in a real browser that quoted fares match a live Google Flights
+  lookup and that a chosen flight is saved to the trip.
 - **#10 Skills:** see [Skills](#skills). `scripts/eval_skills.py` checks against the real model
   that each skill triggers (9/9 passing).
 

@@ -36,6 +36,41 @@ class Stay(BaseModel):
     why: str = Field(description="One line on why this base suits the plan.")
 
 
+class FlightLeg(BaseModel):
+    from_airport: str = Field(description="IATA code, e.g. 'SFO'.")
+    to_airport: str
+    departs: str = Field(description="Local departure, e.g. '2026-12-28 16:55'.")
+    arrives: str = Field(description="Local arrival, e.g. '2026-12-28 20:47'.")
+    duration_minutes: int | None = None
+    aircraft: str | None = None
+
+
+class FlightOption(BaseModel):
+    """A flight from `search_flights`. Prices are totals for all travellers."""
+
+    airline: str
+    price: int | None = Field(default=None, description="Total for all travellers.")
+    currency: str = "USD"
+    travellers: int = 1
+    legs: list[FlightLeg] = Field(min_length=1)
+
+    @property
+    def stops(self) -> int:
+        return len(self.legs) - 1
+
+    def summary(self) -> str:
+        first, last = self.legs[0], self.legs[-1]
+        stops = (
+            "nonstop" if not self.stops else f"{self.stops} stop" + ("s" if self.stops > 1 else "")
+        )
+        via = f" via {', '.join(leg.to_airport for leg in self.legs[:-1])}" if self.stops else ""
+        price = f" · ${self.price:,} total" if self.price is not None else ""
+        return (
+            f"{self.airline} · {stops}{via} · {first.from_airport} {first.departs} → "
+            f"{last.to_airport} {last.arrives}{price}"
+        )
+
+
 class Itinerary(BaseModel):
     """A complete day-by-day trip plan."""
 
@@ -56,6 +91,9 @@ class Itinerary(BaseModel):
         default_factory=list, description="Assumptions made where the user gave no details."
     )
     stays: list[Stay] = Field(default_factory=list)
+    flights: list[FlightOption] = Field(
+        default_factory=list, description="Flights the user chose, from search_flights results."
+    )
     days: list[DayPlan] = Field(min_length=1)
     bookings_to_make: list[str] = Field(
         default_factory=list, description="Things to reserve ahead (tours, permits, trains)."
@@ -100,6 +138,8 @@ def render_itinerary(itinerary: Itinerary) -> str:
         lines += ["**Where to stay**", ""]
         lines += [f"- **{s.area}** ({s.nights} nights): {s.why}" for s in itinerary.stays]
         lines.append("")
+    if itinerary.flights:
+        lines += ["**Flights**", ""] + [f"- {f.summary()}" for f in itinerary.flights] + [""]
     for day in itinerary.days:
         lines += [f"## Day {day.day} · {day.title}", ""]
         lines += [_activity_line(a) for a in day.activities]

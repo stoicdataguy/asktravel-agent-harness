@@ -10,6 +10,7 @@ from travel_agent.agent.prompts import SYSTEM_PROMPT
 from travel_agent.context import UserContext
 from travel_agent.llm import get_chat_model
 from travel_agent.skills import load_skill, skills_index
+from travel_agent.tools.flights import search_flights
 from travel_agent.tools.guidebooks import GUIDEBOOK_TOOLS
 from travel_agent.tools.itinerary import present_itinerary
 from travel_agent.tools.memory import MEMORY_TOOLS, format_memories, load_memories
@@ -43,7 +44,14 @@ def build_agent(
 ):
     return create_agent(
         model or get_chat_model(),
-        tools=[*GUIDEBOOK_TOOLS, load_skill, *MEMORY_TOOLS, *TRIP_TOOLS, present_itinerary],
+        tools=[
+            *GUIDEBOOK_TOOLS,
+            search_flights,
+            load_skill,
+            *MEMORY_TOOLS,
+            *TRIP_TOOLS,
+            present_itinerary,
+        ],
         middleware=[system_prompt],
         context_schema=UserContext,
         checkpointer=checkpointer,

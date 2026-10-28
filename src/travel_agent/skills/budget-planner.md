@@ -18,8 +18,10 @@ mid-range / splurge). Ask only for what's missing and matters; otherwise assume 
   also carry prices.
 - **Guidebook prices are several years old.** Present them as a baseline and adjust upward,
   stating that you did (e.g. "book prices from ~2016, so expect 20–40% more today").
-- There are no live flight or hotel price tools yet. Give flight costs as a wide range with a
-  clear "estimate" label, or ask the user for a quote they've seen.
+- For flights, call `search_flights` with the user's airports, dates and number of travellers
+  and use the real fares (they're totals for all travellers). If dates or airports are unknown,
+  ask, or give a range clearly labelled as an estimate.
+- There's no live hotel price tool yet: use guidebook price bands and label them as estimates.
 - Never present an estimate as a live or exact price.
 
 ## Break it down

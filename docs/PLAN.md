@@ -25,6 +25,9 @@ covers the architecture, the decisions behind it, what's built, what's next, and
 
 ## Architecture
 
+> A visual version, with a second page on data flow and state persistence, is in
+> [architecture.html](architecture.html) ([view rendered](https://raw.githack.com/stoicdataguy/travel-agent-react/main/docs/architecture.html)).
+
 ```
 Open WebUI (:3000) ── OpenAI-compatible HTTP + X-OpenWebUI-User-Email / -Chat-Id ──▶ agent API (FastAPI :8000)
                                                                                           │

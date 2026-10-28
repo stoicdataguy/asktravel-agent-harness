@@ -1,0 +1,755 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Travel Agent Architecture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a technical field guide. Sticky header with two views; layered stack diagram on page 1,
+   state map + sequence lanes on page 2. Two memory hues (amber = short-term, violet = long-term)
+   carry meaning everywhere; the blue accent is reserved for the request path and model calls. */
+:root {
+  --bg: #f5f7fa;
+  --surface: #ffffff;
+  --surface-2: #eef1f5;
+  --ink: #16202b;
+  --muted: #586373;
+  --line: #d6dce4;
+  --accent: #1d5fc4;
+  --accent-bg: #e7effc;
+  --short: #a45a0b;
+  --short-bg: #fdf1e1;
+  --long: #6a33c9;
+  --long-bg: #f1eafd;
+  --ext: #4a5565;
+  --ext-bg: #eceff3;
+  --warn: #9a3412;
+  --font-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --radius: 6px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1319; --surface: #151c25; --surface-2: #1b2430; --ink: #e5e9ef; --muted: #9aa5b3;
+    --line: #2a3542; --accent: #7aaeff; --accent-bg: #172741; --short: #f2a65a; --short-bg: #2a1d0e;
+    --long: #b99cff; --long-bg: #221a37; --ext: #a8b3c1; --ext-bg: #1d2530; --warn: #fb923c;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1319; --surface: #151c25; --surface-2: #1b2430; --ink: #e5e9ef; --muted: #9aa5b3;
+  --line: #2a3542; --accent: #7aaeff; --accent-bg: #172741; --short: #f2a65a; --short-bg: #2a1d0e;
+  --long: #b99cff; --long-bg: #221a37; --ext: #a8b3c1; --ext-bg: #1d2530; --warn: #fb923c;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  background: var(--bg); color: var(--ink);
+  font: 15px/1.6 var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+body::before {
+  content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px);
+  z-index: 10; background: var(--surface);
+}
+.wrap {
+  max-width: 1120px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+h1, h2, h3 { font-family: var(--font-display); line-height: 1.15; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(28px, 4vw, 38px); letter-spacing: -0.01em; }
+h2 { font-size: 23px; letter-spacing: -0.005em; }
+h3 { font-size: 16px; }
+p { margin: 0; max-width: 68ch; }
+code, .mono { font-family: var(--font-mono); font-size: 0.86em; }
+code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Header + tabs */
+header.top {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  background: var(--surface); border-bottom: 1px solid var(--line);
+}
+header.top .wrap { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; padding-block: 10px; }
+.brand { display: flex; align-items: baseline; gap: 10px; margin-right: auto; }
+.brand b { font-family: var(--font-display); font-size: 17px; }
+.brand span { color: var(--muted); font-size: 13px; }
+nav.tabs { display: flex; gap: 4px; background: var(--surface-2); padding: 3px; border-radius: 8px; }
+nav.tabs button {
+  font: 500 14px var(--font-body); color: var(--muted); background: transparent;
+  border: 0; border-radius: 6px; padding: 6px 14px; cursor: pointer;
+}
+nav.tabs button[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgb(0 0 0 / 0.12); }
+
+main { padding-block: 32px 64px; }
+section.view { display: flex; flex-direction: column; gap: 40px; }
+.intro { display: flex; flex-direction: column; gap: 12px; }
+.eyebrow { font: 600 12px var(--font-body); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.lead { font-size: 17px; color: var(--muted); }
+.block { display: flex; flex-direction: column; gap: 16px; }
+
+/* Legend */
+.legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+.sw { width: 14px; height: 14px; border-radius: 3px; border: 1.5px solid; display: inline-block; }
+.sw.req { border-color: var(--accent); background: var(--accent-bg); }
+.sw.short { border-color: var(--short); background: var(--short-bg); }
+.sw.long { border-color: var(--long); background: var(--long-bg); }
+.sw.ext { border-color: var(--ext); background: var(--ext-bg); }
+.sw.planned { border-style: dashed; border-color: var(--muted); background: transparent; }
+
+/* ---------- Architecture stack ---------- */
+.arch { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 20px; align-items: start; }
+.stack { display: flex; flex-direction: column; min-width: 0; }
+.layer {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; min-width: 0;
+}
+.layer-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
+.layer-head .tag { font: 500 12px var(--font-mono); color: var(--muted); }
+.layer p { font-size: 14px; color: var(--muted); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  font: 500 12.5px var(--font-mono); padding: 3px 8px; border-radius: 4px;
+  background: var(--surface-2); border: 1px solid var(--line); white-space: nowrap;
+}
+.chip.req { background: var(--accent-bg); border-color: color-mix(in srgb, var(--accent) 35%, transparent); color: var(--accent); }
+
+.pipe {
+  display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 10px; align-items: center;
+  padding: 6px 0 6px 22px;
+}
+.pipe .rail { position: relative; height: 48px; }
+.pipe .rail::before { content: ""; position: absolute; left: 11px; top: 0; bottom: 8px; border-left: 2px solid var(--accent); }
+.pipe .rail::after {
+  content: ""; position: absolute; left: 6px; bottom: 0; border: 6px solid transparent;
+  border-top: 8px solid var(--accent); border-bottom: 0;
+}
+.pipe .rail.both::before { top: 8px; }
+.pipe .rail.both span {
+  position: absolute; left: 6px; top: 0; border: 6px solid transparent; border-bottom: 8px solid var(--accent); border-top: 0;
+}
+.pipe small { font: 12.5px/1.45 var(--font-mono); color: var(--muted); min-width: 0; overflow-wrap: anywhere; }
+
+.runtime-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
+.unit {
+  border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 6px; background: var(--surface); min-width: 0;
+}
+.unit h3 { font-size: 14.5px; }
+.unit ul { margin: 0; padding-left: 16px; font-size: 13px; color: var(--muted); }
+.unit .mono { color: var(--ink); }
+.unit.planned { border-style: dashed; background: transparent; }
+.unit.planned h3::after { content: " · planned"; font: 500 11px var(--font-body); color: var(--muted); letter-spacing: 0.04em; }
+.unit.short { background: var(--short-bg); border-color: color-mix(in srgb, var(--short) 45%, transparent); }
+.unit.long { background: var(--long-bg); border-color: color-mix(in srgb, var(--long) 45%, transparent); }
+.unit.short h3 { color: var(--short); }
+.unit.long h3 { color: var(--long); }
+.loop {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font: 500 13px var(--font-mono);
+  padding: 10px 12px; border-radius: var(--radius); background: var(--accent-bg); color: var(--accent);
+}
+.loop .arrow { opacity: 0.8; }
+
+.side { display: flex; flex-direction: column; gap: 12px; position: sticky; top: 76px; }
+.ext-card {
+  background: var(--ext-bg); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; font-size: 13.5px;
+}
+.ext-card h3 { font-size: 15px; }
+.ext-card .mono { color: var(--muted); font-size: 12px; }
+.ext-card p { color: var(--muted); }
+
+/* Steps */
+ol.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; counter-reset: s; }
+ol.steps li {
+  counter-increment: s; display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 12px;
+  align-items: start; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 12px 14px; font-size: 14px;
+}
+ol.steps li::before {
+  content: counter(s); font: 600 13px var(--font-mono); color: var(--accent);
+  width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid var(--accent);
+  display: grid; place-items: center;
+}
+ol.steps li b { display: block; }
+ol.steps li span { color: var(--muted); }
+
+/* Tables */
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; min-width: 720px; }
+th, td { text-align: left; vertical-align: top; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+th { font: 600 12px var(--font-body); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); background: var(--surface-2); }
+tr:last-child td { border-bottom: 0; }
+td:first-child { font-weight: 600; white-space: nowrap; }
+td .mono { white-space: nowrap; }
+tr.short td:first-child { color: var(--short); }
+tr.long td:first-child { color: var(--long); }
+tr.ext td:first-child { color: var(--ext); }
+
+/* ---------- Data flow page ---------- */
+.compare { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.mem {
+  border: 1.5px solid; border-radius: var(--radius); padding: 18px; display: flex; flex-direction: column; gap: 12px;
+  min-width: 0;
+}
+.mem.short { border-color: var(--short); background: var(--short-bg); }
+.mem.long { border-color: var(--long); background: var(--long-bg); }
+.mem.short h3 { color: var(--short); }
+.mem.long h3 { color: var(--long); }
+.mem h3 { font-size: 19px; }
+.mem dl { margin: 0; display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 8px 12px; font-size: 13.5px; }
+.mem dt { color: var(--muted); font-weight: 500; }
+.mem dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+
+pre {
+  margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 14px 16px; overflow-x: auto; font: 12.5px/1.6 var(--font-mono); color: var(--ink);
+}
+pre .c { color: var(--muted); }
+pre .s { color: var(--short); }
+pre .l { color: var(--long); }
+.samples { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.sample { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.sample h3 { font-size: 15px; }
+.sample p { font-size: 13.5px; color: var(--muted); }
+
+/* Sequence diagram */
+.seq-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.seq { position: relative; min-width: 860px; padding: 14px 10px 18px; --cols: 6; }
+.seq-actors, .seq-row, .lifelines { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); }
+.actor {
+  margin: 0 6px; text-align: center; font: 600 12.5px var(--font-body); padding: 7px 4px;
+  border-radius: var(--radius); border: 1.5px solid var(--line); background: var(--surface-2);
+}
+.actor small { display: block; font: 400 11px var(--font-mono); color: var(--muted); }
+.actor.short { border-color: var(--short); color: var(--short); background: var(--short-bg); }
+.actor.long { border-color: var(--long); color: var(--long); background: var(--long-bg); }
+.actor.req { border-color: var(--accent); color: var(--accent); background: var(--accent-bg); }
+.actor.ext { border-color: var(--ext); color: var(--ext); background: var(--ext-bg); }
+.lifelines { position: absolute; left: 10px; right: 10px; top: 60px; bottom: 10px; pointer-events: none; }
+.lifelines span { border-left: 1.5px dashed var(--line); margin-left: 50%; }
+.seq-rows { position: relative; display: flex; flex-direction: column; gap: 4px; margin-top: 14px; }
+.seq-row { min-height: 40px; align-items: end; }
+.msg { position: relative; height: 40px; }
+.msg .label {
+  position: absolute; left: 0; right: 0; top: 0; text-align: center; font-size: 12px; line-height: 1.3;
+  padding: 0 calc(100% / (2 * var(--k)) + 6px);
+}
+.msg .label b { font: 600 11px var(--font-mono); margin-right: 4px; }
+.msg .line {
+  position: absolute; bottom: 8px; height: 0; border-top: 1.5px solid var(--c, var(--ink));
+  left: calc(100% / (2 * var(--k))); right: calc(100% / (2 * var(--k)));
+}
+.msg .line::after {
+  content: ""; position: absolute; top: -5.5px; border: 5px solid transparent;
+}
+.msg.right .line::after { right: -2px; border-left: 8px solid var(--c, var(--ink)); border-right: 0; }
+.msg.left .line::after { left: -2px; border-right: 8px solid var(--c, var(--ink)); border-left: 0; }
+.msg.dashed .line { border-top-style: dashed; }
+.msg.self { display: flex; align-items: center; justify-content: center; }
+.msg.self .note {
+  font-size: 11.5px; line-height: 1.3; text-align: center; background: var(--surface-2);
+  border: 1px solid var(--line); border-radius: 4px; padding: 4px 6px; margin: 0 4px; position: relative; z-index: 1;
+}
+.msg.self .note b { font: 600 11px var(--font-mono); margin-right: 3px; }
+.msg.c-short { --c: var(--short); }
+.msg.c-long { --c: var(--long); }
+.msg.c-req { --c: var(--accent); }
+.msg.c-ext { --c: var(--ext); }
+.msg.c-short .label b, .msg.c-short .note b { color: var(--short); }
+.msg.c-long .label b, .msg.c-long .note b { color: var(--long); }
+.msg.c-req .label b, .msg.c-req .note b { color: var(--accent); }
+.seq-caption { font-size: 13px; color: var(--muted); }
+
+/* Across chats */
+.across { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: stretch; }
+.thread {
+  border: 1.5px solid var(--short); background: var(--short-bg); border-radius: var(--radius);
+  padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; font-size: 13px; min-width: 0;
+}
+.thread h3 { font-size: 14px; color: var(--short); }
+.thread .mono { color: var(--muted); font-size: 11.5px; overflow-wrap: anywhere; }
+.bubble { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; }
+.bubble.me { align-self: flex-end; background: var(--accent-bg); border-color: transparent; }
+.ns {
+  grid-column: 1 / 3; border: 1.5px solid var(--long); background: var(--long-bg); border-radius: var(--radius);
+  padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; font-size: 13px;
+}
+.ns h3 { font-size: 14px; color: var(--long); }
+.ns.other { grid-column: 3 / 4; }
+.ns .mono { color: var(--muted); font-size: 11.5px; }
+.flow-note { grid-column: 1 / -1; font-size: 13px; color: var(--muted); }
+
+.facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.fact { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; }
+.fact .n { font: 700 28px var(--font-display); color: var(--short); font-variant-numeric: tabular-nums; }
+.fact p { font-size: 13.5px; color: var(--muted); }
+
+ul.gaps { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+ul.gaps li {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 12px 14px; font-size: 14px; display: flex; flex-direction: column; gap: 3px;
+}
+ul.gaps li b { font-weight: 600; }
+ul.gaps li span { color: var(--muted); }
+ul.gaps .sev { font: 600 11px var(--font-body); letter-spacing: 0.06em; text-transform: uppercase; color: var(--warn); }
+
+footer { color: var(--muted); font-size: 13px; padding-block: 0 40px; }
+
+@media (max-width: 900px) {
+  .arch { grid-template-columns: minmax(0, 1fr); }
+  .side { position: static; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+  .compare, .samples { grid-template-columns: minmax(0, 1fr); }
+  .facts { grid-template-columns: minmax(0, 1fr); }
+  .across { grid-template-columns: minmax(0, 1fr); }
+  .ns, .ns.other { grid-column: auto; }
+}
+@media (max-width: 520px) {
+  .mem dl { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .mem dd { margin-bottom: 8px; }
+  .brand span { display: none; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  section.view { animation: fade 0.25s ease-out; }
+  @keyframes fade { from { opacity: 0.4; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+}
+body { margin: 0; }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <div class="brand"><b>Travel Agent</b><span>LangChain ReAct agent · Open WebUI · Postgres</span></div>
+    <nav class="tabs" role="tablist" aria-label="Pages">
+      <button role="tab" id="tab-architecture" aria-controls="architecture" aria-selected="true" data-view="architecture">Architecture</button>
+      <button role="tab" id="tab-data-flow" aria-controls="data-flow" aria-selected="false" data-view="data-flow">Data flow &amp; state</button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+<!-- ================= ARCHITECTURE ================= -->
+<section class="view" id="architecture" role="tabpanel" aria-labelledby="tab-architecture">
+  <div class="intro">
+    <span class="eyebrow">System overview</span>
+    <h1>How a chat message becomes a trip plan</h1>
+    <p class="lead">Open WebUI is the only frontend. It talks to our FastAPI service as if it were an OpenAI model; behind that API, a LangChain agent researches with tools and keeps its state in Postgres.</p>
+    <div class="legend" aria-label="Legend">
+      <span><i class="sw req"></i>Request path &amp; model calls</span>
+      <span><i class="sw short"></i>Short-term memory (one chat)</span>
+      <span><i class="sw long"></i>Long-term memory (across chats)</span>
+      <span><i class="sw ext"></i>External service</span>
+      <span><i class="sw planned"></i>Planned</span>
+    </div>
+  </div>
+
+  <div class="arch">
+    <div class="stack">
+      <div class="layer">
+        <div class="layer-head"><h2>Open WebUI</h2><span class="tag">docker · :3000</span></div>
+        <p>Chat UI and dummy login: anyone signs up with an email. Keeps its own copy of every chat for display, and forwards who is asking and in which chat.</p>
+      </div>
+
+      <div class="pipe">
+        <div class="rail both"><span></span></div>
+        <small>POST /v1/chat/completions (full transcript, stream=true)<br>headers X-OpenWebUI-User-Email · X-OpenWebUI-Chat-Id<br>← SSE chunks: tokens, 🔧 tool status, rendered itineraries</small>
+      </div>
+
+      <div class="layer">
+        <div class="layer-head"><h2>Agent API</h2><span class="tag">FastAPI · uv run travel-agent · :8000</span></div>
+        <div class="chips">
+          <span class="chip req">POST /v1/chat/completions</span>
+          <span class="chip">GET /v1/models</span>
+          <span class="chip">GET /api/itineraries</span>
+          <span class="chip">GET /health</span>
+        </div>
+        <p>Turns the email into <code>user_id</code> and the chat into <code>thread_id = email:chat_id</code>, passes only the newest user message to the agent, and streams the result back in OpenAI's format.</p>
+      </div>
+
+      <div class="pipe">
+        <div class="rail"></div>
+        <small>agent.astream(stream_mode=["messages", "updates"])<br>config: thread_id + Langfuse callback · context: UserContext(user_id)</small>
+      </div>
+
+      <div class="layer">
+        <div class="layer-head"><h2>Agent runtime</h2><span class="tag">langchain create_agent · ReAct loop</span></div>
+        <div class="loop"><span>model</span><span class="arrow">→</span><span>tool calls</span><span class="arrow">→</span><span>tools</span><span class="arrow">→</span><span>model</span><span class="arrow">…</span><span>final answer</span></div>
+        <p>Before every model call, a middleware rebuilds the system prompt: base instructions + the skills index + this user's saved facts.</p>
+        <div class="runtime-grid">
+          <div class="unit">
+            <h3>Guidebook tools</h3>
+            <ul><li class="mono">list_guidebooks</li><li class="mono">search_guidebooks</li><li class="mono">read_guidebook_pages</li></ul>
+          </div>
+          <div class="unit">
+            <h3>Skills</h3>
+            <ul><li class="mono">load_skill(name)</li><li>7 playbooks: trip-intake, itinerary-builder, budget-planner, packing-list, visa-and-entry, local-transport, food-and-culture</li></ul>
+          </div>
+          <div class="unit long">
+            <h3>Memory tools</h3>
+            <ul><li class="mono">save_memory(key, value)</li><li class="mono">delete_memory(key)</li></ul>
+          </div>
+          <div class="unit long">
+            <h3>Structured output</h3>
+            <ul><li class="mono">present_itinerary(Itinerary)</li><li>Pydantic-validated plan, saved and rendered to the chat</li></ul>
+          </div>
+          <div class="unit planned">
+            <h3>Flights, hotels, web</h3>
+            <ul><li>fast-flights, Playwright (#7)</li></ul>
+          </div>
+          <div class="unit planned">
+            <h3>Guidebook subagent</h3>
+            <ul><li class="mono">ask_guidebook (#11)</li></ul>
+          </div>
+          <div class="unit planned">
+            <h3>MCP tools</h3>
+            <ul><li>from mcp.json (#12)</li></ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="pipe">
+        <div class="rail both"><span></span></div>
+        <small>async reads and writes on one connection pool (psycopg)</small>
+      </div>
+
+      <div class="layer">
+        <div class="layer-head"><h2>State</h2><span class="tag">Postgres 16 · :5433 · plus files on disk</span></div>
+        <div class="runtime-grid">
+          <div class="unit short">
+            <h3>Checkpointer</h3>
+            <ul><li>Chat history per thread</li><li class="mono">checkpoints · checkpoint_blobs · checkpoint_writes</li></ul>
+          </div>
+          <div class="unit long">
+            <h3>Store</h3>
+            <ul><li>User facts and saved itineraries</li><li class="mono">store (prefix, key, value jsonb)</li></ul>
+          </div>
+          <div class="unit">
+            <h3>Files</h3>
+            <ul><li class="mono">data/guidebooks/*.md</li><li>5 Lonely Planet books, extracted from PDFs</li><li class="mono">skills/*.md</li></ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <aside class="side" aria-label="External services">
+      <div class="ext-card">
+        <span class="eyebrow">External</span>
+        <h3>OpenRouter</h3>
+        <span class="mono">anthropic/claude-sonnet-5.5</span>
+        <p>Every model call in the loop. Called through ChatOpenAI with OpenRouter's base URL.</p>
+      </div>
+      <div class="ext-card">
+        <span class="eyebrow">Observability</span>
+        <h3>Langfuse</h3>
+        <span class="mono">self-hosted · :3001</span>
+        <p>One trace per turn: model calls, tool calls, timings. Session = chat, user = email.</p>
+      </div>
+      <div class="ext-card">
+        <span class="eyebrow">Offline step</span>
+        <h3>Guidebook ingest</h3>
+        <span class="mono">uv run travel-agent-ingest</span>
+        <p>reference/*.pdf → markdown with section headings and [p. N] page markers.</p>
+      </div>
+    </aside>
+  </div>
+
+  <div class="block">
+    <h2>One request, end to end</h2>
+    <ol class="steps">
+      <li><div><b>The user sends a message in Open WebUI.</b><span>Open WebUI posts the whole transcript plus the user's email and chat id.</span></div></li>
+      <li><div><b>The API resolves who and where.</b><span><code>user_id</code> = email, <code>thread_id</code> = email:chat_id. Only the newest user message goes on; the checkpointer already has the rest.</span></div></li>
+      <li><div><b>The agent loads the thread.</b><span>The checkpointer restores this chat's message history from Postgres.</span></div></li>
+      <li><div><b>The middleware builds the prompt.</b><span>Base instructions, the skills list and the user's saved facts from the store.</span></div></li>
+      <li><div><b>The model works through tools.</b><span>It may load a skill, search the guidebooks, save a fact or present an itinerary. Each step is checkpointed.</span></div></li>
+      <li><div><b>The API streams back.</b><span>Tokens, a 🔧 status line per tool call, and any rendered itinerary, as OpenAI-style SSE chunks.</span></div></li>
+      <li><div><b>Everything is traced.</b><span>Langfuse records the turn under the chat's session and the user's email.</span></div></li>
+    </ol>
+  </div>
+
+  <div class="block">
+    <h2>Components</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Component</th><th>Technology</th><th>Where</th><th>Role</th></tr></thead>
+        <tbody>
+          <tr><td>Chat UI</td><td>Open WebUI</td><td class="mono">docker-compose.yml</td><td>Login, chat display, forwards user and chat headers</td></tr>
+          <tr><td>Agent API</td><td>FastAPI, uvicorn</td><td class="mono">api/app.py · api/openai_compat.py</td><td>OpenAI-compatible endpoint, streaming, itinerary JSON</td></tr>
+          <tr><td>Agent</td><td>LangChain v1 create_agent</td><td class="mono">agent/graph.py · agent/prompts.py</td><td>ReAct loop, dynamic prompt middleware</td></tr>
+          <tr class="short"><td>Short-term memory</td><td>AsyncPostgresSaver</td><td class="mono">memory.py</td><td>Per-chat message history, checkpointed each step</td></tr>
+          <tr class="long"><td>Long-term memory</td><td>AsyncPostgresStore</td><td class="mono">tools/memory.py · tools/itinerary.py</td><td>Per-user facts and itineraries across chats</td></tr>
+          <tr><td>Guidebooks</td><td>PyMuPDF + keyword search</td><td class="mono">kb/ingest.py · tools/guidebooks.py</td><td>Cited research from 5 Lonely Planet guides</td></tr>
+          <tr><td>Skills</td><td>Markdown + YAML frontmatter</td><td class="mono">skills/*.md</td><td>Task playbooks loaded on demand</td></tr>
+          <tr class="ext"><td>LLM</td><td>OpenRouter</td><td class="mono">llm.py</td><td>Claude Sonnet 5.5 for every model call</td></tr>
+          <tr class="ext"><td>Tracing</td><td>Langfuse v4</td><td class="mono">observability.py · docker/langfuse.compose.yml</td><td>Traces per session and user</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ================= DATA FLOW ================= -->
+<section class="view" id="data-flow" role="tabpanel" aria-labelledby="tab-data-flow" hidden>
+  <div class="intro">
+    <span class="eyebrow">State persistence</span>
+    <h1>Where the agent's memory lives</h1>
+    <p class="lead">The agent remembers at two scopes. Short-term memory is the message history of one chat. Long-term memory is a small set of facts about a person that follows them into every new chat. Both live in the same Postgres database, in different tables, keyed differently.</p>
+  </div>
+
+  <div class="compare">
+    <div class="mem short">
+      <span class="eyebrow">Short-term memory</span>
+      <h3>One chat's history</h3>
+      <dl>
+        <dt>Component</dt><dd>LangGraph checkpointer (<span class="mono">AsyncPostgresSaver</span>)</dd>
+        <dt>Keyed by</dt><dd><span class="mono">thread_id = "ana@example.com:&lt;chat id&gt;"</span></dd>
+        <dt>Holds</dt><dd>Every message in the chat: user, assistant, tool calls and tool results, plus loop state</dd>
+        <dt>Written</dt><dd>Automatically after every step of the agent loop</dd>
+        <dt>Read</dt><dd>At the start of each turn, to resume the chat</dd>
+        <dt>Tables</dt><dd><span class="mono">checkpoints, checkpoint_blobs, checkpoint_writes</span></dd>
+        <dt>Cleared</dt><dd>Never automatically; deleting a chat in Open WebUI leaves it in place</dd>
+      </dl>
+    </div>
+    <div class="mem long">
+      <span class="eyebrow">Long-term memory</span>
+      <h3>Facts about a person</h3>
+      <dl>
+        <dt>Component</dt><dd>LangGraph store (<span class="mono">AsyncPostgresStore</span>)</dd>
+        <dt>Keyed by</dt><dd>Namespace <span class="mono">(email, "memories")</span> + topic key, e.g. <span class="mono">diet</span></dd>
+        <dt>Holds</dt><dd>Lasting preferences: home airport, diet, companions, budget level, nationality</dd>
+        <dt>Written</dt><dd>Only when the agent calls <span class="mono">save_memory</span> or <span class="mono">delete_memory</span></dd>
+        <dt>Read</dt><dd>Before every model call, injected into the system prompt (up to 50 facts)</dd>
+        <dt>Tables</dt><dd><span class="mono">store</span> (prefix, key, value jsonb)</dd>
+        <dt>Cleared</dt><dd>When the user asks the agent to forget; no expiry today</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="block">
+    <h2>Everywhere state is kept</h2>
+    <p>Five places hold data about a conversation. Only the agent's checkpointer and store affect what the agent knows.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Where</th><th>Keyed by</th><th>Written when</th><th>Read when</th><th>Used by the agent?</th></tr></thead>
+        <tbody>
+          <tr class="short"><td>Checkpointer</td><td class="mono">email:chat_id</td><td>Every agent step</td><td>Start of each turn</td><td>Yes: the conversation it continues</td></tr>
+          <tr class="long"><td>Store · memories</td><td class="mono">(email, "memories") / key</td><td>save_memory / delete_memory</td><td>Every model call</td><td>Yes: facts in the system prompt</td></tr>
+          <tr class="long"><td>Store · itineraries</td><td class="mono">(email, "itineraries") / thread_id</td><td>present_itinerary (latest replaces)</td><td>GET /api/itineraries</td><td>No: kept for the API; the plan is also in the thread</td></tr>
+          <tr><td>Open WebUI database</td><td class="mono">Open WebUI chat id</td><td>Every message, by Open WebUI</td><td>When the chat is displayed</td><td>No: the agent ignores all but the newest message</td></tr>
+          <tr class="ext"><td>Langfuse</td><td class="mono">session = thread_id, user = email</td><td>Every turn (when tracing is on)</td><td>When you inspect traces</td><td>No: observability only</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="block">
+    <h2>One turn that saves a memory</h2>
+    <p>The user writes "I'm vegetarian" in an existing chat. Amber steps touch short-term memory, violet steps touch long-term memory, blue steps are the request and model calls.</p>
+    <div class="seq-wrap" tabindex="0" aria-label="Sequence diagram, scrolls horizontally">
+      <div class="seq" id="seq"></div>
+    </div>
+    <p class="seq-caption">The memory list is re-read before every model call, so a fact saved in step 7 is already in the prompt for step 9. Checkpoints are written after each step, not only at the end of the turn.</p>
+  </div>
+
+  <div class="block">
+    <h2>What carries over to a new chat</h2>
+    <div class="across">
+      <div class="thread">
+        <h3>Chat A</h3>
+        <span class="mono">thread ana@example.com:a1f…</span>
+        <div class="bubble me">I'm vegetarian and fly out of SFO.</div>
+        <div class="bubble">🔧 save_memory(diet) · save_memory(home_airport)</div>
+      </div>
+      <div class="thread">
+        <h3>Chat B (new)</h3>
+        <span class="mono">thread ana@example.com:7c2…</span>
+        <div class="bubble me">Dinner ideas in Rome?</div>
+        <div class="bubble">Since you're vegetarian, skip the guanciale dishes at…</div>
+      </div>
+      <div class="thread">
+        <h3>Bo's chat</h3>
+        <span class="mono">thread bo@example.com:e90…</span>
+        <div class="bubble me">What do you remember about me?</div>
+        <div class="bubble">Nothing yet.</div>
+      </div>
+      <div class="ns">
+        <h3>Ana's long-term memory</h3>
+        <span class="mono">store prefix "ana@example%2Ecom.memories"</span>
+        <span>diet: vegetarian · home_airport: SFO (San Francisco)</span>
+      </div>
+      <div class="ns other">
+        <h3>Bo's long-term memory</h3>
+        <span class="mono">store prefix "bo@example%2Ecom.memories"</span>
+        <span>(nothing saved yet)</span>
+      </div>
+      <p class="flow-note">Chat B starts with an empty thread: none of chat A's messages carry over. Only the facts in Ana's namespace do. Bo's chats read a different namespace, so nothing leaks between users.</p>
+    </div>
+  </div>
+
+  <div class="block">
+    <h2>What's stored, literally</h2>
+    <div class="samples">
+      <div class="sample">
+        <h3>A thread after two turns</h3>
+        <p>Checkpointer state for <code>ana@example.com:c1</code>, newest checkpoint.</p>
+<pre><span class="c"># channel_values["messages"]</span>
+<span class="s">HumanMessage</span>  "hello"
+<span class="s">AIMessage</span>     "Hi! Where are you thinking of going?"
+<span class="s">HumanMessage</span>  "I'm vegetarian"
+<span class="s">AIMessage</span>     tool_calls=[save_memory(diet, vegetarian)]
+<span class="s">ToolMessage</span>   "Saved diet: vegetarian"
+<span class="s">AIMessage</span>     "Noted, I'll keep that in mind."</pre>
+      </div>
+      <div class="sample">
+        <h3>A memory row</h3>
+        <p>The <code>store</code> table in Postgres. Dots in the email are encoded because the namespace is joined with dots.</p>
+<pre><span class="c">-- select prefix, key, value from store</span>
+prefix  <span class="l">ana@example%2Ecom.memories</span>
+key     <span class="l">diet</span>
+value   {"value": "vegetarian",
+         "updated_at": "2026-10-28T05:14:47+00:00"}</pre>
+      </div>
+      <div class="sample">
+        <h3>An itinerary row</h3>
+        <p>Same table, different namespace. One per chat; presenting a new plan replaces it.</p>
+<pre>prefix  <span class="l">ana@example%2Ecom.itineraries</span>
+key     <span class="l">ana@example.com:c1</span>
+value   {"itinerary": {"title": "2 days in Rome…",
+           "trip_length_days": 2,
+           "days": [{"day": 1, "activities": […]}, …]},
+         "updated_at": "…"}</pre>
+      </div>
+      <div class="sample">
+        <h3>The prompt the model sees</h3>
+        <p>Rebuilt by the middleware before every model call.</p>
+<pre>…base instructions, skills list…
+
+Memory:
+You remember facts about this user across
+conversations. What you know so far:
+<span class="l">- diet: vegetarian</span>
+<span class="l">- home_airport: SFO (San Francisco)</span></pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="block">
+    <h2>Checkpoint volume</h2>
+    <div class="facts">
+      <div class="fact"><span class="n">3</span><p>checkpoints for a plain turn (input, then each loop step)</p></div>
+      <div class="fact"><span class="n">5</span><p>checkpoints for a turn with one tool call</p></div>
+      <div class="fact"><span class="n">22</span><p>checkpoints in the busiest demo chat so far, a single long research turn</p></div>
+    </div>
+    <p>Every checkpoint is a full restorable snapshot, which is what makes resuming, and later forking a thread for edits, possible. Old checkpoints are never pruned today.</p>
+  </div>
+
+  <div class="block">
+    <h2>Gaps to know about</h2>
+    <ul class="gaps">
+      <li><span class="sev">Consistency</span><b>Editing or regenerating a message in Open WebUI doesn't rewind the agent.</b><span>The agent sees only the newest message; its thread still contains the original turns. Fix: detect divergence and fork from the matching checkpoint.</span></li>
+      <li><span class="sev">Retention</span><b>Deleting a chat in Open WebUI leaves the agent's thread and saved itinerary.</b><span>Open WebUI doesn't notify the agent. Needs a cleanup job or a delete hook.</span></li>
+      <li><span class="sev">Retention</span><b>Nothing expires.</b><span>Checkpoints are never pruned and memories have no TTL. The store table already supports <code>ttl_minutes</code>.</span></li>
+      <li><span class="sev">Trust</span><b>Identity comes from a header.</b><span>The agent API trusts <code>X-OpenWebUI-User-Email</code>. Fine locally; it needs a bearer token and a private network before deployment.</span></li>
+      <li><span class="sev">Scale</span><b>Memory is capped, not searched.</b><span>Up to 50 facts of 300 characters each are injected every call. Beyond that, switch to semantic search on the store.</span></li>
+    </ul>
+  </div>
+</section>
+
+</main>
+<footer class="wrap">Generated from the travel-agent repo · facts checked against the running system on 2026-10-28.</footer>
+
+<script>
+(function () {
+  // Sequence: [from, to, text, colour class, dashed?]; columns are 0-based actor indexes
+  var actors = [
+    ["Open WebUI", ":3000", ""],
+    ["Agent API", "FastAPI", "req"],
+    ["Checkpointer", "short-term", "short"],
+    ["Agent loop", "middleware + tools", ""],
+    ["Store", "long-term", "long"],
+    ["OpenRouter", "LLM", "ext"]
+  ];
+  var steps = [
+    [0, 1, "POST transcript + email, chat id", "req"],
+    [1, 1, "keep newest message, thread = email:chat", "req"],
+    [1, 2, "load thread", "short"],
+    [1, 3, "run agent with history + new message", "req"],
+    [3, 4, "middleware: read memories", "long"],
+    [3, 5, "model call: prompt + facts + history", "req"],
+    [5, 3, "tool call: save_memory(diet, vegetarian)", "req", true],
+    [3, 4, "write (email, memories) / diet", "long"],
+    [3, 2, "checkpoint after each step", "short"],
+    [3, 4, "middleware: re-read memories", "long"],
+    [3, 5, "model call with updated facts", "req"],
+    [5, 3, "final answer tokens", "req", true],
+    [3, 2, "final checkpoint", "short"],
+    [1, 0, "SSE: status lines + answer", "req", true],
+    [0, 0, "Open WebUI saves its own copy", ""]
+  ];
+  var seq = document.getElementById("seq");
+  seq.style.setProperty("--cols", actors.length);
+  var head = document.createElement("div");
+  head.className = "seq-actors";
+  actors.forEach(function (a) {
+    var d = document.createElement("div");
+    d.className = "actor " + a[2];
+    d.innerHTML = a[0] + "<small>" + a[1] + "</small>";
+    head.appendChild(d);
+  });
+  seq.appendChild(head);
+  var life = document.createElement("div");
+  life.className = "lifelines";
+  actors.forEach(function () { life.appendChild(document.createElement("span")); });
+  seq.appendChild(life);
+  var rows = document.createElement("div");
+  rows.className = "seq-rows";
+  steps.forEach(function (s, i) {
+    var from = s[0], to = s[1], lo = Math.min(from, to), hi = Math.max(from, to);
+    var row = document.createElement("div");
+    row.className = "seq-row";
+    var m = document.createElement("div");
+    m.style.gridColumn = (lo + 1) + " / " + (hi + 2);
+    m.style.setProperty("--k", hi - lo + 1);
+    var n = "<b>" + (i + 1) + "</b>";
+    if (from === to) {
+      m.className = "msg self c-" + (s[3] || "none");
+      m.innerHTML = '<span class="note">' + n + s[2] + "</span>";
+    } else {
+      m.className = "msg " + (to > from ? "right" : "left") + " c-" + (s[3] || "none") + (s[4] ? " dashed" : "");
+      m.innerHTML = '<span class="label">' + n + s[2] + '</span><span class="line"></span>';
+    }
+    row.appendChild(m);
+    rows.appendChild(row);
+  });
+  seq.appendChild(rows);
+
+  // Tabs, with the view kept in the URL hash (#architecture / #data-flow)
+  var tabs = document.querySelectorAll("nav.tabs button");
+  function show(view) {
+    if (view !== "data-flow") view = "architecture";
+    document.querySelectorAll("section.view").forEach(function (s) { s.hidden = s.id !== view; });
+    tabs.forEach(function (t) { t.setAttribute("aria-selected", String(t.dataset.view === view)); });
+  }
+  tabs.forEach(function (t) {
+    t.addEventListener("click", function () {
+      show(t.dataset.view);
+      try { history.replaceState(null, "", "#" + t.dataset.view); } catch (e) {}
+      window.scrollTo({ top: 0 });
+    });
+  });
+  window.addEventListener("hashchange", function () { show(location.hash.slice(1)); });
+  show(location.hash.slice(1));
+})();
+</script>
+
+</body>
+</html>

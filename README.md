@@ -9,7 +9,7 @@ can be the frontend.
 ```bash
 cp .env.example .env          # add your OPENROUTER_API_KEY
 uv sync
-docker compose up -d          # Postgres (:5433) + Open WebUI (:3000)
+docker compose up -d          # Postgres (:5433), Open WebUI (:3000), Langfuse (:3001)
 uv run travel-agent-ingest    # one-time: reference/*.pdf -> data/guidebooks/*.md
 uv run travel-agent           # API on http://localhost:8000
 ```
@@ -20,9 +20,13 @@ simulate multiple users.
 
 ### Tracing
 
-Set `LANGSMITH_TRACING=true` and `LANGSMITH_API_KEY` in `.env` to send every agent run (LLM calls,
-tool calls, middleware steps) to LangSmith under the `travel-agent` project. Runs carry `thread_id`
-and `user_id` metadata, so the **Threads** tab shows whole conversations and you can filter by user.
+With `LANGFUSE_TRACING=true` in `.env`, every agent run (LLM calls, tool calls, middleware steps)
+is traced to the self-hosted Langfuse at http://localhost:3001 (login `admin@travel.local` /
+`travel-agent-dev`). Traces carry the chat as **session** and the email as **user**, so Langfuse's
+Sessions and Users views show whole conversations per (dummy) user. Langfuse is about six containers
+(incl. ClickHouse); to skip it run `docker compose up -d postgres open-webui`.
+
+LangSmith can be enabled alongside it with `LANGSMITH_TRACING=true` + `LANGSMITH_API_KEY`.
 
 Tests and lint: `uv run pytest` · `uv run ruff check . && uv run ruff format --check .`
 

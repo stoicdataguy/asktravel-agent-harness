@@ -11,7 +11,8 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
   and use Open WebUI (docker-compose) as the chat client. Don't build UI code.
 
 ## Commands
-- Infra: `docker compose up -d` → Postgres on :5433, Open WebUI on http://localhost:3000
+- Infra: `docker compose up -d` → Postgres :5433, Open WebUI http://localhost:3000, Langfuse http://localhost:3001
+  (Langfuse stack lives in `docker/langfuse.compose.yml`; local dev secrets only)
 - Run API: `uv run travel-agent` (or `uv run uvicorn travel_agent.api.app:app --reload`)
 - Guidebooks: `uv run travel-agent-ingest [--force]` converts `reference/*.pdf` → `data/guidebooks/*.md`
 - Tests: `uv run pytest` · Lint/format: `uv run ruff check --fix . && uv run ruff format .`
@@ -21,7 +22,7 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
 - `src/travel_agent/api/` — FastAPI app and OpenAI-compatible routes.
 - `src/travel_agent/agent/` — `build_agent()` (create_agent + middleware), prompts, `UserContext`.
 - `src/travel_agent/memory.py` — Postgres checkpointer + store on one connection pool.
-- `src/travel_agent/observability.py` — LangSmith tracer + `run_config()` for every agent invocation.
+- `src/travel_agent/observability.py` — Langfuse (primary) / LangSmith (optional) callbacks + `run_config()`.
 - `src/travel_agent/kb/` — guidebook ingestion (PDF → markdown with `[p. N]` markers + TOC headings).
 - See `docs/PLAN.md` for the target architecture and milestones.
 
@@ -39,7 +40,8 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
 - Flights: `fast-flights`. Hotels and web pages: Playwright scraping. No paid search APIs.
 - `reference/` (raw PDFs) and `data/guidebooks/*.md` are copyrighted material: never commit them.
 - Every agent invocation (incl. future subagents) uses `observability.run_config(user_id, thread_id)`
-  so traces get the tracer callback plus `thread_id` / `user_id` metadata.
+  so traces get tracing callbacks plus session/user metadata (`langfuse_session_id`, `langfuse_user_id`).
+- Langfuse v4 runs in events-only mode: query traces via `/api/public/v2/observations`, not `/traces`.
 - Async first in the API layer (`ainvoke` / `astream`).
 - Secrets live in `.env` (gitignored). Keep `.env.example` in sync when adding settings.
 

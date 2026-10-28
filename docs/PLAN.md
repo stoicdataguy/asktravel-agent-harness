@@ -26,7 +26,7 @@ Open WebUI (docker, :3000) ── OpenAI-compatible HTTP + X-OpenWebUI-User-Emai
 | Flights | `fast-flights` (reads Google Flights; no API key). |
 | Hotels | Playwright scraping of Google Hotels. |
 | Web | Playwright: fetch URL → extract readable text. No search provider. |
-| Observability | LangSmith (hosted), tracer built from settings; `thread_id`/`user_id` metadata on every run. |
+| Observability | Self-hosted Langfuse v4 in compose (:3001), chat = session, email = user. LangSmith optional. |
 | Guidebooks | PDFs in `reference/` → `travel-agent-ingest` → `data/guidebooks/<slug>.md` (both gitignored). |
 
 ## Known limitations
@@ -41,7 +41,7 @@ Open WebUI (docker, :3000) ── OpenAI-compatible HTTP + X-OpenWebUI-User-Emai
 2. ✅ **Chat round-trip**: `/v1/chat/completions` (stream + non-stream) → `create_agent`.
 3. ✅ **Short-term memory**: Postgres checkpointer keyed by user + chat id.
 4. ✅ **Guidebook ingestion**: one paragraph per line, TOC headings, `[p. N]` page markers.
-5. ✅ **Observability**: LangSmith tracing with per-thread and per-user metadata.
+5. ✅ **Observability**: self-hosted Langfuse (+ optional LangSmith) with per-session and per-user traces.
 6. **Tools**: `search_flights` (fast-flights), `search_hotels` + `fetch_page` (Playwright; run
    `uv run playwright install chromium` once). Unit tests against recorded fixtures.
 7. **Long-term memory**: `save_memory` / `recall_memories` tools on the store + a middleware that injects

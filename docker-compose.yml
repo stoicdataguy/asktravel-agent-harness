@@ -1,3 +1,7 @@
+# Langfuse tracing stack (UI on :3001). Skip it with: docker compose up -d postgres open-webui
+include:
+  - docker/langfuse.compose.yml
+
 services:
   # Agent memory: LangGraph checkpointer (thread history) + store (long-term facts)
   postgres:

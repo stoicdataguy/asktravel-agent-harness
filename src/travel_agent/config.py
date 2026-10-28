@@ -21,7 +21,14 @@ class Settings(BaseSettings):
     # Checkpointer (thread memory) and store (long-term memory) both live here
     database_url: str = "postgresql://travel:travel@localhost:5433/travel_agent"
 
-    # LangSmith tracing (https://smith.langchain.com); off unless enabled in .env
+    # Langfuse tracing (self-hosted via docker compose, UI on :3001). Keys match the project
+    # docker/langfuse.compose.yml bootstraps, so this works out of the box locally.
+    langfuse_tracing: bool = False
+    langfuse_public_key: str = "pk-lf-travel-agent-dev"
+    langfuse_secret_key: SecretStr = SecretStr("sk-lf-travel-agent-dev")
+    langfuse_host: str = "http://localhost:3001"
+
+    # LangSmith tracing (https://smith.langchain.com); optional, independent of Langfuse
     langsmith_tracing: bool = False
     langsmith_api_key: SecretStr = SecretStr("")
     langsmith_project: str = "travel-agent"

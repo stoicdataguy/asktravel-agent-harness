@@ -58,7 +58,7 @@ Open WebUI (:3000) ── OpenAI-compatible HTTP + X-OpenWebUI-User-Email / -Cha
 | LLM | OpenRouter, `openai/gpt-6-luna` via `ChatOpenAI(base_url=...)` (`OPENROUTER_MODEL`; switched from `anthropic/claude-sonnet-5.5`, ~20× cheaper, same skill-trigger results). | Built |
 | Users | Open WebUI signup as a dummy login: any email, active immediately. `ENABLE_PERSISTENT_CONFIG=false` keeps signup open. | Built |
 | Short-term memory | `AsyncPostgresSaver` checkpointer, one thread per user + chat. | Built |
-| Long-term memory | `AsyncPostgresStore`, facts keyed by topic, injected into the prompt every model call. | Built |
+| Long-term memory | `AsyncPostgresStore` with two kinds: profile facts keyed by topic, and **trips** (destination, dates, lodging, travellers, linked itinerary). Both are injected into the prompt every model call. | Built |
 | Structured output | Pydantic schema as the argument of a `present_itinerary` tool, not `response_format` (which forces a tool call on every turn). | Built |
 | Skills | Markdown playbooks with name/description frontmatter, loaded on demand via `load_skill`. | Built |
 | Observability | Self-hosted Langfuse v4 in compose. LangSmith removed. | Built |
@@ -142,6 +142,10 @@ worth doing even before any deployment.
 - **Branching (issue #3):** forked chats lost the agent's history, and regenerate/edit didn't
   rewind it. The API now reconciles the transcript with the thread before each turn (append /
   seed / rewind / replace); verified by `scripts/e2e_branching.py` in a real browser.
+- **Trip memory (issue #5):** long-term memory only held preferences, so trip details and plans from one
+  chat were unknown in the next. Trips are now a second kind of long-term memory
+  (`save_trip_details`, `get_trip`, `delete_trip`); `present_itinerary` files every plan under a trip, and
+  existing itineraries are backfilled at startup. Verified by `scripts/e2e_memory.py`.
 - **#10 Skills:** see [Skills](#skills). `scripts/eval_skills.py` checks against the real model
   that each skill triggers (9/9 passing).
 
@@ -268,6 +272,10 @@ likely dominate: a tool-heavy itinerary run is 15+ model calls.
   outdated; live flight and hotel data arrive with #7.
 - **Guidebook search is keyword-only.** Vague queries ("romantic dinner") work less well than
   specific ones ("restaurant Trastevere"); the agent compensates with several focused searches.
+
+- **Rate limits break the stream.** A 429 from OpenRouter mid-reply cuts the SSE stream off instead
+  of showing a message (new OpenRouter accounts get 20 requests/minute on gpt-6-luna). Add retries
+  with backoff and an error chunk in the stream.
 
 ## Open questions
 

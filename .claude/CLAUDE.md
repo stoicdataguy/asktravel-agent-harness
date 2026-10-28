@@ -34,6 +34,7 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
 - `src/travel_agent/context.py` — `UserContext` (runtime context: `user_id`).
 - `src/travel_agent/agent/schemas.py` — `Itinerary` schema + `render_itinerary()` markdown.
 - `src/travel_agent/tools/itinerary.py` — `present_itinerary` (structured plan → store + chat).
+- `src/travel_agent/tools/trips.py` — trip memory (`Trip`, `save_trip_details`, `get_trip`, `delete_trip`, startup backfill).
 - `src/travel_agent/tools/memory.py` — long-term memory tools (`save_memory`, `delete_memory`) + loaders.
 - `src/travel_agent/skills/` — skill playbooks (`<name>.md` with name/description frontmatter) + `load_skill` tool.
 - `src/travel_agent/kb/` — guidebook ingestion (PDF → markdown with `[p. N]` markers + TOC headings).
@@ -53,6 +54,10 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
   `thread_id = "<user_email>:<chat_id>"`; cross-thread facts via `Store` namespaced
   `(<email with "." → "%2E">, "memories")` (store labels can't contain dots); use
   `memory.user_namespace(user_id, kind)` rather than building namespaces by hand.
+- Long-term memory has two kinds: profile facts (`save_memory`, lasting preferences) and trips
+  (`save_trip_details`, per-trip details). Both are injected into the prompt by the middleware;
+  `present_itinerary` always files the plan under a trip. Store values must be JSON-safe
+  (`model_dump(mode="json")` for models with dates).
 - Store/checkpointer are async Postgres: anything touching them (tools, middleware) must be
   `async def` and use `aput`/`asearch`/…; sync calls fail inside the event loop.
 - Identity: `user_id` = `X-OpenWebUI-User-Email` header (lowercased), passed as `UserContext` runtime
@@ -61,6 +66,7 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
   transcript's user messages with the thread: append the newest message when they agree, seed an
   empty (forked) thread from the transcript, or rewind/replace on regenerate and edit. Clients must
   send the full transcript, as OpenAI-style clients do.
+- After changing memory, prompts or tools, run `uv run python scripts/e2e_memory.py` (cross-chat memory).
 - After changing anything in the request path, run the browser test
   `uv run python scripts/e2e_branching.py` (full stack running).
 - Flights: `fast-flights`. Hotels and web pages: Playwright scraping. No paid search APIs.

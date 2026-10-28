@@ -20,6 +20,7 @@ covers the architecture, the decisions behind it, what's built, what's next, and
   - [Required changes before deploying](#required-changes-before-deploying)
   - [Infrastructure as code](#infrastructure-as-code)
   - [Phasing and cost](#phasing-and-cost)
+- [Detailed plans](#detailed-plans)
 - [Known limitations](#known-limitations)
 - [Open questions](#open-questions)
 
@@ -268,6 +269,13 @@ Alternatively, use private subnets with VPC endpoints for ECR, S3, Secrets Manag
 
 These are rough estimates; check the AWS Pricing Calculator. They exclude LLM usage, which will
 likely dominate: a tool-heavy itinerary run is 15+ model calls.
+
+## Detailed plans
+
+- [User feedback → audit tables](plans/feedback-audit.md): capture every 👍/👎 in an append-only
+  Postgres audit table, linked to the agent turn and its Langfuse trace.
+- [Memory architecture](plans/memory-architecture.md): procedural / semantic / episodic inventory,
+  What-When-How, TTL policy, context-window budget, and the M1–M7 roadmap.
 
 ## Known limitations
 

@@ -454,9 +454,13 @@ body { margin: 0; }
             <h3>Flight search</h3>
             <ul><li class="mono">search_flights</li><li>Live Google Flights fares via fast-flights</li></ul>
           </div>
+          <div class="unit">
+            <h3>Hotel search</h3>
+            <ul><li class="mono">search_hotels</li><li>Live Google Hotels rates via Playwright</li></ul>
+          </div>
           <div class="unit planned">
-            <h3>Hotels, web</h3>
-            <ul><li>Playwright (#7)</li></ul>
+            <h3>Web page fetch</h3>
+            <ul><li class="mono">fetch_page (#7)</li></ul>
           </div>
           <div class="unit planned">
             <h3>Guidebook subagent</h3>
@@ -541,6 +545,7 @@ body { margin: 0; }
           <tr class="long"><td>Long-term memory</td><td>AsyncPostgresStore</td><td class="mono">tools/memory.py · tools/itinerary.py</td><td>Per-user facts and itineraries across chats</td></tr>
           <tr><td>Guidebooks</td><td>PyMuPDF + keyword search</td><td class="mono">kb/ingest.py · tools/guidebooks.py</td><td>Cited research from 5 Lonely Planet guides</td></tr>
           <tr><td>Skills</td><td>Markdown + YAML frontmatter</td><td class="mono">skills/*.md</td><td>Task playbooks loaded on demand</td></tr>
+          <tr><td>Hotel search</td><td>Playwright (Google Hotels)</td><td class="mono">tools/hotels.py</td><td>Live nightly rates, ratings and booking links</td></tr>
           <tr><td>Flight search</td><td>fast-flights (Google Flights)</td><td class="mono">tools/flights.py</td><td>Live fares, times and booking links</td></tr>
           <tr class="ext"><td>LLM</td><td>OpenRouter</td><td class="mono">llm.py</td><td>GPT-6 Luna for every model call</td></tr>
           <tr class="ext"><td>Tracing</td><td>Langfuse v4</td><td class="mono">observability.py · docker/langfuse.compose.yml</td><td>Traces per session and user</td></tr>
@@ -740,7 +745,7 @@ conversations. What you know so far:
     <span class="eyebrow">Current MVP</span>
     <h1>What the agent can do</h1>
     <p class="lead">Tools are actions the agent can take: Python functions it calls with arguments. Skills are instructions: markdown playbooks it reads before tackling a kind of request. Skills tell the agent which tools to use and how.</p>
-    <div class="counts"><span><b>11</b>tools</span><span><b>7</b>skills</span><span><b>9/9</b>skill trigger cases passing</span><span><b>4</b>tools planned</span></div>
+    <div class="counts"><span><b>12</b>tools</span><span><b>7</b>skills</span><span><b>9/9</b>skill trigger cases passing</span><span><b>3</b>tools planned</span></div>
   </div>
 
   <div class="kinds">
@@ -768,6 +773,7 @@ conversations. What you know so far:
           <tr><td>Read pages</td><td class="sig">read_guidebook_pages(book, start_page, end_page?)</td><td>Full text of up to 4 pages around a hit, grouped by section, for detail and citations.</td><td><span class="badge files">data/guidebooks/*.md</span></td></tr>
           <tr class="group"><td colspan="4">Live travel search</td></tr>
           <tr><td>Search flights</td><td class="sig">search_flights(origin, destination, depart_date, return_date?, adults?, children?, cabin?, max_stops?, max_results?)</td><td>Live Google Flights results via fast-flights, cheapest first: airline, times, stops, duration, total and per-person price, plus a booking link. Round trips list outbound flights at round-trip prices.</td><td><span class="badge">Google Flights</span></td></tr>
+          <tr><td>Search hotels</td><td class="sig">search_hotels(location, check_in, check_out, max_price_per_night?, min_rating?, include_vacation_rentals?, max_results?)</td><td>Live Google Hotels results via Playwright (dates picked in Google's calendar): nightly price, stay total, star class, rating, deals, amenities, plus a booking link with the dates set.</td><td><span class="badge">Google Hotels</span></td></tr>
           <tr class="group"><td colspan="4">Skills</td></tr>
           <tr><td>Load skill</td><td class="sig">load_skill(name)</td><td>Returns a playbook's full instructions. Unknown names get the list of available skills.</td><td><span class="badge files">skills/*.md</span></td></tr>
           <tr class="group"><td colspan="4">Long-term memory</td></tr>
@@ -779,7 +785,6 @@ conversations. What you know so far:
           <tr class="group"><td colspan="4">Structured output</td></tr>
           <tr><td>Present itinerary</td><td class="sig">present_itinerary(itinerary)</td><td>Takes a Pydantic <code>Itinerary</code> (days → activities, stays, bookings, caveats). Validation errors go back to the model; valid plans render as formatted markdown in the chat and are filed under a trip (created if new).</td><td><span class="badge long">store · (email, itineraries)</span><span class="badge chat">chat output</span></td></tr>
           <tr class="group"><td colspan="4">Planned</td></tr>
-          <tr class="planned"><td>Hotel search</td><td class="sig">search_hotels(…)</td><td>Google Hotels via Playwright → HotelOption list.</td><td><span class="badge planned">#7</span></td></tr>
           <tr class="planned"><td>Fetch page</td><td class="sig">fetch_page(url)</td><td>Playwright fetch → readable text.</td><td><span class="badge planned">#7</span></td></tr>
           <tr class="planned"><td>Ask guidebook</td><td class="sig">ask_guidebook(question, destination)</td><td>Guidebook subagent that returns a cited summary, replacing the three guidebook tools on the main agent.</td><td><span class="badge planned">#11</span></td></tr>
           <tr class="planned"><td>MCP tools</td><td class="sig">from mcp.json</td><td>Tools from MCP servers (e.g. weather, currency).</td><td><span class="badge planned">#12</span></td></tr>

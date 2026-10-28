@@ -21,7 +21,9 @@ mid-range / splurge). Ask only for what's missing and matters; otherwise assume 
 - For flights, call `search_flights` with the user's airports, dates and number of travellers
   and use the real fares (they're totals for all travellers). If dates or airports are unknown,
   ask, or give a range clearly labelled as an estimate.
-- There's no live hotel price tool yet: use guidebook price bands and label them as estimates.
+- For accommodation, call `search_hotels` for the base(s) and dates and use real nightly rates
+  (they may exclude taxes and fees; say so). Without dates, use guidebook price bands labelled
+  as estimates.
 - Never present an estimate as a live or exact price.
 
 ## Break it down

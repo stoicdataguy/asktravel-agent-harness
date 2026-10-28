@@ -42,18 +42,20 @@ Open WebUI (docker, :3000) ── OpenAI-compatible HTTP + X-OpenWebUI-User-Emai
 3. ✅ **Short-term memory**: Postgres checkpointer keyed by user + chat id.
 4. ✅ **Guidebook ingestion**: one paragraph per line, TOC headings, `[p. N]` page markers.
 5. ✅ **Observability**: self-hosted Langfuse (+ optional LangSmith) with per-session and per-user traces.
-6. **Tools**: `search_flights` (fast-flights), `search_hotels` + `fetch_page` (Playwright; run
+6. ✅ **Guidebook tools** (on the main agent for now): `list_guidebooks`, `search_guidebooks`,
+   `read_guidebook_pages`; tool calls streamed to the chat as status lines.
+7. **Tools**: `search_flights` (fast-flights), `search_hotels` + `fetch_page` (Playwright; run
    `uv run playwright install chromium` once). Unit tests against recorded fixtures.
-7. **Long-term memory**: `save_memory` / `recall_memories` tools on the store + a middleware that injects
+8. **Long-term memory**: `save_memory` / `recall_memories` tools on the store + a middleware that injects
    the user's saved facts (home airport, budget, diet, companions, loyalty programs) into the prompt.
-8. **Structured output**: Pydantic `Itinerary` / `DayPlan` / `FlightOption` / `HotelOption`; an
+9. **Structured output**: Pydantic `Itinerary` / `DayPlan` / `FlightOption` / `HotelOption`; an
    `build_itinerary` path with `response_format`, rendered to markdown for the chat UI.
-9. **Skills**: `skills/*.md` with frontmatter; system prompt lists name + description, `load_skill(name)`
+10. **Skills**: `skills/*.md` with frontmatter; system prompt lists name + description, `load_skill(name)`
    returns the body (progressive disclosure).
-10. **Knowledge-base subagent**: its own `create_agent` with `list_guidebooks`, `grep_guidebook`
+11. **Knowledge-base subagent**: move the guidebook tools into their own `create_agent` with `list_guidebooks`, `grep_guidebook`
    (returns hits with section heading + page) and `read_pages`; exposed to the main agent as `ask_guidebook`.
-11. **MCP**: load servers from `mcp.json` via `langchain-mcp-adapters`.
-12. **Streaming polish**: surface tool calls as short status lines in the stream.
+12. **MCP**: load servers from `mcp.json` via `langchain-mcp-adapters`.
+13. **Streaming polish**: collapse tool status lines (e.g. Open WebUI `<details>` blocks).
 
 ## Skill ideas (`skills/*.md`)
 - `trip-intake`: questions to ask before planning (dates, origin, party, budget, interests, mobility).

@@ -23,6 +23,7 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
 - `src/travel_agent/agent/` — `build_agent()` (create_agent + middleware), prompts, `UserContext`.
 - `src/travel_agent/memory.py` — Postgres checkpointer + store on one connection pool.
 - `src/travel_agent/observability.py` — Langfuse (primary) / LangSmith (optional) callbacks + `run_config()`.
+- `src/travel_agent/tools/` — agent tools; `guidebooks.py` = keyword search / page reads over extracted guidebooks.
 - `src/travel_agent/kb/` — guidebook ingestion (PDF → markdown with `[p. N]` markers + TOC headings).
 - See `docs/PLAN.md` for the target architecture and milestones.
 
@@ -42,6 +43,8 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
 - Every agent invocation (incl. future subagents) uses `observability.run_config(user_id, thread_id)`
   so traces get tracing callbacks plus session/user metadata (`langfuse_session_id`, `langfuse_user_id`).
 - Langfuse v4 runs in events-only mode: query traces via `/api/public/v2/observations`, not `/traces`.
+- Streaming shows each tool call to the user as a `🔧 name(args)` status line (from the agent's
+  "updates" stream), so keep tool names and args human-readable.
 - Async first in the API layer (`ainvoke` / `astream`).
 - Secrets live in `.env` (gitignored). Keep `.env.example` in sync when adding settings.
 
@@ -49,6 +52,7 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
 - Small commits; run ruff + pytest before committing.
 - Tests must not hit real LLMs or the network — use fake chat models / mocks. `tests/conftest.py`
   forces tracing off. If a test needs tracing on, use `FakeListChatModel`: tracer serialization
-  consumes `GenericFakeChatModel`'s message iterator.
+  consumes `GenericFakeChatModel`'s message iterator. For agents with tools use `tests.fakes.FakeToolModel`
+  (script tool calls as `AIMessage(tool_calls=...)`, with `disable_streaming=True`).
 
 <!-- Add new sections below as the project evolves -->

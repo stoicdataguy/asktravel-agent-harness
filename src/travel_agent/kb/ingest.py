@@ -27,6 +27,8 @@ def slugify(pdf_name: str) -> str:
 
 
 def _clean(text: str) -> str:
+    # Soft hyphens mark line-break hyphenation in these PDFs: "forma\xad tions" -> "formations"
+    text = re.sub(r"\xad\s*", "", text)
     return re.sub(r"\s+", " ", text).strip()
 
 
@@ -34,7 +36,7 @@ def convert(pdf_path: Path, out_path: Path) -> int:
     doc = pymupdf.open(pdf_path)
     headings: dict[int, list[str]] = {}
     for level, title, page in doc.get_toc():
-        if page >= 1 and _clean(title):
+        if page >= 1 and re.search(r"\w", title):
             headings.setdefault(page, []).append(f"{'#' * min(level, 6)} {_clean(title)}")
 
     lines = [f"# {slugify(pdf_path.name)}", ""]
@@ -45,7 +47,9 @@ def convert(pdf_path: Path, out_path: Path) -> int:
         # layouts don't get interleaved; this makes each grep hit a whole paragraph.
         for *_, text, _, block_type in page.get_text("blocks", flags=pymupdf.TEXT_DEHYPHENATE):
             text = _clean(text.replace("¨", " "))  # ¨ is the guidebooks' bullet glyph
-            if block_type == 0 and text:
+            # Icon-font glyphs come out as "#" etc.; strip them so only TOC lines start with "#"
+            text = text.lstrip("# ")
+            if block_type == 0 and re.search(r"\w\w", text):
                 lines.append(text)
         lines.append("")
     out_path.write_text("\n".join(lines), encoding="utf-8")

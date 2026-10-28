@@ -2,13 +2,14 @@ import json
 
 import pytest
 from fastapi.testclient import TestClient
-from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.store.memory import InMemoryStore
 
+from tests.fakes import FakeToolModel
 from travel_agent.agent.graph import build_agent
 from travel_agent.api.app import app
+from travel_agent.tools import guidebooks
 
 # No `with` block: skips the lifespan, so tests never touch Postgres
 client = TestClient(app)
@@ -20,7 +21,7 @@ def checkpointer():
     app.state.agent = build_agent(
         saver,
         InMemoryStore(),
-        model=GenericFakeChatModel(messages=iter([AIMessage("Hello traveller"), AIMessage("Hi")])),
+        model=FakeToolModel(messages=iter([AIMessage("Hello traveller"), AIMessage("Hi")])),
     )
     return saver
 
@@ -64,3 +65,24 @@ def test_thread_keyed_by_user_and_chat(checkpointer):
     state = checkpointer.get({"configurable": {"thread_id": "ana@example.com:c1"}})
     # Two human turns + two AI replies accumulated in the checkpointed thread
     assert len(state["channel_values"]["messages"]) == 4
+
+
+def test_stream_shows_tool_status(tmp_path, monkeypatch):
+    (tmp_path / "hawaii-test.md").write_text("# hawaii-test\n# Kona\n[p. 1]\nManta rays.\n")
+    monkeypatch.setenv("GUIDEBOOKS_DIR", str(tmp_path))
+    guidebooks.load_books.cache_clear()
+    call = {"name": "search_guidebooks", "args": {"query": "manta"}, "id": "call_1"}
+    app.state.agent = build_agent(
+        InMemorySaver(),
+        InMemoryStore(),
+        # Non-streaming: the fake can't stream a content-less tool-call message
+        model=FakeToolModel(
+            messages=iter([AIMessage("", tool_calls=[call]), AIMessage("Done")]),
+            disable_streaming=True,
+        ),
+    )
+    lines = [line for line in chat(stream=True).text.splitlines() if line.startswith("data: {")]
+    text = "".join(json.loads(line[6:])["choices"][0]["delta"].get("content", "") for line in lines)
+    assert '`🔧 search_guidebooks(query="manta")`' in text
+    assert text.endswith("Done")
+    guidebooks.load_books.cache_clear()

@@ -9,6 +9,7 @@ from langgraph.store.base import BaseStore
 
 from travel_agent.agent.prompts import SYSTEM_PROMPT
 from travel_agent.llm import get_chat_model
+from travel_agent.tools.guidebooks import GUIDEBOOK_TOOLS
 
 
 @dataclass
@@ -30,7 +31,7 @@ def build_agent(
 ):
     return create_agent(
         model or get_chat_model(),
-        tools=[],
+        tools=[*GUIDEBOOK_TOOLS],
         middleware=[system_prompt],
         context_schema=UserContext,
         checkpointer=checkpointer,

@@ -14,7 +14,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
-from langchain_core.messages import AIMessageChunk, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from pydantic import BaseModel, ConfigDict
 
 from travel_agent.agent.graph import UserContext
@@ -69,15 +69,32 @@ def _chunk(completion_id: str, model: str, delta: dict, finish_reason: str | Non
     return f"data: {json.dumps(payload)}\n\n"
 
 
+def tool_status(tool_call: dict) -> str:
+    """One-line markdown note shown in the chat while a tool runs."""
+    args = ", ".join(
+        f"{k}={json.dumps(v, ensure_ascii=False)}" for k, v in tool_call["args"].items()
+    )
+    return f"\n\n`🔧 {tool_call['name']}({args})`\n\n"
+
+
 async def _stream(agent, inputs, config, context, model: str) -> AsyncIterator[str]:
     completion_id = f"chatcmpl-{uuid.uuid4().hex}"
     yield _chunk(completion_id, model, {"role": "assistant", "content": ""})
-    async for message, metadata in agent.astream(
-        inputs, config, context=context, stream_mode="messages"
+    # "messages" streams model tokens; "updates" delivers each completed model turn, whose
+    # tool_calls (with full args) we surface as status lines
+    async for mode, payload in agent.astream(
+        inputs, config, context=context, stream_mode=["messages", "updates"]
     ):
-        if metadata.get("langgraph_node") == "model" and isinstance(message, AIMessageChunk):
-            if message.text:
-                yield _chunk(completion_id, model, {"content": message.text})
+        if mode == "messages":
+            message, metadata = payload
+            # Token chunks when the model streams; one whole AIMessage when it doesn't
+            if metadata.get("langgraph_node") == "model" and isinstance(message, AIMessage):
+                if message.text:
+                    yield _chunk(completion_id, model, {"content": message.text})
+        elif "model" in payload and isinstance(payload["model"], dict):
+            for message in payload["model"].get("messages", []):
+                for tool_call in getattr(message, "tool_calls", None) or []:
+                    yield _chunk(completion_id, model, {"content": tool_status(tool_call)})
     yield _chunk(completion_id, model, {}, finish_reason="stop")
     yield "data: [DONE]\n\n"
 

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Travel Agent Architecture</title>
+<title>AskTravel Architecture</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -375,7 +375,7 @@ body { margin: 0; }
 <body>
 <header class="top">
   <div class="wrap">
-    <div class="brand"><b>Travel Agent</b><span>LangChain ReAct agent · Open WebUI · Postgres</span></div>
+    <div class="brand"><b>AskTravel</b><span>LangChain ReAct agent · Open WebUI · Postgres</span></div>
     <nav class="tabs" role="tablist" aria-label="Pages">
       <button role="tab" id="tab-architecture" aria-controls="architecture" aria-selected="true" data-view="architecture">Architecture</button>
       <button role="tab" id="tab-data-flow" aria-controls="data-flow" aria-selected="false" data-view="data-flow">Data flow &amp; state</button>
@@ -391,7 +391,7 @@ body { margin: 0; }
   <div class="intro">
     <span class="eyebrow">System overview</span>
     <h1>How a chat message becomes a trip plan</h1>
-    <p class="lead">Open WebUI is the only frontend. It talks to our FastAPI service as if it were an OpenAI model; behind that API, a LangChain agent researches with tools and keeps its state in Postgres.</p>
+    <p class="lead">AskTravel is a travel-planning agent. Open WebUI, branded as AskTravel, is the only frontend. It talks to our FastAPI service as if it were an OpenAI model; behind that API, a LangChain agent researches with tools and keeps its state in Postgres.</p>
     <div class="legend" aria-label="Legend">
       <span><i class="sw req"></i>Request path &amp; model calls</span>
       <span><i class="sw short"></i>Short-term memory (one chat)</span>

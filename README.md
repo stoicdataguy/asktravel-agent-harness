@@ -31,6 +31,14 @@ is traced to the self-hosted Langfuse at http://localhost:3001 (login `admin@tra
 Sessions and Users views show whole conversations per (dummy) user. Langfuse is about six containers
 (incl. ClickHouse); to skip it run `docker compose up -d postgres open-webui`.
 
+### Memory
+
+- **Within a chat:** the Postgres checkpointer keeps the conversation (thread = user email + chat id).
+- **Across chats:** when you mention lasting preferences ("I'm vegetarian", "I fly out of SFO"),
+  the agent calls `save_memory`; those facts are injected into its instructions in every later
+  conversation for that user. Ask "what do you remember about me?" or "forget my budget" to
+  inspect or remove them. Each signed-in email has its own memory.
+
 ### Skills
 
 The agent has seven playbooks in [src/travel_agent/skills/](src/travel_agent/skills/):

@@ -46,8 +46,8 @@ Open WebUI (docker, :3000) ── OpenAI-compatible HTTP + X-OpenWebUI-User-Emai
    `read_guidebook_pages`; tool calls streamed to the chat as status lines.
 7. **Tools**: `search_flights` (fast-flights), `search_hotels` + `fetch_page` (Playwright; run
    `uv run playwright install chromium` once). Unit tests against recorded fixtures.
-8. **Long-term memory**: `save_memory` / `recall_memories` tools on the store + a middleware that injects
-   the user's saved facts (home airport, budget, diet, companions, loyalty programs) into the prompt.
+8. ✅ **Long-term memory**: `save_memory` / `delete_memory` tools on the Postgres store, keyed by topic;
+   a middleware injects all of the user's facts into the prompt every model call (no recall tool needed).
 9. **Structured output**: Pydantic `Itinerary` / `DayPlan` / `FlightOption` / `HotelOption`; an
    `build_itinerary` path with `response_format`, rendered to markdown for the chat UI.
 10. ✅ **Skills**: 7 markdown playbooks + `load_skill` tool; trigger eval in `scripts/eval_skills.py`.

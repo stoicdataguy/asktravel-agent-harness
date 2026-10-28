@@ -16,7 +16,8 @@ from langchain_core.messages import HumanMessage
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.store.memory import InMemoryStore
 
-from travel_agent.agent.graph import UserContext, build_agent
+from travel_agent.agent.graph import build_agent
+from travel_agent.context import UserContext
 from travel_agent.observability import flush_traces, run_config
 
 CASES: list[tuple[str, set[str]]] = [

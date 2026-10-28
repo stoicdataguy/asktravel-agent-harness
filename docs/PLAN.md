@@ -57,6 +57,101 @@ Open WebUI (docker, :3000) ── OpenAI-compatible HTTP + X-OpenWebUI-User-Emai
    (returns hits with section heading + page) and `read_pages`; exposed to the main agent as `ask_guidebook`.
 12. **MCP**: load servers from `mcp.json` via `langchain-mcp-adapters`.
 13. **Streaming polish**: collapse tool status lines (e.g. Open WebUI `<details>` blocks).
+14. **AWS deployment**: lock down the agent API, Dockerfile, CDK in `infra/`, CI/CD. See
+   [Deployment on AWS](#deployment-on-aws).
+
+## Deployment on AWS
+
+Goal: a private, authenticated deployment for a small group, with the same architecture as local.
+Everything is already containerised or a managed equivalent exists, so this is mostly packaging,
+hardening the two trust boundaries, and infrastructure as code.
+
+### Target architecture (ECS Fargate)
+
+```
+                    Route 53 + ACM (HTTPS)
+                            │
+                ┌───────────▼────────────┐
+ users ───────▶ │ ALB (public, HTTPS)    │  idle timeout ≥ 300 s (agent runs take 30-90 s)
+                └───────────┬────────────┘
+                            │ :8080
+              ┌─────────────▼─────────────┐      OIDC login
+              │ ECS service: Open WebUI   │ ◀──── Amazon Cognito (replaces dummy signup)
+              └─────────────┬─────────────┘
+                            │ Service Connect (private) + bearer token
+              ┌─────────────▼─────────────┐      HTTPS out ──▶ OpenRouter (LLM)
+              │ ECS service: agent API    │ ──────────────▶ Langfuse (traces)
+              │ (FastAPI, this repo)      │
+              └──────┬───────────────┬────┘
+                     │               │
+      ┌──────────────▼───┐   ┌───────▼─────────────────┐
+      │ RDS PostgreSQL   │   │ S3 (private)             │
+      │ • agent: checkp. │   │ • guidebook markdown     │
+      │   + store        │   │ • Open WebUI uploads     │
+      │ • open_webui DB  │   └──────────────────────────┘
+      └──────────────────┘
+ Secrets Manager: OpenRouter key, agent API token, DB creds, Langfuse keys
+ CloudWatch Logs: both services · ECR: agent image
+```
+
+| Local (compose) | AWS | Notes |
+|---|---|---|
+| `uv run travel-agent` | ECS Fargate service, image in ECR | 1 vCPU / 2 GB to start; scale on CPU or request count |
+| Open WebUI container | ECS Fargate service (official image) | `DATABASE_URL` → RDS instead of SQLite volume; uploads to S3 (`STORAGE_PROVIDER=s3`); Redis for websockets if >1 task |
+| `postgres` | RDS PostgreSQL (db.t4g.micro → small) | Separate databases for agent and Open WebUI; `sslmode=require`; automated backups |
+| Langfuse stack (6 containers) | **Langfuse Cloud** (recommended), or self-host | Self-hosting means ClickHouse + Redis + S3 + Postgres. Only worth it for data-residency needs; Langfuse publishes AWS self-hosting guidance |
+| `data/guidebooks/*.md` | Private S3 bucket, synced at container start | Keep out of the image and the public repo (copyrighted); ~10 MB |
+| `.env` | Secrets Manager + ECS task-definition env | Settings already come from env via pydantic-settings, so no code changes are needed for config |
+| Dummy email signup | Cognito user pool via Open WebUI OIDC (`ENABLE_OAUTH_SIGNUP`, `OPENID_PROVIDER_URL`), password signup disabled | Email from the OIDC token still becomes `user_id` |
+
+### Required code/config changes before deploying
+
+1. **Lock down the agent API.** Today it trusts `X-OpenWebUI-User-Email` from anyone. Require a
+   bearer token: Open WebUI already sends `OPENAI_API_KEY` as `Authorization: Bearer …`, so set
+   it to a real secret and reject requests without it (also on `/api/itineraries`). Keep the
+   service private: no public ALB route, and a security group that only admits Open WebUI.
+2. **Dockerfile for the agent:** multi-stage `uv sync --frozen --no-dev` on `python:3.12-slim`,
+   non-root user, `uvicorn travel_agent.api.app:app --host 0.0.0.0` without `--reload`, container
+   health check on `/health`. Add Chromium only when the Playwright tools (#7) land (+~400 MB).
+3. **Guidebook loading from S3:** at startup, sync `s3://<bucket>/guidebooks/` to
+   `GUIDEBOOKS_DIR` (entrypoint script or a small startup hook). `travel-agent-ingest` stays a
+   local/offline step.
+4. **Production settings:** `DATABASE_URL` from Secrets Manager; Langfuse host and keys for Cloud;
+   Open WebUI with `WEBUI_SECRET_KEY` set (so sessions survive restarts), `ENABLE_SIGNUP=false`,
+   and a pinned image tag instead of `:main`.
+5. **Graceful shutdown:** ECS sends SIGTERM; the lifespan already flushes traces and closes the
+   DB pool. Set the ECS stop timeout to ≥ 60 s so in-flight agent runs can finish.
+6. **CI:** GitHub Actions running ruff + pytest on PRs (none today), then build → push to ECR →
+   `ecs update-service` on merge to `main`, using GitHub OIDC to assume an AWS role (no stored
+   AWS keys).
+
+### Infrastructure as code
+
+AWS CDK in Python, in `infra/` (same language and uv tooling as the app). Stacks:
+`Network` (VPC with 2 AZs), `Data` (RDS, S3, Secrets), `Services` (ECS cluster, two services,
+ALB, Cognito), `Pipeline` (ECR, GitHub OIDC role). Terraform is equally fine if that's the
+team's standard.
+
+To keep costs down: put Fargate tasks in public subnets with security groups but no inbound
+ports except from the ALB / Open WebUI, which avoids a NAT gateway (~$35/month). Alternatively,
+use private subnets with VPC endpoints for ECR, S3, Secrets Manager and Logs.
+
+### Phasing
+
+| Phase | What | When to use | Rough cost / month (us-east-1) |
+|---|---|---|---|
+| 0. Demo box | One EC2 instance (t3.large, or t3.xlarge if Langfuse is self-hosted on it) running today's `docker compose`, Caddy for HTTPS, data on EBS, nightly EBS snapshots | Fastest path to a shareable URL; single point of failure | ~$60–120 |
+| 1. Managed | ECS Fargate + RDS + ALB + Cognito + Langfuse Cloud, as above | Real users, backups, rolling deploys | ~$110–150 (2 tasks ~$72, ALB ~$20, RDS ~$15, misc) |
+| 2. Scale | Multiple agent tasks (stateless already: state is in Postgres), Open WebUI with Redis (ElastiCache) for websockets, RDS Multi-AZ | More users / uptime needs | depends on load |
+
+Figures exclude LLM usage, which will dominate: a tool-heavy itinerary run is 15+ model calls.
+Check current prices in the AWS Pricing Calculator.
+
+### Open questions
+- Langfuse Cloud vs self-hosted (data residency, budget)?
+- Who are the users: invite-only Cognito pool, or an existing IdP (Google Workspace, Okta)?
+- Region, and a custom domain?
+- Keep OpenRouter or call providers directly (e.g. Bedrock) to keep traffic inside AWS?
 
 ## Skill ideas (`skills/*.md`)
 - `trip-intake`: questions to ask before planning (dates, origin, party, budget, interests, mobility).

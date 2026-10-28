@@ -1,4 +1,4 @@
-# Travel Agent: Plan
+# AskTravel: Plan
 
 A lightweight LangChain ReAct agent that helps plan trips. It is served through an
 OpenAI-compatible API so an off-the-shelf chat UI (Open WebUI) is the frontend. This document

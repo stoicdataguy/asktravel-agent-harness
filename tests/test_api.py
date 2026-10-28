@@ -45,6 +45,7 @@ def test_health():
 def test_models_lists_agent():
     data = client.get("/v1/models").json()["data"]
     assert data[0]["id"] == "travel-agent"
+    assert data[0]["name"] == "AskTravel"
 
 
 def test_chat_completion(checkpointer):

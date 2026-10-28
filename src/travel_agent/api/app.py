@@ -39,6 +39,7 @@ async def list_models() -> dict:
         "data": [
             {
                 "id": get_settings().agent_model_name,
+                "name": get_settings().agent_display_name,
                 "object": "model",
                 "created": int(time.time()),
                 "owned_by": "travel-agent",

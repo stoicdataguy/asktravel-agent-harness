@@ -1,6 +1,8 @@
-# travel-agent
+# AskTravel
 
-Lightweight LangChain ReAct agent for organizing travel itineraries. LLM calls go through OpenRouter,
+<img src="branding/favicon.png" alt="AskTravel logo" width="64" align="right">
+
+A lightweight LangChain ReAct agent for organizing travel itineraries (repo and Python package: `travel-agent`). LLM calls go through OpenRouter,
 and the agent is served by FastAPI over an OpenAI-compatible API so Open WebUI (an Ollama-style chat UI)
 can be the frontend.
 
@@ -63,6 +65,14 @@ case to `scripts/eval_skills.py`, which checks against the real model that each 
 ```bash
 uv run python scripts/eval_skills.py   # 9/9 cases passing
 ```
+
+### Branding
+
+The chat UI is Open WebUI branded as **AskTravel** (shown as "AskTravel (Open WebUI)"): `WEBUI_NAME`
+in `docker-compose.yml`, and logo files in [branding/](branding/) mounted over Open WebUI's own.
+To change the logo, edit the mark or colours in `scripts/make_branding.py`, run
+`uv run python scripts/make_branding.py`, and `docker compose up -d open-webui`. Open WebUI's license
+allows replacing its logo for deployments of up to 50 users.
 
 ### Re-recording the demo
 

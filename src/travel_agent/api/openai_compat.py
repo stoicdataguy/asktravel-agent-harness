@@ -1,12 +1,14 @@
 """OpenAI-compatible chat completions endpoint backed by the agent.
 
 The chat UI sends the full conversation every turn, but the agent's checkpointer already owns the
-history, so only the latest user message is passed in. Threads are keyed by the chat id header
+history, so normally only the latest user message is passed in; `thread_sync` handles the cases
+where the UI has branched (fork, regenerate, edit). Threads are keyed by the chat id header
 Open WebUI forwards; users by the forwarded email.
 """
 
 import hashlib
 import json
+import logging
 import time
 import uuid
 from collections.abc import AsyncIterator
@@ -14,12 +16,14 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage, ToolMessage
 from pydantic import BaseModel, ConfigDict
 
+from travel_agent.api.thread_sync import Turn, plan_run
 from travel_agent.context import UserContext
 from travel_agent.observability import run_config
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 ANONYMOUS_USER = "anonymous"
@@ -127,8 +131,17 @@ async def chat_completions(body: ChatCompletionRequest, request: Request):
 
     user_id, thread_id = resolve_ids(request.headers, body.messages)
     agent = request.app.state.agent
-    inputs = {"messages": [HumanMessage(message_text(user_messages[-1]))]}
-    config = run_config(user_id, thread_id)
+    last_user = max(i for i, m in enumerate(body.messages) if m.role == "user")
+    transcript = [
+        Turn(m.role, message_text(m))
+        for m in body.messages[: last_user + 1]
+        if m.role in ("user", "assistant")
+    ]
+    plan = await plan_run(agent, run_config(user_id, thread_id), transcript)
+    plan.config["metadata"]["thread_sync"] = plan.action.value
+    if plan.action != "append":
+        logger.info("thread %s: %s", thread_id, plan.action.value)
+    inputs, config = plan.inputs, plan.config
     context = UserContext(user_id=user_id)
 
     if body.stream:

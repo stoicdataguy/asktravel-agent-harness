@@ -12,10 +12,9 @@ import asyncio
 import io
 import json
 import time
-import urllib.error
-import urllib.request
 from pathlib import Path
 
+from owui import get_token, wait_for_answer
 from PIL import Image
 from playwright.async_api import Page, async_playwright
 
@@ -26,42 +25,12 @@ DEFAULT_PROMPT = (
 VIEWPORT = {"width": 1280, "height": 800}
 
 
-def get_token(base_url: str, name: str, email: str, password: str) -> str:
-    """Sign in the demo user, signing them up first if they don't exist yet."""
-
-    def post(path: str, payload: dict) -> dict:
-        request = urllib.request.Request(
-            f"{base_url}{path}",
-            data=json.dumps(payload).encode(),
-            headers={"content-type": "application/json"},
-        )
-        return json.load(urllib.request.urlopen(request))
-
-    try:
-        return post("/api/v1/auths/signin", {"email": email, "password": password})["token"]
-    except urllib.error.HTTPError:
-        return post("/api/v1/auths/signup", {"name": name, "email": email, "password": password})[
-            "token"
-        ]
-
-
 async def capture(
     page: Page, frames: list[tuple[float, bytes]], interval: float, stop: asyncio.Event
 ):
     while not stop.is_set():
         frames.append((time.monotonic(), await page.screenshot(type="png")))
         await asyncio.sleep(interval)
-
-
-async def wait_for_answer(page: Page, timeout: float) -> None:
-    """Wait for Open WebUI's Stop button to appear (generation started) and then go away.
-
-    Watching the button rather than the text matters: the transcript can sit still for many
-    seconds while the agent is running tools.
-    """
-    stop_button = page.locator('button[aria-label="Stop"]')
-    await stop_button.wait_for(state="visible", timeout=30_000)
-    await stop_button.wait_for(state="detached", timeout=timeout * 1000)
 
 
 # Finds the transcript's scrollable ancestor and scrolls it; returns True once at the bottom

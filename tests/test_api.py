@@ -26,14 +26,14 @@ def checkpointer():
     return saver
 
 
-def chat(stream: bool = False, content: str = "hi", chat_id: str = "c1"):
+def chat(stream: bool = False, content: str = "hi", chat_id: str = "c1", history=()):
+    """`history` is earlier (role, text) turns: OpenAI-style clients resend the whole chat."""
+    messages = [{"role": r, "content": c} for r, c in history] + [
+        {"role": "user", "content": content}
+    ]
     return client.post(
         "/v1/chat/completions",
-        json={
-            "model": "travel-agent",
-            "stream": stream,
-            "messages": [{"role": "user", "content": content}],
-        },
+        json={"model": "travel-agent", "stream": stream, "messages": messages},
         headers={"X-OpenWebUI-User-Email": "Ana@Example.com", "X-OpenWebUI-Chat-Id": chat_id},
     )
 
@@ -62,7 +62,7 @@ def test_chat_completion_stream(checkpointer):
 
 def test_thread_keyed_by_user_and_chat(checkpointer):
     chat()
-    chat(content="and again")
+    chat(content="and again", history=[("user", "hi"), ("assistant", "Hello traveller")])
     state = checkpointer.get({"configurable": {"thread_id": "ana@example.com:c1"}})
     # Two human turns + two AI replies accumulated in the checkpointed thread
     assert len(state["channel_values"]["messages"]) == 4

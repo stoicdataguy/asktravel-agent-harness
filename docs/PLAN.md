@@ -155,6 +155,10 @@ worth doing even before any deployment.
   confirms the date box changed before reading cards. `parse_card` is a pure function unit-tested
   on captured card text. `scripts/e2e_hotels.py` checks that hotels and nightly prices in the reply
   match a live lookup and that the chosen hotel becomes the trip's lodging.
+- **Rate limits (issue #12):** OpenRouter 429s used to cut replies off mid-stream and abort test
+  suites. Model calls now retry with backoff (`LLM_MAX_RETRIES`, default 10, honouring
+  `Retry-After`), optional client-side pacing is available (`LLM_REQUESTS_PER_MINUTE`), and a turn
+  that still fails ends with a readable message instead of a broken stream.
 - **#10 Skills:** see [Skills](#skills). `scripts/eval_skills.py` checks against the real model
   that each skill triggers (9/9 passing).
 
@@ -282,9 +286,6 @@ likely dominate: a tool-heavy itinerary run is 15+ model calls.
 - **Guidebook search is keyword-only.** Vague queries ("romantic dinner") work less well than
   specific ones ("restaurant Trastevere"); the agent compensates with several focused searches.
 
-- **Rate limits break the stream.** A 429 from OpenRouter mid-reply cuts the SSE stream off instead
-  of showing a message (new OpenRouter accounts get 20 requests/minute on gpt-6-luna). Add retries
-  with backoff and an error chunk in the stream.
 
 ## Open questions
 

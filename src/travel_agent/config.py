@@ -11,6 +11,11 @@ class Settings(BaseSettings):
     openrouter_api_key: SecretStr = SecretStr("")
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     openrouter_model: str = "openai/gpt-6-luna"
+    # Retries on 429/5xx with exponential backoff (honours Retry-After); 10 rides out ~1 minute,
+    # the window of OpenRouter's per-minute limits
+    llm_max_retries: int = 10
+    # Optional client-side pacing for rate-limited accounts, e.g. 18 for a 20 req/min limit
+    llm_requests_per_minute: float | None = None
 
     # Model id the chat UI selects (stable; referenced by DEFAULT_MODELS in compose) and the
     # display name it shows

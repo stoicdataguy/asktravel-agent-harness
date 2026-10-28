@@ -72,8 +72,11 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
 - After changing flight or hotel search, run `uv run python scripts/e2e_flights.py` / `e2e_hotels.py`
   (both check quoted prices against a live Google lookup). If Google changes its markup, update
   the selectors in `tools/hotels.py` and the captured card texts in `tests/test_hotels.py`.
-- OpenRouter limits new accounts to 20 requests/min on gpt-6-luna: run e2e suites one at a time and
-  `eval_skills.py --concurrency 1` right after other suites, or you'll see 429s.
+- OpenRouter limits new accounts to 20 requests/min on gpt-6-luna. Model calls retry 429s with
+  backoff (`LLM_MAX_RETRIES`), so suites can run back to back; they just slow down near the limit.
+  Set `LLM_REQUESTS_PER_MINUTE` (e.g. 18) to pace calls instead of retrying.
+- Errors inside an agent run must never break the SSE stream: `openai_compat` turns them into a
+  readable message (`error_message`) followed by `[DONE]`.
 - After changing anything in the request path, run the browser test
   `uv run python scripts/e2e_branching.py` (full stack running).
 - Flights: `fast-flights`. Hotels and web pages: Playwright scraping. No paid search APIs.

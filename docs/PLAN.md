@@ -48,8 +48,10 @@ Open WebUI (docker, :3000) ── OpenAI-compatible HTTP + X-OpenWebUI-User-Emai
    `uv run playwright install chromium` once). Unit tests against recorded fixtures.
 8. ✅ **Long-term memory**: `save_memory` / `delete_memory` tools on the Postgres store, keyed by topic;
    a middleware injects all of the user's facts into the prompt every model call (no recall tool needed).
-9. **Structured output**: Pydantic `Itinerary` / `DayPlan` / `FlightOption` / `HotelOption`; an
-   `build_itinerary` path with `response_format`, rendered to markdown for the chat UI.
+9. ✅ **Structured output**: Pydantic `Itinerary` / `DayPlan` / `Activity` / `Stay` as the argument schema of a
+   `present_itinerary` tool (not `response_format`, which forces `tool_choice="any"` on every turn of a chat
+   agent). Validated plans are saved per user + chat (`GET /api/itineraries`) and rendered to markdown in the
+   chat. `FlightOption` / `HotelOption` land with the flight/hotel tools (#7).
 10. ✅ **Skills**: 7 markdown playbooks + `load_skill` tool; trigger eval in `scripts/eval_skills.py`.
 11. **Knowledge-base subagent**: move the guidebook tools into their own `create_agent` with `list_guidebooks`, `grep_guidebook`
    (returns hits with section heading + page) and `read_pages`; exposed to the main agent as `ask_guidebook`.

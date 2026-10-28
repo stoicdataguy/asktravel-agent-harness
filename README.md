@@ -39,6 +39,16 @@ Sessions and Users views show whole conversations per (dummy) user. Langfuse is 
   conversation for that user. Ask "what do you remember about me?" or "forget my budget" to
   inspect or remove them. Each signed-in email has its own memory.
 
+### Structured itineraries
+
+Finished day-by-day plans are produced as a validated Pydantic `Itinerary`
+([schemas.py](src/travel_agent/agent/schemas.py)) through the `present_itinerary` tool: the chat shows
+it as formatted markdown, and the JSON is stored per user and chat:
+
+```bash
+curl -s localhost:8000/api/itineraries -H "X-OpenWebUI-User-Email: you@example.com" | jq
+```
+
 ### Skills
 
 The agent has seven playbooks in [src/travel_agent/skills/](src/travel_agent/skills/):

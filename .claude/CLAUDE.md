@@ -27,6 +27,8 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
 - `src/travel_agent/observability.py` — Langfuse callback + `run_config()`. Tracing is Langfuse only (no LangSmith).
 - `src/travel_agent/tools/` — agent tools; `guidebooks.py` = keyword search / page reads over extracted guidebooks.
 - `src/travel_agent/context.py` — `UserContext` (runtime context: `user_id`).
+- `src/travel_agent/agent/schemas.py` — `Itinerary` schema + `render_itinerary()` markdown.
+- `src/travel_agent/tools/itinerary.py` — `present_itinerary` (structured plan → store + chat).
 - `src/travel_agent/tools/memory.py` — long-term memory tools (`save_memory`, `delete_memory`) + loaders.
 - `src/travel_agent/skills/` — skill playbooks (`<name>.md` with name/description frontmatter) + `load_skill` tool.
 - `src/travel_agent/kb/` — guidebook ingestion (PDF → markdown with `[p. N]` markers + TOC headings).
@@ -34,14 +36,17 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
 
 ## Conventions
 - Settings only via `travel_agent.config.get_settings()`; never read `os.environ` directly.
-- Structured data = Pydantic v2 models. Agent final answers use `response_format=<PydanticModel>`.
+- Structured data = Pydantic v2 models. Structured agent output goes through a tool whose argument is the
+  model (see `present_itinerary`), not `create_agent(response_format=...)`, which forces a tool call on every
+  turn. Tools that show something to the user return `(content, markdown)` with
+  `response_format="content_and_artifact"`; the API streams string artifacts into the chat.
 - Tools: plain typed Python functions with docstrings (docstring = tool description the LLM sees).
   Tools must return compact, LLM-friendly output (trim large payloads) and never raise into the agent
   loop — return an error string instead.
 - Memory is **Postgres only** (no SQLite/in-memory outside tests). Thread memory via checkpointer keyed
   `thread_id = "<user_email>:<chat_id>"`; cross-thread facts via `Store` namespaced
   `(<email with "." → "%2E">, "memories")` (store labels can't contain dots); use
-  `tools.memory.namespace()` rather than building namespaces by hand.
+  `memory.user_namespace(user_id, kind)` rather than building namespaces by hand.
 - Store/checkpointer are async Postgres: anything touching them (tools, middleware) must be
   `async def` and use `aput`/`asearch`/…; sync calls fail inside the event loop.
 - Identity: `user_id` = `X-OpenWebUI-User-Email` header (lowercased), passed as `UserContext` runtime

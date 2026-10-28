@@ -36,19 +36,24 @@ For uncovered destinations, use general knowledge and say so.
 - **Base changes:** prefer 2+ nights per base; flag one-night stays as tiring.
 - Leave one flexible half-day in trips of 5+ days.
 
-## 4. Format
+## 4. Deliver it with `present_itinerary`
 
-```
-## Day 1 · <area / theme>
-- **Morning:** … (Lonely Planet <Destination>, p. N)
-- **Afternoon:** …
-- **Evening:** … dinner idea …
-- **Sleep:** <base>
-```
+Don't write the day-by-day plan as text. Call `present_itinerary` with the full plan; it is
+validated and shown to the user as a formatted itinerary.
 
-After the days, add a short **Notes** section: bookings to make ahead, things that might be
-outdated (prices, hours, closures), and one or two swaps if the user's tastes differ.
+- One `DayPlan` per day, numbered from 1, with `trip_length_days` equal to the number of days.
+- Each activity: `time_of_day` (morning / afternoon / evening / full day), a short title,
+  1–2 sentences of details, the location, and a `source` citation like
+  "Lonely Planet Hawaii, p. 90" when it came from the guidebook.
+- Put meals in as activities where they matter (a market lunch, a recommended dinner).
+- `stays`: each base with its number of nights and why it suits the plan.
+- `assumptions`: anything you assumed (pace, budget, travellers).
+- `bookings_to_make`: tours, permits, trains or restaurants to reserve ahead.
+- `caveats`: possibly outdated prices, hours or closures, and conditions to check.
 
-Keep it skimmable. End by offering one or two concrete adjustments (slower pace, different
-base, adding a day trip). If budget or getting around is a big part of the request, also load
-`budget-planner` or `local-transport`.
+If the tool returns a validation error, fix the plan and call it again.
+
+After the tool call, reply with at most one or two sentences, e.g. offering a concrete
+adjustment (slower pace, a different base, a day trip). Don't repeat the plan. To change an
+existing itinerary, call `present_itinerary` again with the complete updated plan. If budget or
+getting around is a big part of the request, also load `budget-planner` or `local-transport`.

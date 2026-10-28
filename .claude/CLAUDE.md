@@ -102,4 +102,55 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
   consumes `GenericFakeChatModel`'s message iterator (seen with LangChain tracers). For agents with tools use `tests.fakes.FakeToolModel`
   (script tool calls as `AIMessage(tool_calls=...)`, with `disable_streaming=True`).
 
+## Feature-driven development
+**Every feature and every bug fix is built on a branch and lands through a pull request.** No
+exceptions for small fixes or docs.
+
+How git behaves here (GitHub ruleset "Protect main" on the default branch):
+- `git push origin main` is **rejected** by GitHub. Commit on a branch, push the branch, open a PR.
+- Force pushes (`--force`, rewritten history) to `main` are rejected, and `main` can't be deleted.
+- Merging is done through the PR (`gh pr merge`), never by pushing a local merge to `main`.
+- Locally, `main` only moves by `git pull` after a PR merges. If you committed on `main` by
+  mistake, move the commit to a new branch (`git switch -c feat/<slug>`) and push that.
+- No CI yet, so the PR itself is the gate: run the tests below before opening it.
+
+1. **Issue first.** File every feature or bug as a GitHub issue (`gh issue create`). Features
+   state the problem, acceptance criteria written as checks an end-to-end test can make, and what
+   is out of scope. Bugs give steps to reproduce, expected and actual behaviour.
+2. **Plan when it's big.** Work spanning several PRs or changing architecture gets a plan in
+   `docs/plans/<name>.md`, linked from `docs/PLAN.md`, before any code.
+3. **One feature, one branch, one PR.** Branch from an up-to-date `main` as `feat/<slug>`,
+   `fix/<slug>` or `docs/<slug>`. Don't stack PRs on each other's branches: deleting the base
+   branch on merge auto-closes the stacked PR (#10).
+4. **Test end to end.** Unit tests stay offline (see Workflow). A user-visible feature also gets
+   a browser or live suite, `scripts/e2e_<feature>.py`, that checks the acceptance criteria
+   against the full stack and the real model. Before opening the PR, run it plus the regression
+   suites the change can affect (the e2e scripts named under Conventions, `eval_skills.py`).
+5. **Docs in the same PR.** Update this file for new conventions, `docs/PLAN.md` status,
+   `docs/architecture.html` when components or storage change, and `.env.example` for new settings.
+6. **Open the PR.** Title = the user-visible outcome. Body: summary, `Closes #N` / `Fixes #N`, and
+   how it was tested with the suite results (pass counts). Commit and PR attribution lines as the
+   harness specifies.
+7. **Merge only with explicit approval, one PR at a time.** The user approves each merge;
+   approval of one PR doesn't carry to the next. Squash-merge (`gh pr merge N --squash`), then
+   `git checkout main && git pull`. To bring an open branch up to date, merge `main` into it;
+   never rebase or force-push a pushed branch.
+
+### Tracking work in GitHub Projects
+All work is tracked on the **AskTravel** project: https://github.com/users/stoicdataguy/projects/1
+(linked to the repo). Every issue lives on the board; the board is where sprints and progress are
+read, so keep it in step with the work.
+- **Fields:** Status (Todo / In Progress / Done), Sprint (2-week iterations), Story Points,
+  Phase (MVP, Feedback, Memory, Production, Agent), Priority (P0–P2).
+- **New issue → add it to the board** with Status, Phase, Priority and Story Points (issues are
+  not auto-added): `gh project item-add 1 --owner stoicdataguy --url <issue url>`, then
+  `gh project item-edit` per field. Field and option ids: `gh project field-list 1 --owner stoicdataguy --format json`.
+- **Starting work → Status = In Progress** on the issue's item (find it with
+  `gh project item-list 1 --owner stoicdataguy --format json`).
+- **Done is automatic:** a merged PR with `Closes #N` closes the issue, and the project's
+  built-in workflow moves it to Done. Check the board after merging.
+- **Scope changes** (split, deferred, new bug found mid-feature) become new issues on the board,
+  not unchecked TODOs in a PR.
+- `gh` needs the `project` scope: `gh auth refresh -s project` if a project command says it's missing.
+
 <!-- Add new sections below as the project evolves -->

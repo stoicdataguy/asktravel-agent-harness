@@ -1,0 +1,588 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AskTravel Memory Architecture</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a sequence of full-width "slides" stacked in one scrolling page, with a sticky section nav.
+   Same type and neutrals as architecture.html. Each CoALA memory type owns one hue everywhere:
+   working = blue, episodic = amber, semantic = violet, procedural = teal. */
+:root {
+  --bg: #f5f7fa;
+  --surface: #ffffff;
+  --surface-2: #eef1f5;
+  --ink: #16202b;
+  --muted: #586373;
+  --line: #d6dce4;
+  --work: #1d5fc4;
+  --work-bg: #e7effc;
+  --epi: #a45a0b;
+  --epi-bg: #fdf1e1;
+  --sem: #6a33c9;
+  --sem-bg: #f1eafd;
+  --proc: #0f766e;
+  --proc-bg: #e2f4f1;
+  --ok: #15803d;
+  --part: #a16207;
+  --todo: #6b7280;
+  --font-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --radius: 6px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1319; --surface: #151c25; --surface-2: #1b2430; --ink: #e5e9ef; --muted: #9aa5b3; --line: #2a3542;
+    --work: #7aaeff; --work-bg: #172741; --epi: #f2a65a; --epi-bg: #2a1d0e; --sem: #b99cff; --sem-bg: #221a37;
+    --proc: #4fd1c5; --proc-bg: #0f2a28; --ok: #4ade80; --part: #facc15; --todo: #9aa5b3;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1319; --surface: #151c25; --surface-2: #1b2430; --ink: #e5e9ef; --muted: #9aa5b3; --line: #2a3542;
+  --work: #7aaeff; --work-bg: #172741; --epi: #f2a65a; --epi-bg: #2a1d0e; --sem: #b99cff; --sem-bg: #221a37;
+  --proc: #4fd1c5; --proc-bg: #0f2a28; --ok: #4ade80; --part: #facc15; --todo: #9aa5b3;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.6 var(--font-body); -webkit-font-smoothing: antialiased; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
+.wrap { max-width: 1120px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1, h2, h3 { font-family: var(--font-display); line-height: 1.15; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(30px, 4.4vw, 44px); letter-spacing: -0.01em; }
+h2 { font-size: clamp(24px, 3vw, 30px); letter-spacing: -0.005em; }
+h3 { font-size: 17px; }
+p { margin: 0; max-width: 70ch; }
+code, .mono { font-family: var(--font-mono); font-size: 0.86em; }
+code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+a { color: var(--work); }
+:focus-visible { outline: 2px solid var(--work); outline-offset: 2px; }
+.eyebrow { font: 600 12px var(--font-body); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.lead { font-size: 17px; color: var(--muted); }
+
+/* Header */
+header.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--surface); border-bottom: 1px solid var(--line); }
+header.top .wrap { display: flex; align-items: center; gap: 10px 16px; flex-wrap: wrap; padding-block: 10px; }
+.brand { display: flex; align-items: baseline; gap: 10px; margin-right: auto; }
+.brand b { font-family: var(--font-display); font-size: 17px; }
+.brand span { color: var(--muted); font-size: 13px; }
+nav.sections { display: flex; gap: 2px; flex-wrap: wrap; background: var(--surface-2); padding: 3px; border-radius: 8px; }
+nav.sections a { font: 500 13.5px var(--font-body); color: var(--muted); text-decoration: none; padding: 5px 11px; border-radius: 6px; white-space: nowrap; }
+nav.sections a:hover { color: var(--ink); }
+nav.sections a.on { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgb(0 0 0 / 0.12); }
+button.theme { font: 500 13.5px var(--font-body); color: var(--muted); background: var(--surface-2); border: 0; border-radius: 8px; padding: 8px 12px; cursor: pointer; white-space: nowrap; }
+button.theme:hover { color: var(--ink); }
+
+/* Slides */
+main { padding-block: 28px 64px; display: flex; flex-direction: column; gap: 28px; }
+section.slide {
+  scroll-margin-top: 84px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  padding: clamp(20px, 3.5vw, 40px); display: flex; flex-direction: column; gap: 24px; min-width: 0;
+}
+.slide-head { display: flex; flex-direction: column; gap: 10px; }
+.slide-no { font: 500 12.5px var(--font-mono); color: var(--muted); }
+
+/* CoALA banner */
+.coala {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 16px; align-items: center;
+  border: 1.5px solid var(--work); background: var(--work-bg); border-radius: var(--radius); padding: 14px 18px;
+}
+.coala .tag { font: 700 22px var(--font-display); color: var(--work); letter-spacing: 0.02em; }
+.coala p { font-size: 14px; }
+.coala p span { color: var(--muted); }
+
+/* Type colour helpers */
+.t-work { --c: var(--work); --cb: var(--work-bg); }
+.t-epi { --c: var(--epi); --cb: var(--epi-bg); }
+.t-sem { --c: var(--sem); --cb: var(--sem-bg); }
+.t-proc { --c: var(--proc); --cb: var(--proc-bg); }
+.pill { align-self: flex-start; display: inline-block; font: 600 11.5px var(--font-body); letter-spacing: 0.04em; padding: 1px 8px; border-radius: 10px; color: var(--c); background: var(--cb); border: 1px solid color-mix(in srgb, var(--c) 40%, transparent); white-space: nowrap; }
+
+/* Overview diagram */
+.overview { display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: 18px; align-items: start; }
+.flow { display: flex; flex-direction: column; min-width: 0; }
+.box { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 16px; background: var(--surface); display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.box .hd { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.box .hd small { font: 500 12px var(--font-mono); color: var(--muted); }
+.box p { font-size: 13.5px; color: var(--muted); }
+.box.work { border: 1.5px solid var(--work); background: var(--work-bg); }
+.box.work h3 { color: var(--work); }
+.ctx { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 4px; }
+.ctx div { background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 6px 9px; font-size: 12.5px; min-width: 0; }
+.ctx b { display: block; font: 600 12.5px var(--font-body); }
+.ctx span { color: var(--muted); }
+.down { min-height: 30px; margin-left: 28px; padding: 4px 0 10px 14px; border-left: 2px solid var(--line); position: relative; }
+.down::after { content: ""; position: absolute; left: -7px; bottom: -2px; border: 6px solid transparent; border-top: 8px solid var(--line); border-bottom: 0; }
+.down small { display: block; font: 12px/1.4 var(--font-mono); color: var(--muted); overflow-wrap: anywhere; }
+.stores { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.store { border: 1.5px solid var(--c); background: var(--cb); border-radius: var(--radius); padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.store h3 { font-size: 14.5px; color: var(--c); }
+.store .mono { font-size: 11.5px; color: var(--muted); overflow-wrap: anywhere; }
+.store p { font-size: 12.5px; }
+.param { border: 1px dashed var(--muted); border-radius: var(--radius); padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.param p { color: var(--muted); }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 13px; color: var(--muted); }
+
+/* Memory type cards */
+.types { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.type { border-top: 4px solid var(--c); background: var(--surface); border-left: 1px solid var(--line); border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); border-radius: 0 0 var(--radius) var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.type .num { font: 500 12.5px var(--font-mono); color: var(--c); }
+.type h3 { font-size: 21px; }
+.type .stores-what { font-size: 13.5px; color: var(--muted); }
+.type dl { margin: 0; display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 6px 10px; font-size: 13px; }
+.type dt { color: var(--muted); font-weight: 500; }
+.type dd { margin: 0; min-width: 0; }
+.wm { display: flex; flex-direction: column; gap: 16px; border: 1.5px solid var(--work); background: var(--work-bg); border-radius: var(--radius); padding: 18px 20px; }
+.wm-head { display: flex; flex-direction: column; gap: 8px; }
+.wm-head h3 { font-size: 20px; color: var(--work); }
+.wm-head p { font-size: 14px; }
+.wm-body { display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: 16px; align-items: start; }
+.ctxwin { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.ctxwin li {
+  display: grid; grid-template-columns: minmax(150px, 1.1fr) minmax(80px, 1fr) 56px; grid-template-areas: "seg bar tok" "seg desc desc";
+  gap: 2px 12px; align-items: center; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--c);
+  border-radius: 4px; padding: 8px 12px; min-width: 0;
+}
+.ctxwin .seg { grid-area: seg; display: flex; flex-direction: column; min-width: 0; }
+.ctxwin .seg b { font-size: 14px; }
+.ctxwin .seg .mono { font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
+.ctxwin .bar { grid-area: bar; height: 10px; background: var(--surface-2); border-radius: 3px; overflow: hidden; }
+.ctxwin .bar i { display: block; height: 100%; min-width: 2px; background: var(--c); }
+.ctxwin .tok { grid-area: tok; font: 500 13px var(--font-mono); text-align: right; font-variant-numeric: tabular-nums; }
+.ctxwin p { grid-area: desc; font-size: 12.5px; color: var(--muted); }
+.wm-side { display: grid; gap: 8px; }
+.wm-side div { background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; }
+.wm-side b { font: 700 22px var(--font-display); color: var(--work); font-variant-numeric: tabular-nums; }
+.wm-side span { font-size: 12.5px; color: var(--muted); }
+.budget-key { font-size: 12px; color: var(--muted); }
+.note { border-left: 3px solid var(--muted); background: var(--surface-2); border-radius: 0 var(--radius) var(--radius) 0; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+.note h3 { font-size: 15px; }
+.ref { font-size: 13.5px; color: var(--muted); }
+
+/* Tables */
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; min-width: 720px; }
+th, td { text-align: left; vertical-align: top; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+th { font: 600 12px var(--font-body); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); background: var(--surface-2); }
+tr:last-child td { border-bottom: 0; }
+td:first-child { font-weight: 600; }
+td ul { margin: 0; padding-left: 16px; display: grid; gap: 3px; }
+td.q { white-space: nowrap; }
+td.q b { display: block; font: 700 18px var(--font-display); }
+td.q span { font-weight: 400; font-size: 12.5px; color: var(--muted); }
+th.us { color: var(--work); }
+.pick { color: var(--ok); font-weight: 600; }
+
+/* Status */
+.st { display: inline-flex; align-items: center; gap: 6px; font: 600 12px var(--font-body); letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; }
+.st::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: currentColor; }
+.st.ok { color: var(--ok); }
+.st.part { color: var(--part); }
+.st.todo { color: var(--todo); }
+.st.todo::before { background: transparent; border: 1.5px solid currentColor; }
+
+/* Storage verdicts */
+.verdicts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.verdict { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; min-width: 0; }
+.verdict b { font: 600 14px var(--font-body); }
+.verdict span { color: var(--muted); }
+
+/* Patterns */
+.patterns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.pattern { border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; min-width: 0; background: var(--surface); }
+.pattern.ok { border: 1.5px solid var(--ok); }
+.pattern.part { border: 1.5px solid var(--part); }
+.pattern .ph { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.pattern .num { font: 500 12.5px var(--font-mono); color: var(--muted); }
+.pattern p { font-size: 13.5px; color: var(--muted); }
+.pattern .papers { font: 500 12px var(--font-mono); color: var(--muted); }
+.pattern ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 13.5px; }
+.pattern li { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 6px; }
+.pattern li::before { font-weight: 700; }
+.pattern li.y::before { content: "✓"; color: var(--ok); }
+.pattern li.n::before { content: "○"; color: var(--todo); }
+.pattern li code { font-size: 0.82em; }
+.timing { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.timing > div { border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; }
+.timing span { color: var(--muted); }
+
+/* Demo */
+section.demo { align-items: center; justify-content: center; min-height: 340px; text-align: center; background: var(--work-bg); border-color: var(--work); }
+section.demo h2 { font-size: clamp(56px, 10vw, 112px); color: var(--work); letter-spacing: -0.02em; }
+
+footer { color: var(--muted); font-size: 13px; padding-bottom: 40px; display: flex; flex-direction: column; gap: 4px; }
+
+@media (max-width: 900px) {
+  .overview, .wm-body { grid-template-columns: minmax(0, 1fr); }
+  .wm-side { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .types, .patterns, .timing { grid-template-columns: minmax(0, 1fr); }
+  .stores, .verdicts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 520px) {
+  .stores, .verdicts, .ctx { grid-template-columns: minmax(0, 1fr); }
+  .brand span { display: none; }
+  .coala { grid-template-columns: minmax(0, 1fr); }
+  .ctxwin li { grid-template-columns: minmax(0, 1fr) 56px; grid-template-areas: "seg tok" "bar bar" "desc desc"; }
+}
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <div class="brand"><b>AskTravel</b><span>Memory architecture · CoALA</span></div>
+    <button type="button" class="theme" aria-label="Switch to dark mode">☾ Dark</button>
+    <nav class="sections" aria-label="Sections">
+      <a href="#overview">Overview</a>
+      <a href="#types">1 · Types</a>
+      <a href="#what-when-how">2 · What, when, how</a>
+      <a href="#how">3 · How</a>
+      <a href="#when">4 · When</a>
+      <a href="#demo">Demo</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+<!-- ============ OVERVIEW ============ -->
+<section class="slide" id="overview">
+  <div class="slide-head">
+    <span class="eyebrow">Proof of concept · memory explainer</span>
+    <h1>How AskTravel remembers</h1>
+    <p class="lead">AskTravel is a travel-planning ReAct agent. It runs behind Open WebUI, researches with guidebook and live-search tools, and keeps its state in Postgres. This explainer maps every piece of that state to a memory type in one framework.</p>
+  </div>
+
+  <div class="coala">
+    <span class="tag">CoALA</span>
+    <p><b>The whole explainer is organised by CoALA, Cognitive Architectures for Language Agents</b> <span>(<a href="https://arxiv.org/abs/2309.02427">Sumers et al., 2024</a>).</span> CoALA splits an agent's memory into one <b>working memory</b> (what the model sees now) and three long-term stores: <b>episodic</b>, <b>semantic</b> and <b>procedural</b>.</p>
+  </div>
+
+  <div class="overview">
+    <div class="flow">
+      <div class="box">
+        <div class="hd"><h3>Open WebUI</h3><small>chat UI · :3000</small></div>
+        <p>Login by email. Sends the whole transcript plus the user's email and chat id with every message.</p>
+      </div>
+      <div class="down"><small>POST /v1/chat/completions</small></div>
+      <div class="box">
+        <div class="hd"><h3>Agent API</h3><small>FastAPI · :8000</small></div>
+        <p>user_id = email, thread_id = email:chat id. Keeps the agent's thread on the chat's branch (fork, regenerate, edit).</p>
+      </div>
+      <div class="down"><small>LangChain create_agent · ReAct loop</small></div>
+      <div class="box work t-work">
+        <div class="hd"><h3>Working memory: the context window</h3><span class="pill">working</span></div>
+        <p>Rebuilt before every model call by a middleware.</p>
+        <div class="ctx">
+          <div><b>System prompt</b><span>rules, skills index, saved facts and trips</span></div>
+          <div><b>Tool schemas</b><span>12 tools the model can call</span></div>
+          <div><b>Thread messages</b><span>this chat so far, incl. tool results</span></div>
+        </div>
+      </div>
+      <div class="down"><small>reads before each call · writes via tools and checkpoints</small></div>
+      <div class="stores">
+        <div class="store t-epi"><span class="pill">episodic</span><h3>Checkpointer</h3><span class="mono">Postgres · checkpoints</span><p>Every chat's full history, one thread per email + chat.</p></div>
+        <div class="store t-sem"><span class="pill">semantic</span><h3>Store</h3><span class="mono">Postgres · store (jsonb)</span><p>Profile facts, trips and itineraries per user.</p></div>
+        <div class="store t-sem"><span class="pill">semantic</span><h3>Guidebooks</h3><span class="mono">files · data/guidebooks/*.md</span><p>5 Lonely Planet books, keyword search.</p></div>
+        <div class="store t-proc"><span class="pill">procedural</span><h3>Skills and prompts</h3><span class="mono">files · skills/*.md + code</span><p>7 playbooks loaded on demand; rules; tool docstrings.</p></div>
+      </div>
+    </div>
+    <aside class="param">
+      <span class="eyebrow">Parametric memory</span>
+      <h3>OpenRouter · gpt-6-luna</h3>
+      <p>General travel knowledge and instruction following live in the model's weights. We don't fine-tune, so everything AskTravel manages is context memory.</p>
+    </aside>
+  </div>
+  <div class="legend">
+    <span class="pill t-work">working</span><span class="pill t-epi">episodic</span><span class="pill t-sem">semantic</span><span class="pill t-proc">procedural</span>
+    <span>The same colours mark each memory type throughout.</span>
+  </div>
+</section>
+
+<!-- ============ 1 · MEMORY TYPES ============ -->
+<section class="slide" id="types">
+  <div class="slide-head">
+    <span class="slide-no">Chapter 1</span>
+    <h2>Memory types</h2>
+    <p class="lead">CoALA names three long-term stores, each answering a different question: what happened (episodic), what is true (semantic), and how to do things (procedural). All three feed working memory.</p>
+  </div>
+
+  <div class="wm t-work">
+    <div class="wm-head">
+      <span class="pill">working memory</span>
+      <h3>Working memory is the ReAct agent's context window</h3>
+      <p>In CoALA, working memory is what the agent sees and reasons over right now. In a ReAct agent that is the context window sent with each model call. AskTravel rebuilds it before every call, and every step of the loop sends all of it again. Each part is filled from one of the long-term stores below.</p>
+    </div>
+    <div class="wm-body">
+      <ol class="ctxwin" aria-label="Context window of one model call, top to bottom">
+        <li class="t-proc"><div class="seg"><b>Base rules</b><span class="mono">agent/prompts.py</span></div><div class="bar"><i style="width:1.8%"></i></div><span class="tok">371</span><p>Guidelines, citing guidebooks, when to save a memory</p></li>
+        <li class="t-proc"><div class="seg"><b>Skills index</b><span class="mono">skills/*.md frontmatter</span></div><div class="bar"><i style="width:2.3%"></i></div><span class="tok">471</span><p>7 skill names with their "Use when…" lines; bodies load on demand</p></li>
+        <li class="t-sem"><div class="seg"><b>Saved facts and trips</b><span class="mono">store · (email, memories / trips)</span></div><div class="bar"><i style="width:3.3%"></i></div><span class="tok">658</span><p>Every saved fact plus one line per current trip</p></li>
+        <li class="t-proc"><div class="seg"><b>Tool schemas</b><span class="mono">tool docstrings</span></div><div class="bar"><i style="width:18.9%"></i></div><span class="tok">3,799</span><p>12 tools; <span class="mono">present_itinerary</span> alone is 1,397</p></li>
+        <li class="t-epi"><div class="seg"><b>Conversation</b><span class="mono">checkpointer · this thread</span></div><div class="bar"><i style="width:35.8%"></i></div><span class="tok">7,183</span><p>User and assistant messages and tool calls</p></li>
+        <li class="t-sem"><div class="seg"><b>Tool results</b><span class="mono">checkpointer · this thread</span></div><div class="bar"><i style="width:100%"></i></div><span class="tok">20,101</span><p>Guidebook pages, flight and hotel results, loaded skill bodies. Never removed.</p></li>
+      </ol>
+      <div class="wm-side">
+        <div><b>5.3k</b><span>tokens sent before the user types anything: prompt plus tool schemas</span></div>
+        <div><b>32.6k</b><span>tokens per call at the end of the largest thread, after 4 user messages</span></div>
+        <div><b>~15</b><span>model calls in one research turn, each resending the whole window</span></div>
+        <div><b>15–25k</b><span>target per call: clear old tool results, summarise long threads (roadmap M1)</span></div>
+      </div>
+    </div>
+    <p class="budget-key">Token counts are approximate, measured on the POC database (17 threads). The colour of each row shows which memory type fills it.</p>
+  </div>
+
+  <div class="types">
+    <article class="type t-epi">
+      <span class="num">1.1</span>
+      <h3>Episodic</h3>
+      <p class="stores-what">Stores <b>experiences</b>: sequences of past behaviour, the raw logs of what happened.</p>
+      <dl>
+        <dt>In AskTravel</dt><dd>Each chat's message history, including every tool call and result</dd>
+        <dt>Stored in</dt><dd><span class="mono">AsyncPostgresSaver</span>: <span class="mono">checkpoints</span>, <span class="mono">checkpoint_blobs</span>, <span class="mono">checkpoint_writes</span></dd>
+        <dt>Keyed by</dt><dd><span class="mono">thread_id = email:chat id</span></dd>
+        <dt>Size today</dt><dd>17 threads, 209 checkpoints, about 5 MB of blobs</dd>
+        <dt>Gap</dt><dd>Only the current chat is ever loaded. There is no recall of past chats yet.</dd>
+      </dl>
+    </article>
+    <article class="type t-proc">
+      <span class="num">1.2</span>
+      <h3>Procedural</h3>
+      <p class="stores-what">Stores <b>skills</b>: the rules and know-how that decide how the agent acts.</p>
+      <dl>
+        <dt>In AskTravel</dt><dd>System prompt rules; 7 skill playbooks; 12 tool docstrings; the agent code</dd>
+        <dt>Stored in</dt><dd>Files in git: <span class="mono">skills/*.md</span>, <span class="mono">agent/prompts.py</span>, <span class="mono">tools/*.py</span></dd>
+        <dt>Loaded</dt><dd>Skill names and "Use when…" lines are always in the prompt; full playbooks only via <span class="mono">load_skill</span></dd>
+        <dt>Written by</dt><dd>People, through pull requests. The agent never edits them.</dd>
+        <dt>Gap</dt><dd>No learning from experience or feedback yet</dd>
+      </dl>
+    </article>
+    <article class="type t-sem">
+      <span class="num">1.3</span>
+      <h3>Semantic</h3>
+      <p class="stores-what">Stores <b>knowledge</b>: facts about the user and about the world.</p>
+      <dl>
+        <dt>About the user</dt><dd>Profile facts (diet, home airport…) and trips (dates, stay, travellers, linked itinerary)</dd>
+        <dt>Stored in</dt><dd><span class="mono">AsyncPostgresStore</span>, namespaces <span class="mono">(email, memories)</span>, <span class="mono">(email, trips)</span>, <span class="mono">(email, itineraries)</span></dd>
+        <dt>About the world</dt><dd>5 Lonely Planet guidebooks as markdown; live flights and hotels (fetched, never stored)</dd>
+        <dt>Shape</dt><dd>A <a href="https://docs.langchain.com/oss/python/concepts/memory#semantic-memory">collection</a>: one small document per fact or trip, not one big profile</dd>
+        <dt>Gap</dt><dd>Duplicate trips and run-on facts; no provenance or expiry</dd>
+      </dl>
+    </article>
+  </div>
+
+  <div class="note">
+    <span class="eyebrow">Note · lecture p. 21</span>
+    <h3>Parametric vs context memory</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th></th><th>Parametric: in the model weights</th><th>Context: added to the prompt</th></tr></thead>
+        <tbody>
+          <tr><td><span class="pill t-sem">semantic</span></td><td>Pre-trained knowledge. gpt-6-luna knows Rome has the Colosseum.</td><td>Retrieved facts. Saved facts and trips, guidebook pages, flight and hotel results.</td></tr>
+          <tr><td><span class="pill t-proc">procedural</span></td><td>Instruction following, learned in training.</td><td>Retrieved skills. The 7 playbooks and the prompt rules.</td></tr>
+          <tr><td><span class="pill t-epi">episodic</span></td><td>Not applicable.</td><td>Retrieved conversations. Today only the current thread.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="ref">Parametric memory changes only by fine-tuning, which this POC doesn't do. Every improvement here is about what gets into context, when, and how.</p>
+  </div>
+
+  <p class="ref">Reference: <a href="https://docs.langchain.com/oss/python/concepts/memory">LangChain · Memory overview</a>. It uses the same three types and maps them to LangGraph: short-term (thread-scoped) memory is the checkpointer; long-term memory is the store, organised by namespace and key.</p>
+</section>
+
+<!-- ============ 2 · WHAT, WHEN, HOW ============ -->
+<section class="slide" id="what-when-how">
+  <div class="slide-head">
+    <span class="slide-no">Chapter 2 · lecture p. 24</span>
+    <h2>Architecture: what, when and how</h2>
+    <p class="lead">Every memory design answers three questions. Here are the lecture's options, what AskTravel does today, and where it goes next.</p>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Question</th><th>Options (lecture)</th><th class="us">AskTravel today</th><th>Next</th></tr></thead>
+      <tbody>
+        <tr>
+          <td class="q"><b>What</b><span>gets stored and retrieved?</span></td>
+          <td>Facts (specific and general), procedures, conversation progression</td>
+          <td><ul>
+            <li><span class="pill t-sem">semantic</span> facts the agent chooses to save; trips; itineraries</li>
+            <li><span class="pill t-proc">procedural</span> hand-written skills and rules</li>
+            <li><span class="pill t-epi">episodic</span> raw chat threads, every step</li>
+          </ul></td>
+          <td>Conversation summaries; where each fact came from; one record per real trip</td>
+        </tr>
+        <tr>
+          <td class="q"><b>When</b><span>is it triggered?</span></td>
+          <td>Agent tools (on demand), background workers, event-driven</td>
+          <td><ul>
+            <li><b>Agent tools:</b> <span class="mono">save_memory</span>, <span class="mono">save_trip_details</span>, <span class="mono">get_trip</span>, <span class="mono">load_skill</span></li>
+            <li><b>Events:</b> checkpoint after every step; each itinerary filed under its trip; facts and trips read before every model call</li>
+            <li><b>Background:</b> none</li>
+          </ul></td>
+          <td>A background pass after a chat goes quiet; nightly retention; weekly skill review from feedback</td>
+        </tr>
+        <tr>
+          <td class="q"><b>How</b><span>is it stored and retrieved?</span></td>
+          <td>Filesystem, databases (retrieval), knowledge graphs</td>
+          <td><ul>
+            <li><b>Database:</b> Postgres checkpointer and store, exact key lookup, all facts injected</li>
+            <li><b>Filesystem:</b> skills and guidebooks as markdown, keyword search</li>
+            <li><b>Knowledge graph:</b> none</li>
+          </ul></td>
+          <td>pgvector in the same Postgres for searching past conversations by meaning</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ 3 · HOW ============ -->
+<section class="slide" id="how">
+  <div class="slide-head">
+    <span class="slide-no">Chapter 3 · how</span>
+    <h2>Where memory lives: filesystem vs Postgres vs MongoDB</h2>
+    <p class="lead">The POC uses two of the lecture's three systems: files for what people write, Postgres for what the agent writes. A document database such as MongoDB is the obvious alternative for the agent's JSON memories.</p>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th></th><th>Filesystem</th><th>Postgres <span class="pick">· used</span></th><th>MongoDB (NoSQL)</th></tr></thead>
+      <tbody>
+        <tr><td>Data model</td><td>Every memory is a file; folders give hierarchy for free</td><td>Tables plus <span class="mono">jsonb</span> columns: relational and document in one</td><td>JSON documents in collections; flexible schema</td></tr>
+        <tr><td>How the agent reads it</td><td>grep, ls, read: the agent can manage its own files</td><td>Key lookup through LangGraph's store; SQL for people</td><td>Queries on document fields</td></tr>
+        <tr><td>Search by meaning</td><td>None built in</td><td>pgvector extension, same database</td><td>Atlas Vector Search</td></tr>
+        <tr><td>Consistency</td><td>Weak with many writers; no transactions</td><td>Transactions across checkpoints, store and audit tables</td><td>Document-level atomicity; multi-document transactions available</td></tr>
+        <tr><td>Expiry (TTL)</td><td>Manual clean-up jobs</td><td>LangGraph store TTL with a sweeper; jobs for checkpoints</td><td>Native TTL indexes</td></tr>
+        <tr><td>LangGraph support</td><td>Any custom tools</td><td>Official <span class="mono">langgraph-checkpoint-postgres</span>, which provides both the checkpointer and the store</td><td>MongoDB-maintained checkpointer and store integrations</td></tr>
+        <tr><td>Reviewing and auditing</td><td>Diffs and pull requests in git</td><td>SQL, the inspection notebook, joins to feedback</td><td>Aggregation pipelines; joins are awkward</td></tr>
+        <tr><td>Running it</td><td>Nothing to run</td><td>Already running; RDS on AWS</td><td>Another service to run and back up</td></tr>
+        <tr><td>Best for</td><td>Procedural memory people review</td><td>Episodic and semantic memory at small to medium scale</td><td>Very large or fast-changing document memory, or teams already on MongoDB</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="verdicts">
+    <div class="verdict t-proc"><span class="pill">procedural</span><b>Filesystem (git)</b><span>Skills are reviewed like code. Stays.</span></div>
+    <div class="verdict t-epi"><span class="pill">episodic</span><b>Postgres checkpointer</b><span>Plus summaries with pgvector for recall.</span></div>
+    <div class="verdict t-sem"><span class="pill">semantic · user</span><b>Postgres store</b><span>Collection of facts and trips; add TTL and provenance.</span></div>
+    <div class="verdict t-sem"><span class="pill">semantic · world</span><b>Files today</b><span>Postgres full-text or pgvector if keyword search falls short.</span></div>
+  </div>
+  <p class="ref">MongoDB isn't needed for this POC: Postgres already holds the JSON and gives transactions, SQL for review and pgvector, without adding a second database.</p>
+</section>
+
+<!-- ============ 4 · WHEN ============ -->
+<section class="slide" id="when">
+  <div class="slide-head">
+    <span class="slide-no">Chapter 4 · when · lecture p. 29</span>
+    <h2>Memory patterns: what's implemented</h2>
+    <p class="lead">The lecture's four architecture patterns, each set against what the POC does today.</p>
+    <div class="legend"><span class="st ok">Implemented</span><span class="st part">Partly</span><span class="st todo">Not yet</span></div>
+  </div>
+  <div class="patterns">
+    <article class="pattern part">
+      <div class="ph"><span class="num">Pattern 1</span><span class="st part">Partly</span></div>
+      <h3>Learning procedures from experience</h3>
+      <p>Recall past successful trajectories as reusable skills.</p>
+      <span class="papers">Voyager · Agent Workflow Memory · skill files</span>
+      <ul>
+        <li class="y">Skill files: 7 playbooks, loaded only when a request matches</li>
+        <li class="y">Trigger eval: 9/9 cases load the right skill</li>
+        <li class="n">Learning new skills from feedback and good runs (roadmap M7)</li>
+      </ul>
+    </article>
+    <article class="pattern part">
+      <div class="ph"><span class="num">Pattern 2</span><span class="st part">Partly</span></div>
+      <h3>Tiered memory hierarchy</h3>
+      <p>Organise memory into tiers, and let the model manage its own memory with tools.</p>
+      <span class="papers">MemGPT · MemoryOS</span>
+      <ul>
+        <li class="y">Tiers: context window → current thread → long-term store</li>
+        <li class="y">The model manages its memory with tools: <code>save_memory</code>, <code>delete_memory</code>, <code>save_trip_details</code>, <code>get_trip</code></li>
+        <li class="n">Search over past chats (M5); evicting old tool results from context (M1)</li>
+      </ul>
+    </article>
+    <article class="pattern">
+      <div class="ph"><span class="num">Pattern 3</span><span class="st todo">Not yet</span></div>
+      <h3>Reflective memory consolidation</h3>
+      <p>Reflect on experiences before storing them as memory.</p>
+      <span class="papers">Reflexion · Generative Agents</span>
+      <ul>
+        <li class="n">Summarise each chat once it goes quiet (M4)</li>
+        <li class="n">Turn the summary into fact and trip updates, instead of whatever the agent saved mid-chat</li>
+      </ul>
+    </article>
+    <article class="pattern part">
+      <div class="ph"><span class="num">Pattern 4</span><span class="st part">Partly</span></div>
+      <h3>Memory maintenance</h3>
+      <p>Clean up, update and remove old memories.</p>
+      <span class="papers">Sleep-time compute · Mem0-style add / update / delete</span>
+      <ul>
+        <li class="y">Saving under an existing key updates the fact; delete tools forget on request</li>
+        <li class="y">Startup backfill links older itineraries to trips</li>
+        <li class="n">Dedupe trips, expiry (TTL) and nightly pruning (M2–M4)</li>
+      </ul>
+    </article>
+  </div>
+  <div class="timing">
+    <div><b>In the hot path · today</b><span>Every memory write happens during the conversation, through a tool call or a checkpoint. Memories are available at once, but the agent spends attention and time on them.</span></div>
+    <div><b>In the background · next</b><span>Consolidation and maintenance run after the chat, with no latency for the user. LangChain's memory guide describes both modes.</span></div>
+  </div>
+</section>
+
+<!-- ============ DEMO ============ -->
+<section class="slide demo" id="demo">
+  <h2>Demo</h2>
+</section>
+
+<footer>
+  <span>Framework: CoALA, <a href="https://arxiv.org/abs/2309.02427">Sumers et al., 2024</a>. Lecture: CS329Z Engineering AI Agents, lecture 7, agent memory architecture (pp. 15–29).</span>
+  <span>LangChain: <a href="https://docs.langchain.com/oss/python/concepts/memory">Memory overview</a>. Measurements: AskTravel POC database, October 2026.</span>
+</footer>
+
+</main>
+
+<script>
+(function () {
+  // Highlight the section in view: the last one whose top has passed below the header
+  var links = document.querySelectorAll("nav.sections a");
+  var slides = document.querySelectorAll("section.slide");
+  function mark() {
+    var current = slides[0];
+    slides.forEach(function (sl) { if (sl.getBoundingClientRect().top <= 140) current = sl; });
+    if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) current = slides[slides.length - 1];
+    links.forEach(function (a) { a.classList.toggle("on", a.getAttribute("href") === "#" + current.id); });
+  }
+  window.addEventListener("scroll", mark, { passive: true });
+  window.addEventListener("hashchange", mark);
+  if (location.hash && document.getElementById(location.hash.slice(1))) document.getElementById(location.hash.slice(1)).scrollIntoView();
+  mark();
+
+  // Theme toggle: follows the system until the reader picks one; the choice is remembered in this browser
+  var root = document.documentElement, themeBtn = document.querySelector("button.theme");
+  var systemDark = window.matchMedia("(prefers-color-scheme: dark)");
+  function theme() { return root.dataset.theme || (systemDark.matches ? "dark" : "light"); }
+  function label() {
+    var next = theme() === "dark" ? "light" : "dark";
+    themeBtn.textContent = next === "dark" ? "☾ Dark" : "☀ Light";
+    themeBtn.setAttribute("aria-label", "Switch to " + next + " mode");
+  }
+  try {
+    var saved = localStorage.getItem("asktravel-theme");
+    if (saved === "dark" || saved === "light") root.dataset.theme = saved;
+  } catch (e) {}
+  themeBtn.addEventListener("click", function () {
+    root.dataset.theme = theme() === "dark" ? "light" : "dark";
+    try { localStorage.setItem("asktravel-theme", root.dataset.theme); } catch (e) {}
+    label();
+  });
+  systemDark.addEventListener("change", label);
+  label();
+})();
+</script>
+</body>
+</html>

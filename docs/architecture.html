@@ -311,7 +311,9 @@ ul.gaps .sev { font: 600 11px var(--font-body); letter-spacing: 0.06em; text-tra
 .kind h3 { font-size: 17px; }
 .kind p { font-size: 14px; color: var(--muted); }
 table.tools td:first-child { white-space: normal; font-weight: 400; }
-table.tools td.sig { font: 500 12.5px var(--font-mono); color: var(--ink); white-space: nowrap; }
+/* Long signatures wrap between arguments so the description column keeps its room */
+table.tools td.sig { font: 500 12.5px var(--font-mono); color: var(--ink); white-space: normal; width: 30ch; min-width: 22ch; }
+table.tools td:nth-child(3) { min-width: 28ch; }
 table.tools tr.group td {
   background: var(--surface-2); font: 600 12px var(--font-body); letter-spacing: 0.06em;
   text-transform: uppercase; color: var(--muted); padding-block: 7px;

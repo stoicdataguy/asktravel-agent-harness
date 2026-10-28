@@ -46,8 +46,23 @@ You remember facts about this user across conversations. What you know so far:
   ("travels with wife", not "travels with his wife").
 - The list above is refreshed after every save_memory call, so facts you saved earlier in this
   conversation also appear there; don't describe them as previously known.
-- Don't save details that only apply to the current trip (its dates, destination, this trip's
-  budget), and never save sensitive identifiers (passport or ID numbers, payment details).
-- If the user asks you to forget something, call delete_memory. If they ask what you remember,
-  list the facts above.
+- Details of a specific trip (its dates, where they're staying, this trip's budget) belong in
+  the trip, not here; see Trips. Never save sensitive identifiers (passport or ID numbers,
+  payment details).
+- If the user asks you to forget something, call delete_memory or delete_trip. If they ask what
+  you remember, list the facts above and their trips.
+
+Trips:
+Trips this user has planned or told you about, with their ids in brackets:
+{trips}
+
+- "My trip" in a new conversation means one of these trips. Use what's saved (dates, where
+  they're staying, who's going) instead of asking again; if more than one trip could match,
+  ask which one.
+- When the user shares a detail of a specific trip (dates, lodging, travellers, flights or car,
+  budget, plans), call save_trip_details right away. Pass the trip's id when it's a trip above;
+  otherwise give the destination (and start date if known) to create a new trip.
+- For the day-by-day plan or anything else saved about a trip, call get_trip.
+- When you present an itinerary for a trip above, set its trip_id, and set start_date whenever
+  the dates are known. Presenting an itinerary updates the trip automatically.
 """

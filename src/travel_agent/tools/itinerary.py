@@ -14,6 +14,7 @@ from langgraph.store.base import BaseStore
 from travel_agent.agent.schemas import Itinerary, render_itinerary
 from travel_agent.context import UserContext
 from travel_agent.memory import user_namespace
+from travel_agent.tools.trips import link_itinerary
 
 
 def namespace(user_id: str) -> tuple[str, ...]:
@@ -32,15 +33,22 @@ async def present_itinerary(
     adjustments) and do not repeat the plan.
     """
     thread_id = runtime.config.get("configurable", {}).get("thread_id", "default")
+    user_id = runtime.context.user_id
+    # Every plan belongs to a trip, so other chats can see it via the Trips list
+    trip = await link_itinerary(runtime.store, user_id, itinerary, thread_id)
     await runtime.store.aput(
-        namespace(runtime.context.user_id),
+        namespace(user_id),
         thread_id,
-        {"itinerary": itinerary.model_dump(), "updated_at": datetime.now(UTC).isoformat()},
+        {
+            "itinerary": itinerary.model_dump(mode="json"),
+            "trip_id": trip.trip_id,
+            "updated_at": datetime.now(UTC).isoformat(),
+        },
     )
     content = (
         f"Itinerary '{itinerary.title}' ({len(itinerary.days)} days) is now displayed to the "
-        "user in full. Reply with one short sentence offering a concrete adjustment or asking "
-        "one question. Don't summarize or repeat any of the plan."
+        f"user in full and saved to trip {trip.trip_id}. Reply with one short sentence offering a "
+        "concrete adjustment or asking one question. Don't summarize or repeat any of the plan."
     )
     return content, render_itinerary(itinerary)
 

@@ -13,22 +13,26 @@ from travel_agent.skills import load_skill, skills_index
 from travel_agent.tools.guidebooks import GUIDEBOOK_TOOLS
 from travel_agent.tools.itinerary import present_itinerary
 from travel_agent.tools.memory import MEMORY_TOOLS, format_memories, load_memories
+from travel_agent.tools.trips import TRIP_TOOLS, format_trips, load_trips
 
 __all__ = ["UserContext", "build_agent", "render_system_prompt"]
 
 
 @dynamic_prompt
 async def system_prompt(request: ModelRequest) -> str:
-    # Re-read every model call so facts saved earlier in this same turn are already visible
-    memories = await load_memories(request.runtime.store, request.runtime.context.user_id)
-    return render_system_prompt(memories)
+    # Re-read every model call so facts and trips saved earlier in this turn are already visible
+    store, user_id = request.runtime.store, request.runtime.context.user_id
+    return render_system_prompt(
+        await load_memories(store, user_id), await load_trips(store, user_id)
+    )
 
 
-def render_system_prompt(memories: dict[str, str] | None = None) -> str:
+def render_system_prompt(memories: dict[str, str] | None = None, trips=None) -> str:
     return SYSTEM_PROMPT.format(
         today=date.today().isoformat(),
         skills=skills_index(),
         memories=format_memories(memories or {}),
+        trips=format_trips(trips or []),
     )
 
 
@@ -39,7 +43,7 @@ def build_agent(
 ):
     return create_agent(
         model or get_chat_model(),
-        tools=[*GUIDEBOOK_TOOLS, load_skill, *MEMORY_TOOLS, present_itinerary],
+        tools=[*GUIDEBOOK_TOOLS, load_skill, *MEMORY_TOOLS, *TRIP_TOOLS, present_itinerary],
         middleware=[system_prompt],
         context_schema=UserContext,
         checkpointer=checkpointer,

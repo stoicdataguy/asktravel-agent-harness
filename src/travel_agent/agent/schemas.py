@@ -5,6 +5,7 @@ Field descriptions double as instructions to the LLM, since the schema is sent a
 argument spec.
 """
 
+from datetime import date, timedelta
 from typing import Literal, Self
 
 from pydantic import BaseModel, Field, model_validator
@@ -42,6 +43,14 @@ class Itinerary(BaseModel):
     destination: str
     trip_length_days: int = Field(ge=1)
     travellers: str | None = Field(default=None, description="e.g. '2 adults, mid-range'.")
+    start_date: date | None = Field(
+        default=None, description="First day of the trip (YYYY-MM-DD), if the user gave dates."
+    )
+    trip_id: str | None = Field(
+        default=None,
+        description="Id of the trip this plan is for, from the Trips list in your instructions. "
+        "Leave empty for a new trip.",
+    )
     summary: str = Field(description="2-3 sentences on the shape of the trip.")
     assumptions: list[str] = Field(
         default_factory=list, description="Assumptions made where the user gave no details."
@@ -79,6 +88,9 @@ def render_itinerary(itinerary: Itinerary) -> str:
     """Markdown for chat UIs, following the itinerary-builder skill's layout."""
     lines = [f"# {itinerary.title}", ""]
     meta = [itinerary.destination, f"{itinerary.trip_length_days} days"]
+    if itinerary.start_date:
+        end = itinerary.start_date + timedelta(days=itinerary.trip_length_days - 1)
+        meta.append(f"{itinerary.start_date:%b %-d, %Y} – {end:%b %-d, %Y}")
     if itinerary.travellers:
         meta.append(itinerary.travellers)
     lines += [f"*{' · '.join(meta)}*", "", itinerary.summary, ""]

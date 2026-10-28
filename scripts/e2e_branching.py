@@ -53,7 +53,7 @@ async def cleanup(user: str, chats: list[str], token: str) -> None:
     async with open_memory(get_settings().database_url) as (checkpointer, store):
         for chat in chats:
             await checkpointer.adelete_thread(f"{user}:{chat}")
-        for kind in ("itineraries", "memories"):
+        for kind in ("itineraries", "memories", "trips"):
             for item in await store.asearch(user_namespace(user, kind), limit=100):
                 await store.adelete(user_namespace(user, kind), item.key)
     for chat in chats:

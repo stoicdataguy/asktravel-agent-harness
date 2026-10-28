@@ -46,6 +46,8 @@ validated and shown to the user as a formatted itinerary.
   1–2 sentences of details, the location, and a `source` citation like
   "Lonely Planet Hawaii, p. 90" when it came from the guidebook.
 - Put meals in as activities where they matter (a market lunch, a recommended dinner).
+- `start_date` when the user gave dates, and `trip_id` when the plan is for a trip already
+  listed in your instructions, so the plan is filed under that trip.
 - `stays`: each base with its number of nights and why it suits the plan.
 - `assumptions`: anything you assumed (pace, budget, travellers).
 - `bookings_to_make`: tours, permits, trains or restaurants to reserve ahead.

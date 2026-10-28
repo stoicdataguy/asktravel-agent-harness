@@ -7,6 +7,14 @@ from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 
 
+def user_namespace(user_id: str, kind: str) -> tuple[str, str]:
+    """Store namespace for one user's data of a given kind (memories, itineraries, ...).
+
+    Store namespace labels can't contain "."; user ids are emails, so the dots are percent-encoded.
+    """
+    return (user_id.replace(".", "%2E"), kind)
+
+
 @asynccontextmanager
 async def open_memory(
     database_url: str,

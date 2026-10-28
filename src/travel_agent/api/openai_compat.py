@@ -14,7 +14,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from pydantic import BaseModel, ConfigDict
 
 from travel_agent.context import UserContext
@@ -47,9 +47,13 @@ def message_text(message: ChatMessage) -> str:
     return message.content or ""
 
 
+def resolve_user(headers: Any) -> str:
+    return (headers.get("x-openwebui-user-email") or ANONYMOUS_USER).lower()
+
+
 def resolve_ids(headers: Any, messages: list[ChatMessage]) -> tuple[str, str]:
     """Return (user_id, thread_id) for a request."""
-    user_id = (headers.get("x-openwebui-user-email") or ANONYMOUS_USER).lower()
+    user_id = resolve_user(headers)
     chat_id = headers.get("x-openwebui-chat-id")
     if not chat_id:
         # Clients without a chat id: a conversation is identified by its first user message
@@ -69,12 +73,25 @@ def _chunk(completion_id: str, model: str, delta: dict, finish_reason: str | Non
     return f"data: {json.dumps(payload)}\n\n"
 
 
+MAX_STATUS_ARG_CHARS = 80
+
+
+def _short(value: Any) -> str:
+    text = json.dumps(value, ensure_ascii=False)
+    return text if len(text) <= MAX_STATUS_ARG_CHARS else text[: MAX_STATUS_ARG_CHARS - 1] + "…"
+
+
 def tool_status(tool_call: dict) -> str:
-    """One-line markdown note shown in the chat while a tool runs."""
-    args = ", ".join(
-        f"{k}={json.dumps(v, ensure_ascii=False)}" for k, v in tool_call["args"].items()
-    )
+    """One-line markdown note shown in the chat while a tool runs (long args truncated)."""
+    args = ", ".join(f"{k}={_short(v)}" for k, v in tool_call["args"].items())
     return f"\n\n`🔧 {tool_call['name']}({args})`\n\n"
+
+
+def displayed_artifacts(messages: list) -> list[str]:
+    """Rendered markdown that tools (present_itinerary) produced for the user to see."""
+    return [
+        m.artifact for m in messages if isinstance(m, ToolMessage) and isinstance(m.artifact, str)
+    ]
 
 
 async def _stream(agent, inputs, config, context, model: str) -> AsyncIterator[str]:
@@ -95,6 +112,9 @@ async def _stream(agent, inputs, config, context, model: str) -> AsyncIterator[s
             for message in payload["model"].get("messages", []):
                 for tool_call in getattr(message, "tool_calls", None) or []:
                     yield _chunk(completion_id, model, {"content": tool_status(tool_call)})
+        elif "tools" in payload and isinstance(payload["tools"], dict):
+            for artifact in displayed_artifacts(payload["tools"].get("messages", [])):
+                yield _chunk(completion_id, model, {"content": f"\n\n{artifact}\n\n"})
     yield _chunk(completion_id, model, {}, finish_reason="stop")
     yield "data: [DONE]\n\n"
 
@@ -117,6 +137,10 @@ async def chat_completions(body: ChatCompletionRequest, request: Request):
         )
 
     result = await agent.ainvoke(inputs, config, context=context)
+    # Only this turn's messages: everything after the last human message
+    last_human = max(i for i, m in enumerate(result["messages"]) if m.type == "human")
+    turn = result["messages"][last_human + 1 :]
+    content = "\n\n".join([*displayed_artifacts(turn), result["messages"][-1].text]).strip()
     return {
         "id": f"chatcmpl-{uuid.uuid4().hex}",
         "object": "chat.completion",
@@ -125,7 +149,7 @@ async def chat_completions(body: ChatCompletionRequest, request: Request):
         "choices": [
             {
                 "index": 0,
-                "message": {"role": "assistant", "content": result["messages"][-1].text},
+                "message": {"role": "assistant", "content": content},
                 "finish_reason": "stop",
             }
         ],

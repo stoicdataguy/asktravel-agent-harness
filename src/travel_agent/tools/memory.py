@@ -12,14 +12,14 @@ from langchain.tools import ToolRuntime, tool
 from langgraph.store.base import BaseStore
 
 from travel_agent.context import UserContext
+from travel_agent.memory import user_namespace
 
 MAX_MEMORIES_IN_PROMPT = 50
 MAX_VALUE_CHARS = 300
 
 
 def namespace(user_id: str) -> tuple[str, ...]:
-    # Store namespace labels can't contain "."; user ids are emails, so percent-encode the dots
-    return (user_id.replace(".", "%2E"), "memories")
+    return user_namespace(user_id, "memories")
 
 
 def normalize_key(key: str) -> str:

@@ -11,3 +11,4 @@ reference/
 data/guidebooks/*
 !data/guidebooks/.gitkeep
 .DS_Store
+.ipynb_checkpoints/

@@ -20,6 +20,8 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
 - Guidebooks: `uv run travel-agent-ingest [--force]` converts `reference/*.pdf` → `data/guidebooks/*.md`
 - Demo GIF: `uv run python scripts/record_demo.py` → `docs/demo.gif` (needs the full stack running)
 - Skill triggering eval (real LLM): `uv run python scripts/eval_skills.py` — run after editing any skill description
+- Inspect state (SQL + decoded threads): `uv run jupyter lab` → `notebooks/inspect_state.ipynb`.
+  Commit notebooks without outputs (they contain user data).
 - Tests: `uv run pytest` · Lint/format: `uv run ruff check --fix . && uv run ruff format .`
 
 ## Layout

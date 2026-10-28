@@ -42,6 +42,9 @@ Sessions and Users views show whole conversations per (dummy) user. Langfuse is 
   the agent calls `save_memory`; those facts are injected into its instructions in every later
   conversation for that user. Ask "what do you remember about me?" or "forget my budget" to
   inspect or remove them. Each signed-in email has its own memory.
+- **Inspecting the data:** Postgres is at `postgresql://travel:travel@localhost:5433/travel_agent`.
+  `uv run jupyter lab` and open [notebooks/inspect_state.ipynb](notebooks/inspect_state.ipynb) for
+  memories, itineraries, threads and decoded chat history.
 
 ### Structured itineraries
 

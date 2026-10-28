@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.venv/
+.env
+.pytest_cache/
+.ruff_cache/
+*.sqlite
+*.db
+# Guidebooks are copyrighted — keep them local
+data/guidebooks/*
+!data/guidebooks/.gitkeep
+.DS_Store

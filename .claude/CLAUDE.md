@@ -22,10 +22,12 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
 ## Layout
 - `src/travel_agent/` — package (src layout). `config.py` holds all settings (pydantic-settings, `.env`).
 - `src/travel_agent/api/` — FastAPI app and OpenAI-compatible routes.
-- `src/travel_agent/agent/` — `build_agent()` (create_agent + middleware), prompts, `UserContext`.
+- `src/travel_agent/agent/` — `build_agent()` (create_agent + middleware that injects skills and saved memories), prompts.
 - `src/travel_agent/memory.py` — Postgres checkpointer + store on one connection pool.
 - `src/travel_agent/observability.py` — Langfuse callback + `run_config()`. Tracing is Langfuse only (no LangSmith).
 - `src/travel_agent/tools/` — agent tools; `guidebooks.py` = keyword search / page reads over extracted guidebooks.
+- `src/travel_agent/context.py` — `UserContext` (runtime context: `user_id`).
+- `src/travel_agent/tools/memory.py` — long-term memory tools (`save_memory`, `delete_memory`) + loaders.
 - `src/travel_agent/skills/` — skill playbooks (`<name>.md` with name/description frontmatter) + `load_skill` tool.
 - `src/travel_agent/kb/` — guidebook ingestion (PDF → markdown with `[p. N]` markers + TOC headings).
 - See `docs/PLAN.md` for the target architecture and milestones.
@@ -37,7 +39,11 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
   Tools must return compact, LLM-friendly output (trim large payloads) and never raise into the agent
   loop — return an error string instead.
 - Memory is **Postgres only** (no SQLite/in-memory outside tests). Thread memory via checkpointer keyed
-  `thread_id = "<user_email>:<chat_id>"`; cross-thread facts via `Store` namespaced `(user_id, "memories")`.
+  `thread_id = "<user_email>:<chat_id>"`; cross-thread facts via `Store` namespaced
+  `(<email with "." → "%2E">, "memories")` (store labels can't contain dots); use
+  `tools.memory.namespace()` rather than building namespaces by hand.
+- Store/checkpointer are async Postgres: anything touching them (tools, middleware) must be
+  `async def` and use `aput`/`asearch`/…; sync calls fail inside the event loop.
 - Identity: `user_id` = `X-OpenWebUI-User-Email` header (lowercased), passed as `UserContext` runtime
   context. Tools read it from `runtime.context.user_id`; never take user_id as an LLM-visible argument.
 - The API passes only the latest user message to the agent; the checkpointer owns history.

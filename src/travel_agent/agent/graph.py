@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from datetime import date
 
 from langchain.agents import create_agent
@@ -8,25 +7,28 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.store.base import BaseStore
 
 from travel_agent.agent.prompts import SYSTEM_PROMPT
+from travel_agent.context import UserContext
 from travel_agent.llm import get_chat_model
 from travel_agent.skills import load_skill, skills_index
 from travel_agent.tools.guidebooks import GUIDEBOOK_TOOLS
+from travel_agent.tools.memory import MEMORY_TOOLS, format_memories, load_memories
 
-
-@dataclass
-class UserContext:
-    """Per-request runtime context, available to tools and middleware as `runtime.context`."""
-
-    user_id: str
+__all__ = ["UserContext", "build_agent", "render_system_prompt"]
 
 
 @dynamic_prompt
-def system_prompt(request: ModelRequest) -> str:
-    return render_system_prompt()
+async def system_prompt(request: ModelRequest) -> str:
+    # Re-read every model call so facts saved earlier in this same turn are already visible
+    memories = await load_memories(request.runtime.store, request.runtime.context.user_id)
+    return render_system_prompt(memories)
 
 
-def render_system_prompt() -> str:
-    return SYSTEM_PROMPT.format(today=date.today().isoformat(), skills=skills_index())
+def render_system_prompt(memories: dict[str, str] | None = None) -> str:
+    return SYSTEM_PROMPT.format(
+        today=date.today().isoformat(),
+        skills=skills_index(),
+        memories=format_memories(memories or {}),
+    )
 
 
 def build_agent(
@@ -36,7 +38,7 @@ def build_agent(
 ):
     return create_agent(
         model or get_chat_model(),
-        tools=[*GUIDEBOOK_TOOLS, load_skill],
+        tools=[*GUIDEBOOK_TOOLS, load_skill, *MEMORY_TOOLS],
         middleware=[system_prompt],
         context_schema=UserContext,
         checkpointer=checkpointer,

@@ -17,7 +17,7 @@ from fastapi.responses import StreamingResponse
 from langchain_core.messages import AIMessage, HumanMessage
 from pydantic import BaseModel, ConfigDict
 
-from travel_agent.agent.graph import UserContext
+from travel_agent.context import UserContext
 from travel_agent.observability import run_config
 
 router = APIRouter()

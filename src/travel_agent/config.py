@@ -10,7 +10,7 @@ class Settings(BaseSettings):
 
     openrouter_api_key: SecretStr = SecretStr("")
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
-    openrouter_model: str = "anthropic/claude-sonnet-5.5"
+    openrouter_model: str = "openai/gpt-6-luna"
 
     # Model id the chat UI selects (stable; referenced by DEFAULT_MODELS in compose) and the
     # display name it shows

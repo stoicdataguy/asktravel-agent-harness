@@ -493,7 +493,7 @@ body { margin: 0; }
       <div class="ext-card">
         <span class="eyebrow">External</span>
         <h3>OpenRouter</h3>
-        <span class="mono">anthropic/claude-sonnet-5.5</span>
+        <span class="mono">openai/gpt-6-luna</span>
         <p>Every model call in the loop. Called through ChatOpenAI with OpenRouter's base URL.</p>
       </div>
       <div class="ext-card">
@@ -537,7 +537,7 @@ body { margin: 0; }
           <tr class="long"><td>Long-term memory</td><td>AsyncPostgresStore</td><td class="mono">tools/memory.py · tools/itinerary.py</td><td>Per-user facts and itineraries across chats</td></tr>
           <tr><td>Guidebooks</td><td>PyMuPDF + keyword search</td><td class="mono">kb/ingest.py · tools/guidebooks.py</td><td>Cited research from 5 Lonely Planet guides</td></tr>
           <tr><td>Skills</td><td>Markdown + YAML frontmatter</td><td class="mono">skills/*.md</td><td>Task playbooks loaded on demand</td></tr>
-          <tr class="ext"><td>LLM</td><td>OpenRouter</td><td class="mono">llm.py</td><td>Claude Sonnet 5.5 for every model call</td></tr>
+          <tr class="ext"><td>LLM</td><td>OpenRouter</td><td class="mono">llm.py</td><td>GPT-6 Luna for every model call</td></tr>
           <tr class="ext"><td>Tracing</td><td>Langfuse v4</td><td class="mono">observability.py · docker/langfuse.compose.yml</td><td>Traces per session and user</td></tr>
         </tbody>
       </table>
@@ -830,13 +830,13 @@ conversations. What you know so far:
 
   <div class="block">
     <h2>Trigger test results</h2>
-    <p>From <code>scripts/eval_skills.py</code> against Claude Sonnet 5.5. A case passes when every expected skill loads; extra skills are allowed.</p>
+    <p>From <code>scripts/eval_skills.py</code> against GPT-6 Luna (<code>openai/gpt-6-luna</code>), the current model. A case passes when every expected skill loads; extra skills are allowed.</p>
     <div class="table-wrap">
       <table>
         <thead><tr><th>Result</th><th>Prompt</th><th>Expected</th><th>Loaded</th></tr></thead>
         <tbody>
           <tr><td class="pass">Pass</td><td>I want to go somewhere warm next year, can you help me plan a trip?</td><td class="mono">trip-intake</td><td class="mono">trip-intake</td></tr>
-          <tr><td class="pass">Pass</td><td>Make me a 5-day itinerary for Rome and Florence in May, 2 adults, mid-range, we love food and art.</td><td class="mono">itinerary-builder</td><td class="mono">itinerary-builder, food-and-culture</td></tr>
+          <tr><td class="pass">Pass</td><td>Make me a 5-day itinerary for Rome and Florence in May, 2 adults, mid-range, we love food and art.</td><td class="mono">itinerary-builder</td><td class="mono">itinerary-builder, food-and-culture, local-transport</td></tr>
           <tr><td class="pass">Pass</td><td>Roughly how much would 10 days in Thailand cost for two backpackers, excluding flights?</td><td class="mono">budget-planner</td><td class="mono">budget-planner</td></tr>
           <tr><td class="pass">Pass</td><td>What should I pack for hiking in the Swiss Alps in October?</td><td class="mono">packing-list</td><td class="mono">packing-list</td></tr>
           <tr><td class="pass">Pass</td><td>I'm a US citizen. Do I need a visa for Peru, and any vaccinations?</td><td class="mono">visa-and-entry</td><td class="mono">visa-and-entry</td></tr>

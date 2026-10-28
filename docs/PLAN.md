@@ -36,7 +36,7 @@ Open WebUI (:3000) ── OpenAI-compatible HTTP + X-OpenWebUI-User-Email / -Cha
                                                                                           │
    ┌──────────────┬─────────────────┬──────────────┬────────────────┬───────────────────┼────────────────────────┐
  OpenRouter    Guidebook tools   Skills          Memory tools     present_itinerary     Planned
- (Sonnet 5.5)  list / search /   load_skill      save_memory /    (Pydantic Itinerary   · flights, hotels, web (#7)
+ (gpt-6-luna)  list / search /   load_skill      save_memory /    (Pydantic Itinerary   · flights, hotels, web (#7)
                read pages        (7 playbooks)   delete_memory    → chat + store)       · guidebook subagent (#11)
                                                                                          · MCP tools (#12)
 
@@ -54,7 +54,7 @@ Open WebUI (:3000) ── OpenAI-compatible HTTP + X-OpenWebUI-User-Email / -Cha
 | Topic | Decision | Status |
 |---|---|---|
 | Frontend | Open WebUI via docker compose, talking to our OpenAI-compatible `/v1` API. No UI code. | Built |
-| LLM | OpenRouter, `anthropic/claude-sonnet-5.5` via `ChatOpenAI(base_url=...)`. | Built |
+| LLM | OpenRouter, `openai/gpt-6-luna` via `ChatOpenAI(base_url=...)` (`OPENROUTER_MODEL`; switched from `anthropic/claude-sonnet-5.5`, ~20× cheaper, same skill-trigger results). | Built |
 | Users | Open WebUI signup as a dummy login: any email, active immediately. `ENABLE_PERSISTENT_CONFIG=false` keeps signup open. | Built |
 | Short-term memory | `AsyncPostgresSaver` checkpointer, one thread per user + chat. | Built |
 | Long-term memory | `AsyncPostgresStore`, facts keyed by topic, injected into the prompt every model call. | Built |

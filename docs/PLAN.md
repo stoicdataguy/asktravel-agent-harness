@@ -279,7 +279,8 @@ likely dominate: a tool-heavy itinerary run is 15+ model calls.
 - [User feedback → audit tables](plans/feedback-audit.md): capture every 👍/👎 in an append-only
   Postgres audit table, linked to the agent turn and its Langfuse trace.
 - [Memory architecture](plans/memory-architecture.md): procedural / semantic / episodic inventory,
-  What-When-How, TTL policy, context-window budget, and the M0–M7 roadmap (revised 2026-10-29:
+  What-When-How, TTL policy, context-window budget, the memory eval baseline (M0, §8), and the
+  M0–M7 roadmap (revised 2026-10-29:
   baseline evals first, then trip and fact hygiene).
 
 ## Known limitations

@@ -20,6 +20,10 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
 - Guidebooks: `uv run travel-agent-ingest [--force]` converts `reference/*.pdf` → `data/guidebooks/*.md`
 - Demo GIF: `uv run python scripts/record_demo.py` → `docs/demo.gif` (needs the full stack running)
 - Skill triggering eval (real LLM): `uv run python scripts/eval_skills.py` — run after editing any skill description
+- Memory eval (real LLM + Postgres, no API needed): `uv run python scripts/eval_memory.py [--quick] [--only <case>] [--json out.json]`
+  — pass rate per case (each run 3×) and input/cached tokens per model call; the memory plan's
+  §8 cases. Full run ~15 min, `--quick` a few. Some cases fail until their phase lands; compare
+  against the baseline in the plan's §8.
 - Inspect state (SQL + decoded threads): `uv run jupyter lab` → `notebooks/inspect_state.ipynb`.
   Commit notebooks without outputs (they contain user data).
 - Tests: `uv run pytest` · Lint/format: `uv run ruff check --fix . && uv run ruff format .`
@@ -68,7 +72,10 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
   transcript's user messages with the thread: append the newest message when they agree, seed an
   empty (forked) thread from the transcript, or rewind/replace on regenerate and edit. Clients must
   send the full transcript, as OpenAI-style clients do.
-- After changing memory, prompts or tools, run `uv run python scripts/e2e_memory.py` (cross-chat memory).
+- After changing memory, prompts or tools, run `uv run python scripts/e2e_memory.py` (cross-chat memory)
+  and `scripts/eval_memory.py`, and report pass rates and tokens per call against the plan's baseline.
+- Token usage per model call (input, cache read, cache write) is on every Langfuse generation;
+  OpenRouter does cache `gpt-6-luna` prompts, so keep the start of the prompt stable.
 - After changing flight or hotel search, run `uv run python scripts/e2e_flights.py` / `e2e_hotels.py`
   (both check quoted prices against a live Google lookup). If Google changes its markup, update
   the selectors in `tools/hotels.py` and the captured card texts in `tests/test_hotels.py`.

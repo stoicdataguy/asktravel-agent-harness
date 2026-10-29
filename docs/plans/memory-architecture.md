@@ -189,7 +189,7 @@ Mapped to the lecture's "problems without memory" (p. 9) and open challenges (p.
 - **Attention:** the lecture notes that models misuse what's in context (p. 73, p. 100). Old guidebook pages about a different day of the trip are noise.
 
 **Observations about today's design:**
-1. **The order is right; the volatile parts are in the wrong place.** Static instructions come first, which suits prompt caching. But today's date and the user's facts and trips sit **inside** the system prompt, so any `save_memory` mid-turn, and every new day, changes the cached prefix. **Caveat:** we haven't checked that OpenRouter caches prompts for `gpt-6-luna` at all (usage would report cached tokens). Until M0 confirms it, caching is a tie-breaker, not a design driver.
+1. **The order is right; the volatile parts are in the wrong place.** Static instructions come first, which suits prompt caching. But today's date and the user's facts and trips sit **inside** the system prompt, so any `save_memory` mid-turn, and every new day, changes the cached prefix. **M0 confirmed caching works:** 91% of input tokens in the baseline were cache reads (§8), so a stable prefix is a real design constraint.
 2. **Tool schemas are the largest fixed cost** (about 3.8k tokens, 70% of the fixed prefix). `present_itinerary`'s nested schema is 1.4k by itself and is needed only at the end of planning.
 3. **Tool results are never released.** A guidebook page read for day 1 is still in context while the agent writes day 4, and in every later turn.
 4. **Memory injection is all-or-nothing.** All facts and trips go into every call, even "thanks, that's all".
@@ -238,7 +238,7 @@ M0 baseline in its PR.
 
 | Phase | Scope | Lecture pattern | Effort |
 |---|---|---|---|
-| **M0 Baseline** | Log input (and cached) tokens per model call to Langfuse; `scripts/eval_memory.py` with the §8 cases that run today; record baseline numbers in this plan; check whether OpenRouter caches prompts for `gpt-6-luna` | Memory evaluation (p. 68) | 1 day |
+| **M0 Baseline** ✅ | Log input (and cached) tokens per model call to Langfuse (already there: usage comes back on every generation); `scripts/eval_memory.py` with the §8 cases that run today; baseline recorded in §8; prompt caching confirmed | Memory evaluation (p. 68) | 1 day |
 | **M1 Trips and facts that stay correct** | Opaque, stable trip ids; on write, match a new trip to an existing one (normalised destination + overlapping dates) and let an undated trip be claimed when dates arrive; computed status and relative dates in the prompt ("upcoming, in 25 days"); list-valued fact keys; `save_memory` returns the previous value on overwrite; `source` (thread id) and `confirmed_at` on facts and trips; migration that merges today's duplicates and re-keys trips | Memory maintenance, done on write | 1–2 days |
 | **M2 Context budget** | Move date, facts and trips out of the system prompt into a user-context message; turn-compaction middleware (§6); trim tool schemas (`present_itinerary` is 1.4k tokens) | Tiered hierarchy (MemGPT/MemoryOS: working vs recall) | 1–2 days |
 | **M3 Episodic recall** | Chat summary refreshed in a background task after each turn; store `(email, "episodes")`; `recall_conversations(query)` tool with keyword search; pgvector only if the M0 recall case shows keyword search falls short | Tiered hierarchy (archival search) | 1–2 days |
@@ -269,22 +269,57 @@ M7 unchanged.
 ## 8. Evaluating memory
 
 The lecture's bar for memory evals (p. 68): **realistic, long-context, challenging, verifiable**.
-We have small versions of the first two (`e2e_memory`, `e2e_branching`). Proposed
-`scripts/eval_memory.py`, run against the real model and built in M0. Each case runs a few times
-(the model isn't deterministic) and reports a pass rate; at OpenRouter's 20 requests/min the
-suite should stay small enough to run in a few minutes.
+We have small versions of the first two (`e2e_memory`, `e2e_branching`). M0 added
+`scripts/eval_memory.py`: it runs the real agent in-process against Postgres (no API server),
+each case as a throwaway user, 3 runs per case (the model isn't deterministic), and reports a
+pass rate per case plus input and cached tokens per model call. Trips are seeded with dates
+relative to the day it runs. `--quick` (one run each, no long chat) takes a few minutes; the full
+suite takes about 15, paced by the provider's rate limit.
 
 | Case | Checks | Inspired by |
 |---|---|---|
-| Cross-chat trip recall | New chat answers "near where I'm staying" without asking (exists: `e2e_memory` A/B) | LoCoMo single-hop |
-| Time-relative questions | With trips on Nov 23 and Dec 28, "where am I going in the next 2 months?" on Oct 29 names both; "next week" names neither (fails today, §2) | LongMemEval temporal reasoning |
-| Trip identity | A trip created undated, then given dates and a renamed destination, keeps one id that the agent still uses correctly | Consolidation |
-| Preference evolution | "I'm vegetarian" … later "I eat fish now" → the fact is updated, not duplicated; suggestions follow the newer preference | PersonaMem |
-| Conversation recall | "What did we decide for day 2 in Rome last week?" answered from an episode summary (after M3) | LongMemEval |
-| Duplicate-trip resistance | The same trip described three ways in three chats → one trip | Consolidation |
-| Over-personalization | Unrelated question ("what's the capital of Peru?") → no unprompted mention of saved facts | Hu et al. (p. 100) |
-| Long-thread quality and cost | 10-turn planning chat: answer quality holds; input tokens per call stay within the §6 budget; regenerate and edit still work after compaction | Context budget |
-| Forgetting | Expired trip leaves the prompt; deleted chat removes its thread; "forget my diet" removes it everywhere | TTL policy |
+| `cross_chat_recall` | A stay mentioned in one chat: a new chat names sunset spots near it and says which town, without asking | LoCoMo single-hop |
+| `time_relative` | Trips seeded at +25, +60, +120 days (two under stale ids): count in the next 2 months, days until Hawaii, next trip, and the open wording from §2 | LongMemEval temporal reasoning |
+| `trip_identity` | Europe (undated) → Rome with dates → a hotel, over three chats: one trip, Rome, hotel saved, id not stale | Consolidation |
+| `preference_evolution` | "I'm vegetarian", later "I eat fish now": exactly one diet fact, mentioning fish | PersonaMem |
+| `conversation_recall` | Chat 1: the agent recommends 3 gelato shops. Chat 2: "which did you recommend?" needs 2 of 3. The agent's own words never go into facts or trips, so only episodic memory can answer. (A first version recalled a *user's* decision and passed, because the agent saved it as a trip note) | LongMemEval |
+| `over_personalization` | With facts and a trip saved, "what's the capital of Peru?" mentions none of them | Hu et al. (p. 100) |
+| `forgetting` | "Forget my dietary preference" deletes that fact and keeps the others | TTL policy |
+| `long_thread` | 10-turn Rome planning chat (in the guidebooks, so it reads pages): turn-1 constraints recalled at turn 10; no call over 25k input tokens | Context budget |
+
+Not built yet: expiry and chat deletion (with M4/M6), and regenerate/edit after compaction (M2
+runs `e2e_branching.py` for that).
+
+### Baseline (2026-10-29, `openai/gpt-6-luna`)
+
+| Case | Passed | Calls | Mean input | p95 | Max | Cached | Expected to change with |
+|---|---|---|---|---|---|---|---|
+| `cross_chat_recall` | 3/3 | 25 | 5,660 | 10,627 | 12,173 | 86% | |
+| `time_relative` | 3/3 | 12 | 3,958 | 3,978 | 3,978 | 100% | |
+| `trip_identity` | **0/3** | 18 | 3,959 | 4,083 | 4,083 | 49% | M1 |
+| `preference_evolution` | 3/3 | 12 | 3,882 | 3,927 | 3,927 | 100% | |
+| `conversation_recall` | **0/3** | 19 | 5,270 | 9,010 | 9,010 | 89% | M3 |
+| `over_personalization` | 3/3 | 3 | 3,878 | 3,878 | 3,878 | 100% | |
+| `forgetting` | 3/3 | 6 | 3,873 | 3,885 | 3,885 | 100% | |
+| `long_thread` | **0/1** | 44 | **42,972** | 68,501 | **70,013** | 93% | M2 |
+| **All** | **15/22** | 139 | 16,781 | 65,023 | 70,013 | 91% | |
+
+What the baseline says about the roadmap:
+- **M1's trip identity bug reproduces every time:** one trip, correctly Rome with its hotel, but
+  always under the id `europe-undated`.
+- **The date mistake from §2 does not reproduce.** All 12 time questions were answered correctly,
+  including the open wording from the bug report. Relative dates in the prompt stay in M1 because
+  they're cheap, but they're a hardening step, not a fix for a measured failure.
+- **The context budget is the biggest measured gap.** The 10-turn Rome chat reaches 70k input
+  tokens per call (the §6 target is 25k), and still recalls its turn-1 constraints.
+- **Prompt caching works and changes the cost argument.** 91% of all input tokens were cache
+  reads, 93% in the long chat. OpenRouter reports cache reads and writes for `gpt-6-luna` on
+  every Langfuse generation. Cached tokens are cheaper, so M2's case rests more on latency,
+  attention and the provider's rate limit than on price, and M2 must keep the prefix stable to
+  keep these hit rates.
+- **Episodic recall is absent, as expected:** "I can't see the earlier chat."
+- **Preference updates, forgetting and restraint already work** (3/3 each), so M5's LLM
+  consolidation has no failing case to justify it yet.
 
 ## 9. Open questions
 

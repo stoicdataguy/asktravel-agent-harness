@@ -5,7 +5,9 @@ each one lives today, decide what should expire and when, and design the context
 ReAct agent reasons over. The framing follows *CS329Z Lecture 7: Agent Memory Architectures*
 (CoALA memory types, the What/When/How questions on page 24, and the four architecture patterns).
 
-*Status: proposal. Inventory and numbers measured on the running system on 2026-10-28.*
+*Status: proposal, revised 2026-10-29 after a review against the code and the installed
+LangChain 1.4 / LangGraph 1.2 (see [What changed in this revision](#what-changed-in-this-revision)).
+Inventory and numbers measured on the running system on 2026-10-28.*
 
 ## Contents
 
@@ -20,6 +22,7 @@ ReAct agent reasons over. The framing follows *CS329Z Lecture 7: Agent Memory Ar
 - [5. Growth and TTL policy](#5-growth-and-ttl-policy)
 - [6. Context window design](#6-context-window-design)
 - [7. Roadmap](#7-roadmap)
+  - [What changed in this revision](#what-changed-in-this-revision)
 - [8. Evaluating memory](#8-evaluating-memory)
 - [9. Open questions](#9-open-questions)
 
@@ -94,8 +97,10 @@ thread, and they stay in context for the rest of the conversation.
 ### Semantic memory
 
 - **User semantic memory is written in-band ("hot path"):** the agent decides during the conversation whether to call `save_memory` or `save_trip_details`. Nothing consolidates or checks these writes afterwards. Two consequences already visible in the data:
-  - A single `interests` fact grew into a run-on blob ("Big astronomy nerd; owns a smart telescope …; adventure-sports junkie…") because the agent appends to one key.
+  - A single `interests` fact grew into a run-on blob ("Big astronomy nerd; owns a smart telescope …; adventure-sports junkie…") because the agent appends to one key. `save_memory` already caps values at 300 characters, which truncates the blob but doesn't fix it.
   - The same real trip got **different trip ids** in different chats (`hawaii-the-big-island-undated`, `kona-big-island-hawaii-undated`, `kona-hawaiis-big-island-undated`), because ids come from whatever destination string the model wrote.
+  - **Trip ids never change after creation**, so they go stale. A trip created as `international-destination-tbd-undated` later became Rome, Nov 23–29, and kept its old id. A trip that gets dates keeps its `-undated` suffix.
+  - **The agent misreads dates.** Asked on 2026-10-29 "where am I going in the next 2 months?", it listed Rome (Nov 23) and the Big Island (Dec 28) and then said only the Big Island trip "starts within the next two months". The prompt gives absolute dates only and leaves the arithmetic to the model.
 - **No provenance:** a fact doesn't record which chat or message created it, so it can't be explained, audited or undone precisely.
 - **World semantic memory is read-only and outdated:** the guidebooks are 2016 editions. Live tools cover prices, but their results aren't kept beyond the chat thread.
 
@@ -126,12 +131,12 @@ and retrieval are triggered (agent tools on demand, background workers, event-dr
 
 | Memory | **What** (changes) | **When** (changes) | **How** (changes) |
 |---|---|---|---|
-| Working | Same parts, under a **token budget** (§6); old tool results cleared; long threads summarized | Every call, as now | `ContextEditingMiddleware` + `SummarizationMiddleware`; cache-friendly ordering |
-| Episodic: thread | Unchanged, but **pruned**: intermediate step checkpoints dropped after a week | Store per step (needed for rewind); **background pruning** | Same tables + nightly maintenance job |
-| **Episodic: conversation summaries (new)** | One summary per chat: goal, decisions, open questions, trip id, outcome | **Background**, once a chat has been idle ~30 min ("sleep-time" consolidation, lecture p. 58) | Postgres store `(email, "episodes")` with **semantic search** (pgvector index) + `recall_conversations(query)` tool |
-| Semantic: profile facts | Same facts, plus `source` (chat + message), `confirmed_at`, `sensitivity` | **Store:** agent tool *and* background consolidation that resolves duplicates and conflicts with Mem0's **ADD / UPDATE / DELETE / NOOP** (lecture p. 64). **Retrieve:** every call, capped by budget | Postgres store; one fact per key with a length limit; the consolidator splits blobs like `interests` |
-| Semantic: trips | Same, with a **canonical trip identity** (destination + dates matched, not the model's free-text slug) and a `status` (planning / booked / travelling / past) | Consolidator merges duplicate trips; status updated from dates | Postgres store + TTL tied to `end_date` (§5) |
-| Semantic: world | Cache live results briefly (fares 6 h, hotel rates 24 h) so a follow-up doesn't re-scrape | Store on each live search; retrieve before searching | Store namespace `("cache", "flights"\|"hotels")` with TTL |
+| Working | Same parts, under a **token budget** (§6); earlier turns **compacted** to their user message and final answer | Every call, as now | Our own `wrap_model_call` middleware that edits only the request, never the saved thread (§6) |
+| Episodic: thread | Unchanged. Pruning waits for production (§5) | Store per step (needed for rewind) | Same tables |
+| **Episodic: conversation summaries (new)** | One summary per chat: goal, decisions, open questions, trip id, outcome | **Store:** refreshed in a background task after each turn finishes streaming (no scheduler needed). **Retrieve:** agent tool, once per turn at most | Postgres store `(email, "episodes")`; **keyword search first**, pgvector only if evals show keyword recall falls short |
+| Semantic: profile facts | Same facts, plus `source` (thread id) and `confirmed_at`; list-valued keys (`likes`, `dislikes`, `interests`) hold one item per entry | **Store:** agent tool, with rules applied on write (see How). LLM consolidation only for genuine conflicts ("vegetarian" vs "I eat fish now"), and only if evals still show them after M1. **Retrieve:** every call | Postgres store; `save_memory` adds items to list keys instead of rewriting one string, and returns the previous value when it overwrites |
+| Semantic: trips | Same, with an **opaque, stable trip id** and a **status and relative date computed when the prompt is built** ("upcoming, in 25 days"; never stored, so it can't go stale) | **Store:** on write, a new trip is matched to an existing one by normalised destination and overlapping dates; an undated trip is claimed when its dates arrive. Destination can be renamed without changing the id | Postgres store; a one-off migration merges today's duplicates and re-keys trips |
+| Semantic: world | Cache live results briefly (fares 6 h, hotel rates 24 h) so a follow-up doesn't re-scrape | Store on each live search; retrieve before searching | Store namespace `("cache", "flights"\|"hotels")` with TTL. Low priority: compacted turns make re-asking rarer than re-reading |
 | Procedural | Skills stay hand-owned; **proposals** come from feedback and successful trajectories | **Background, weekly:** mine 👎 reasons and repeated tool sequences, open a PR against `skills/*.md` for a human to review | Filesystem + git (a human-reviewed PR is the safety boundary against poisoned procedures, lecture p. 98) |
 
 ## 4. Gaps against the lecture
@@ -143,8 +148,9 @@ Mapped to the lecture's "problems without memory" (p. 9) and open challenges (p.
 | *Loss of progress* in long sessions | Threads grow unbounded; tool output is 72–92% of them; nothing is summarized | **High**: cost per turn and quality degrade first |
 | *Loss of knowledge* across sessions | Facts and trips carry over; **conversations don't**: "what did we decide about Peru last week?" can't be answered | **High** |
 | *Loss of procedure* | Skills fix this for known tasks; no learning from experience | Medium |
-| Choosing what to remember / forget | Agent-decided writes, no consolidation, nothing ever forgotten | **High** (duplicate trips already exist) |
-| Trust, privacy, user control | No provenance; no "what do you remember" view beyond asking the agent; no export/delete flow; memories are agent-writable from any message (a prompt-injection vector) | Medium, must-have before production |
+| Choosing what to remember / forget | Agent-decided writes, no consolidation, nothing ever forgotten; trip ids go stale and duplicate | **High** (duplicate and misnamed trips already exist) |
+| Using memory correctly: time | Trips carry absolute dates only, and the model gets "within the next two months" wrong | **High** (seen in a real chat, §2) |
+| Trust, privacy, user control | No provenance; no "what do you remember" view beyond asking the agent; no export/delete flow; deleting a chat in Open WebUI leaves its thread in our database; memories are agent-writable from any message (a prompt-injection vector) | **High before production**: must land before the v1 deploy (#30) |
 | Using memory correctly (over-personalization, p. 100) | All facts and trips are injected into **every** call, relevant or not; the prompt asks the agent to mention facts it used, but that isn't measured | Medium |
 
 ## 5. Growth and TTL policy
@@ -153,15 +159,19 @@ Mapped to the lecture's "problems without memory" (p. 9) and open challenges (p.
 - Expire what's **derived or volatile**. Keep what the user **explicitly told us** until they change it.
 - Prefer **archiving into a summary** over plain deletion, so episodic knowledge survives in compact form.
 - Feedback and audit data have their own retention (2 years, [feedback plan](feedback-audit.md)) and are never expired by memory policies.
+- **Deletion the user asks for comes first; storage housekeeping comes last.** Following a chat
+  deletion through to its thread is part of user control (M4) and lands before production.
+  Pruning and TTLs (M6) wait until production volume makes them matter: today all threads
+  together are about 7 MB.
 
 | Element | Policy | Mechanism |
 |---|---|---|
-| Checkpoints: intermediate step snapshots | Keep for **7 days**, then keep only **turn-boundary** checkpoints (those that rewind and branching need) | Nightly job deletes non-boundary rows in `checkpoints` / `checkpoint_writes` and orphaned `checkpoint_blobs` |
+| Checkpoints: intermediate step snapshots | Keep for **7 days**, then keep only **turn-boundary** checkpoints (those that rewind and branching need) | Nightly job with **our own SQL**: deletes non-boundary rows in `checkpoints` / `checkpoint_writes` and blob versions no remaining checkpoint references. LangGraph's `aprune(strategy="keep_latest")` can't be used: it keeps only the newest checkpoint, so regenerate and edit would fall back to rebuilding the thread from the UI transcript |
 | Checkpoints: whole thread | Delete **180 days after the last message**, after its conversation summary exists; delete **immediately** when the user deletes the chat in Open WebUI | Nightly job; chat-deletion hook (once Open WebUI is on Postgres, per the feedback plan, a trigger on its `chat` table) |
 | Conversation summaries (new) | **2 years** from last activity; refreshed if the chat resumes | Store TTL (`ttl` on `aput`, `refresh_on_read=False`) |
 | Profile facts | **No automatic expiry.** Track `confirmed_at`; facts unconfirmed for **12 months** are shown to the agent as "may be outdated" so it re-confirms naturally; users can delete any time | Field + prompt wording; deletion via `delete_memory` / a user-facing view |
 | Sensitive facts (health, nationality, companions' details) | Saved only with an explicit user statement; **12-month TTL** unless reconfirmed | `sensitivity` field + store TTL |
-| Trips | Active until `end_date`; **archived 30 days after the trip ends** (dropped from the prompt, kept for "last time in Hawaii…"); **deleted 2 years after `end_date`**. Undated trips expire **180 days** after their last update | Store TTL computed from `end_date`; archive = status `past` |
+| Trips | Active until `end_date`; **archived 30 days after the trip ends** (dropped from the prompt, kept for "last time in Hawaii…"); **deleted 2 years after `end_date`**. Undated trips expire **180 days** after their last update | Store TTL computed from `end_date`. Archiving needs no job: status is computed from the dates whenever the prompt is built (already how `format_trips` hides past trips) |
 | Saved itineraries | Follow their trip's lifecycle; orphans (no trip) deleted after 180 days | Same job as trips |
 | Live-search cache (new) | Flights **6 hours**, hotels **24 hours** | Store TTL; LangGraph's Postgres store supports per-item `ttl` and a background sweeper (`start_ttl_sweeper`) |
 | Langfuse traces | **90 days** | Langfuse data-retention setting |
@@ -179,7 +189,7 @@ Mapped to the lecture's "problems without memory" (p. 9) and open challenges (p.
 - **Attention:** the lecture notes that models misuse what's in context (p. 73, p. 100). Old guidebook pages about a different day of the trip are noise.
 
 **Observations about today's design:**
-1. **The order is right; the volatile parts are in the wrong place.** Static instructions come first, which suits prompt caching. But today's date and the user's facts and trips sit **inside** the system prompt, so any `save_memory` mid-turn, and every new day, changes the cached prefix.
+1. **The order is right; the volatile parts are in the wrong place.** Static instructions come first, which suits prompt caching. But today's date and the user's facts and trips sit **inside** the system prompt, so any `save_memory` mid-turn, and every new day, changes the cached prefix. **Caveat:** we haven't checked that OpenRouter caches prompts for `gpt-6-luna` at all (usage would report cached tokens). Until M0 confirms it, caching is a tie-breaker, not a design driver.
 2. **Tool schemas are the largest fixed cost** (about 3.8k tokens, 70% of the fixed prefix). `present_itinerary`'s nested schema is 1.4k by itself and is needed only at the end of planning.
 3. **Tool results are never released.** A guidebook page read for day 1 is still in context while the agent writes day 4, and in every later turn.
 4. **Memory injection is all-or-nothing.** All facts and trips go into every call, even "thanks, that's all".
@@ -193,50 +203,93 @@ to tune with the evals in §8):
 | 1 | Base rules + skills index | ~0.9k | Unchanged; **today's date moves out** |
 | 2 | Tool schemas | ~3.8k → ~2.5k | Trim docstrings; flatten the `Itinerary` schema descriptions; optionally `LLMToolSelectorMiddleware` to expose only relevant tools per call |
 | ― | *cache boundary: everything above is identical for all users and all calls* | | |
-| 3 | User context: date, profile facts, current trips, **top-3 relevant conversation summaries** | ≤ 1.5k | Separate message after the static prefix; trips limited to upcoming or active ones; summaries retrieved by similarity to the latest user message |
-| 4 | Conversation summary (older turns) | ≤ 1k | `SummarizationMiddleware` once the thread passes ~12k tokens, keeping the last ~6 turns verbatim |
-| 5 | Recent turns, verbatim | ≤ 8k | Old tool results **cleared** after the turn that used them (`ContextEditingMiddleware`), replaced by a one-line stub ("read Hawaii pp. 88–91") the agent can re-fetch |
-| 6 | Current turn's tool results | ≤ 12k | Unchanged inside the turn; `read_guidebook_pages` already caps at 15k characters |
+| 3 | User context: date, profile facts, current trips with computed status and relative dates | ≤ 1.5k | Separate message after the static prefix; trips limited to upcoming or active ones. Past conversations are **not** injected: the agent asks for them with `recall_conversations` (M3) |
+| 4 | Earlier turns, **compacted** | ≤ 8k | Each earlier turn is sent as its user message, its final answer and a one-line stub of the tools it used ("used: read_guidebook_pages Hawaii pp. 88–91"); tool calls and results are dropped. The agent can re-run a tool if it needs the detail again |
+| 5 | Current turn, verbatim | ≤ 12k | Unchanged inside the turn; `read_guidebook_pages` already caps at 15k characters |
+
+**Turn compaction, not summarization.** Tool results are 72–88% of the measured threads, so
+dropping them from earlier turns captures most of the saving. Compaction is our own small
+`wrap_model_call` middleware:
+- **No LLM call.** It's deterministic and unit-testable with fake models.
+- **The saved thread is untouched.** It edits only the request sent to the model, so
+  `thread_sync`, rewind and branching keep working.
+- **Cache-friendly.** A turn is compacted once, when the next one starts, so the prefix changes
+  once per turn rather than on every call.
+
+Two library middlewares were considered and rejected:
+- **`SummarizationMiddleware` breaks branching.** In LangChain 1.4 it writes
+  `RemoveMessage(REMOVE_ALL_MESSAGES)` plus the summary **into the saved state**. After the first
+  summary, `thread_sync.plan_run` no longer finds the transcript's user messages in the thread and
+  takes the REPLACE path on every message, reseeding the thread from the UI's copy and losing
+  tool results and the summary itself. If very long chats ever need summaries, compute them per
+  request and cache them in the store keyed by thread and turn, never in the thread.
+- **`ContextEditingMiddleware` is safe but the wrong trigger.** It also edits only the request,
+  but `ClearToolUsesEdit` clears by total token count rather than by turn, so what gets cleared
+  shifts from call to call.
 
 **Target:** about 15–25k tokens per call regardless of chat length. Today a 4-turn chat is already
-at 27k tokens plus a 5.3k prefix, and grows without limit. Clearing and summarization change only
-what the **model sees**. The checkpointed thread keeps the full messages (until the pruning in §5),
-so branching and rewind still work.
+at 27k tokens plus a 5.3k prefix, and grows without limit.
 
 ## 7. Roadmap
 
-Ordered by value and risk. Each phase is its own PR with unit tests and an end-to-end check, like
-the features so far.
+Ordered by evidence first, then value and risk. Each phase is its own PR with unit tests and an
+end-to-end check, like the features so far. Every phase after M0 reports its effect against the
+M0 baseline in its PR.
 
 | Phase | Scope | Lecture pattern | Effort |
 |---|---|---|---|
-| **M1 Context budget** | Move date + facts + trips out of the system prompt into a user-context message; `ContextEditingMiddleware` to clear old tool results; `SummarizationMiddleware` for long threads; trim tool schemas; log per-call input tokens to Langfuse | Tiered hierarchy (MemGPT/MemoryOS: working vs recall) | 1–2 days |
-| **M2 Provenance + hygiene** | `source`, `confirmed_at`, `sensitivity` on facts and trips; canonical trip identity (destination + dates matching); length limits per fact; migrate existing data | Memory maintenance | 1 day |
-| **M3 Retention** | Nightly job: checkpoint pruning, thread deletion, trip archiving; store TTLs + sweeper; Langfuse retention; chat-deletion hook (after the feedback plan's F2) | Memory maintenance | 1 day |
-| **M4 Background consolidation** | After a chat goes idle: write the conversation summary; Mem0-style ADD/UPDATE/DELETE/NOOP over facts and trips (dedupe trips, split blob facts, resolve "I'm vegetarian" vs "I eat fish now") | Reflective consolidation; sleep-time compute | 2 days |
-| **M5 Episodic recall** | pgvector on the Postgres store for summaries; `recall_conversations(query)` tool; top-3 summaries auto-injected by relevance | Tiered hierarchy (archival search) | 1–2 days |
-| **M6 User control** | "What AskTravel remembers" endpoint + notebook view; export and delete-all per user; facts only writable from the user's own words (guard against injected instructions) | Trust, privacy, user control | 1 day |
+| **M0 Baseline** | Log input (and cached) tokens per model call to Langfuse; `scripts/eval_memory.py` with the §8 cases that run today; record baseline numbers in this plan; check whether OpenRouter caches prompts for `gpt-6-luna` | Memory evaluation (p. 68) | 1 day |
+| **M1 Trips and facts that stay correct** | Opaque, stable trip ids; on write, match a new trip to an existing one (normalised destination + overlapping dates) and let an undated trip be claimed when dates arrive; computed status and relative dates in the prompt ("upcoming, in 25 days"); list-valued fact keys; `save_memory` returns the previous value on overwrite; `source` (thread id) and `confirmed_at` on facts and trips; migration that merges today's duplicates and re-keys trips | Memory maintenance, done on write | 1–2 days |
+| **M2 Context budget** | Move date, facts and trips out of the system prompt into a user-context message; turn-compaction middleware (§6); trim tool schemas (`present_itinerary` is 1.4k tokens) | Tiered hierarchy (MemGPT/MemoryOS: working vs recall) | 1–2 days |
+| **M3 Episodic recall** | Chat summary refreshed in a background task after each turn; store `(email, "episodes")`; `recall_conversations(query)` tool with keyword search; pgvector only if the M0 recall case shows keyword search falls short | Tiered hierarchy (archival search) | 1–2 days |
+| **M4 User control** | "What AskTravel remembers" endpoint + notebook view; export and delete-all per user; deleting a chat in Open WebUI deletes its thread (`adelete_thread`) and summary; `sensitivity` on facts; facts only writable from the user's own words (guard against injected instructions). **Before the v1 deploy (#30)** | Trust, privacy, user control | 1–2 days |
+| **M5 LLM consolidation** | Only if M0's preference-evolution and duplicate-trip cases still fail after M1: a background Mem0-style ADD/UPDATE/DELETE/NOOP pass over facts and trips for conflicts that rules can't catch | Reflective consolidation | 1–2 days, maybe never |
+| **M6 Retention** | Turn-boundary checkpoint pruning (our own SQL, §5); store TTLs + `start_ttl_sweeper`; Langfuse retention; live-search cache | Memory maintenance | 1 day, at production scale |
 | **M7 Procedural learning** | Weekly job: cluster 👎 reasons and comments by skill and tool, and mine successful itinerary trajectories into "workflow" notes (AWM); open a **PR** proposing skill edits for human review | Learning procedures from experience (AWM, skill files) | 2 days, after the feedback plan |
+
+### What changed in this revision
+
+The first draft (2026-10-28) had the right inventory and diagnosis. A review against the code
+changed the order and three designs:
+
+| Change | Why |
+|---|---|
+| **M0 baseline added first** | §6's budgets were "to tune with the evals in §8", but the evals came last and token logging was buried in the old M1. Every phase now has numbers to beat |
+| **Trip and fact hygiene moved to M1, done on write** | The stale and duplicate trip ids and the date mistake are live bugs (§2). Matching on write and computed status fix them without an LLM, a scheduler or a stored `status` field that goes stale |
+| **`SummarizationMiddleware` dropped for turn compaction** | It rewrites the saved thread, which breaks `thread_sync` and rewind (§6). Compaction gets most of the saving with no LLM call |
+| **Episodic summaries written after each turn, retrieved on demand** | The old "idle for 30 minutes" trigger needed a scheduler we don't have. Auto-injecting the top-3 summaries on every model call (~15 per research turn) is replaced by a tool. Keyword search before pgvector, which the `postgres:16-alpine` image doesn't include |
+| **Chat deletion moved from retention to user control, ahead of production** | It's a privacy obligation, not housekeeping |
+| **LLM consolidation demoted to "only if needed"** | Rules on write cover duplicates and blob facts; what's left is preference conflicts, which M0 will show are or aren't a problem |
+| **Pruning deferred, and needs our own SQL** | Threads total ~7 MB. LangGraph's `aprune(keep_latest)` would break rewind (§5) |
+
+Old to new phase numbers, for issues #20–#26: M1 → M2, M2 → M1, M3 → M4 (deletion) + M6
+(pruning, TTLs), M4 → M3 (summaries) + M1 (rules) + M5 (LLM pass), M5 → M3, M6 → M4,
+M7 unchanged.
 
 ## 8. Evaluating memory
 
 The lecture's bar for memory evals (p. 68): **realistic, long-context, challenging, verifiable**.
 We have small versions of the first two (`e2e_memory`, `e2e_branching`). Proposed
-`scripts/eval_memory.py`, run against the real model:
+`scripts/eval_memory.py`, run against the real model and built in M0. Each case runs a few times
+(the model isn't deterministic) and reports a pass rate; at OpenRouter's 20 requests/min the
+suite should stay small enough to run in a few minutes.
 
 | Case | Checks | Inspired by |
 |---|---|---|
 | Cross-chat trip recall | New chat answers "near where I'm staying" without asking (exists: `e2e_memory` A/B) | LoCoMo single-hop |
+| Time-relative questions | With trips on Nov 23 and Dec 28, "where am I going in the next 2 months?" on Oct 29 names both; "next week" names neither (fails today, §2) | LongMemEval temporal reasoning |
+| Trip identity | A trip created undated, then given dates and a renamed destination, keeps one id that the agent still uses correctly | Consolidation |
 | Preference evolution | "I'm vegetarian" … later "I eat fish now" → the fact is updated, not duplicated; suggestions follow the newer preference | PersonaMem |
-| Conversation recall | "What did we decide for day 2 in Rome last week?" answered from an episode summary (after M5) | LongMemEval |
+| Conversation recall | "What did we decide for day 2 in Rome last week?" answered from an episode summary (after M3) | LongMemEval |
 | Duplicate-trip resistance | The same trip described three ways in three chats → one trip | Consolidation |
 | Over-personalization | Unrelated question ("what's the capital of Peru?") → no unprompted mention of saved facts | Hu et al. (p. 100) |
-| Long-thread quality and cost | 10-turn planning chat: answer quality holds; input tokens per call stay within the §6 budget | Context budget |
+| Long-thread quality and cost | 10-turn planning chat: answer quality holds; input tokens per call stay within the §6 budget; regenerate and edit still work after compaction | Context budget |
 | Forgetting | Expired trip leaves the prompt; deleted chat removes its thread; "forget my diet" removes it everywhere | TTL policy |
 
 ## 9. Open questions
 
-- **Embeddings for M5:** OpenRouter or a local model? It adds a dependency, but `pgvector` keeps it all in the existing Postgres.
-- **Consolidation model:** use the same `gpt-6-luna` or a cheaper one? It runs in the background, so latency doesn't matter, but the rate limit does.
+- **Embeddings, if M3 needs them:** OpenRouter or a local model? Either way the Postgres image changes from `postgres:16-alpine` to `pgvector/pgvector:pg16`, and the store gets an `index` config.
+- **Summary and consolidation model:** the same `gpt-6-luna` or a cheaper one? Per-turn summaries (M3) add one model call per turn, which counts against the 20 requests/min limit.
+- **Trip id format for M1:** a short random id (`t_3f9a`) or a readable slug that is regenerated on rename? Opaque ids are stable; readable ones show up in the `🔧 get_trip(...)` status lines users see.
 - **Default expiry for profile facts:** should they expire at all? The proposal says no, but "may be outdated" after 12 months.
 - **Who reviews skill-change PRs from M7,** and how often?

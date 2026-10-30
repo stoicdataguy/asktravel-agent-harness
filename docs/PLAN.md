@@ -121,8 +121,10 @@ Design: [plans/trusted-knowledge-base.md](plans/trusted-knowledge-base.md) (K0�
   any tool.
 
 #### #13 Streaming polish
-- Collapse the `🔧 tool(...)` status lines into a single expandable block (e.g. a `<details>`
-  element in Open WebUI) so long research runs don't push the answer down.
+Design: [plans/streaming-progress.md](plans/streaming-progress.md) (P0–P4).
+- Stream agent progress (tool starts and results, progress inside slow tools, retry waits) as
+  Open WebUI reasoning blocks (`reasoning_content`) instead of `🔧` lines in the answer: they
+  collapse with a timer, and Open WebUI doesn't resend them on the next turn.
 - Use Open WebUI's background task settings to bring back chat titles without routing them
   through the agent (see [Known limitations](#known-limitations)).
 
@@ -282,6 +284,8 @@ likely dominate: a tool-heavy itinerary run is 15+ model calls.
 
 - [User feedback → audit tables](plans/feedback-audit.md): capture every 👍/👎 in an append-only
   Postgres audit table, linked to the agent turn and its Langfuse trace.
+- [Streaming agent progress](plans/streaming-progress.md): progress in Open WebUI's reasoning
+  blocks; event model, labels, in-tool progress, visible retry waits; e2e checks; P0–P4.
 - [Trusted knowledge base](plans/trusted-knowledge-base.md): the guidebooks as curated, cited
   world knowledge; retrieval eval; keyword vs pgvector vs OpenSearch; why not a subagent; K0–K4.
 - [Memory architecture](plans/memory-architecture.md): procedural / semantic / episodic inventory,

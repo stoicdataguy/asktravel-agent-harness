@@ -11,7 +11,7 @@ from tests.fakes import FakeToolModel
 from travel_agent.agent.graph import build_agent
 from travel_agent.agent.schemas import Itinerary, render_itinerary
 from travel_agent.api.app import app
-from travel_agent.api.openai_compat import tool_status
+from travel_agent.api.progress import call_text
 from travel_agent.context import UserContext
 from travel_agent.tools.itinerary import list_itineraries
 
@@ -76,10 +76,12 @@ def test_render_itinerary():
     assert "## Book ahead\n\n- Manta snorkel tour" in md
 
 
-def test_tool_status_truncates_long_args():
-    status = tool_status({"name": "present_itinerary", "args": {"itinerary": PLAN}})
-    assert len(status) < 140
-    assert status.strip().endswith("…)`")
+def test_progress_call_text_leaves_out_the_itinerary_and_truncates_long_args():
+    assert call_text({"name": "present_itinerary", "args": {"itinerary": PLAN}}) == (
+        "present_itinerary()"
+    )
+    text = call_text({"name": "search_guidebooks", "args": {"query": "x" * 300}})
+    assert len(text) < 120 and text.endswith("…)")
 
 
 async def test_present_itinerary_saves_structured_plan():
@@ -143,9 +145,11 @@ def chat(client, stream: bool):
 
 def test_stream_shows_rendered_itinerary(client):
     events = [e for e in chat(client, stream=True).text.splitlines() if e.startswith("data: {")]
-    text = "".join(json.loads(e[6:])["choices"][0]["delta"].get("content", "") for e in events)
-    assert "`🔧 present_itinerary(itinerary=" in text
-    assert "## Day 2 · Volcanoes" in text
+    deltas = [json.loads(e[6:])["choices"][0]["delta"] for e in events]
+    text = "".join(d.get("content", "") for d in deltas)
+    progress = "".join(d.get("reasoning_content", "") for d in deltas)
+    assert "🔧 `present_itinerary()` → ✓ plan shown" in progress
+    assert "## Day 2 · Volcanoes" in text and "🔧" not in text
     assert text.rstrip().endswith("Want a slower pace?")
 
 

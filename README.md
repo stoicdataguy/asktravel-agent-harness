@@ -9,7 +9,8 @@ can be the frontend.
 ![Demo: the agent searches Lonely Planet guidebooks with tool calls, then answers with a cited 3-day plan](docs/demo.gif)
 
 *Open WebUI talking to the agent: each `🔧` line is a tool call (guidebook search / page read)
-streamed live, followed by a day-by-day plan citing guidebook pages. Playback of the wait is 2× speed.*
+streamed live, followed by a day-by-day plan citing guidebook pages. Playback of the wait is 2× speed.
+(Recorded before progress moved into the collapsible block above the answer; see [Agent progress](#agent-progress).)*
 
 **Architecture & state persistence:** [docs/architecture.html](docs/architecture.html) ([view rendered](https://raw.githack.com/stoicdataguy/travel-agent-react/main/docs/architecture.html)). Three tabs: the system architecture, a data-flow page on how short-term (checkpointer) and long-term (store) memory are kept in Postgres, and the tools and skills in the current MVP.
 
@@ -34,6 +35,25 @@ is traced to the self-hosted Langfuse at http://localhost:3001 (login `admin@tra
 `travel-agent-dev`). Traces carry the chat as **session** and the email as **user**, so Langfuse's
 Sessions and Users views show whole conversations per (dummy) user. Langfuse is about six containers
 (incl. ClickHouse); to skip it run `docker compose up -d postgres open-webui`.
+
+### Agent progress
+
+While the agent works, Open WebUI shows a **Thinking…** block above the answer with every tool
+call and what it found, as it happens:
+
+```
+Starting…
+🔧 `search_guidebooks(query="Rome one week itinerary", book="italy")` → ✓ 6 passages · 0.4 s
+🔧 `search_flights(origin="JFK", destination="FCO", …)` → ✓ 5 options, from $1,555 · 1.2 s
+Reading the results…
+```
+
+The block collapses to "Thought for N seconds" when the answer starts, and isn't sent back to the
+model on the next turn. **To watch the lines live, turn on Settings → Interface → "Always Expand
+Details"** in Open WebUI (otherwise you see a spinner and click to open the block). The demo
+account has it on. `PROGRESS_STYLE=inline` puts the lines in the answer instead, `off` hides
+them; `PROGRESS_LABELS=plain` shows phrases ("Checking fares JFK → FCO") instead of tool calls.
+Design: [docs/plans/streaming-progress.md](docs/plans/streaming-progress.md).
 
 ### Memory
 
@@ -70,7 +90,7 @@ curl -s -X DELETE "localhost:8000/api/memory?confirm=you@example.com" -H "$H"   
 The agent has seven playbooks in [src/travel_agent/skills/](src/travel_agent/skills/):
 trip-intake, itinerary-builder, budget-planner, packing-list, visa-and-entry, local-transport and
 food-and-culture. Only their names and descriptions sit in the system prompt; the agent calls
-`load_skill(name)` when a request matches (you'll see `🔧 load_skill(...)` in the chat).
+`load_skill(name)` when a request matches (you'll see `🔧 load_skill(...)` in the progress block).
 To add one, drop a `<name>.md` with `name` / `description` frontmatter in that folder and add a
 case to `scripts/eval_skills.py`, which checks against the real model that each skill triggers:
 

@@ -130,8 +130,13 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
 - Every agent invocation (incl. future subagents) uses `observability.run_config(user_id, thread_id)`
   so traces get tracing callbacks plus session/user metadata (`langfuse_session_id`, `langfuse_user_id`).
 - Langfuse v4 runs in events-only mode: query traces via `/api/public/v2/observations`, not `/traces`.
-- Streaming shows each tool call to the user as a `🔧 name(args)` status line (from the agent's
-  "updates" stream), so keep tool names and args human-readable.
+- Streaming shows agent progress (`api/progress.py`): each tool call as `🔧 name(args)` plus an
+  outcome summarised in code (`summarize()`, counts and prices only, never guidebook text), sent
+  as `reasoning_content` so Open WebUI shows it in a collapsible block above the answer and never
+  resends it. Keep tool names and args human-readable. Progress never goes in `content` unless
+  `PROGRESS_STYLE=inline`. A new tool needs a `summarize()` case (or it shows its first line).
+- Progress e2e: `uv run python scripts/e2e_progress.py` (browser; checks progress shows fast, the
+  answer stays clean, every tool call has an outcome). Run it after changing the request path.
 - Deleting a chat in Open WebUI is followed through by a trigger on `open_webui.chat` (installed by
   the API, `chat_deletions.py`) plus the API's sync loop. Upgrading Open WebUI can change its tables:
   rerun `e2e_chat_deletion.py` after an Open WebUI upgrade.

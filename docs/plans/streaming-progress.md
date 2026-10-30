@@ -205,7 +205,7 @@ The chat history keeps the block for the user to reopen; the model never sees it
 | Phase | Scope | Effort |
 |---|---|---|
 | **P0 Spike** ✅ | Streamed a scripted reasoning / content / reasoning / content turn to Open WebUI. Clean storage and no resend confirmed; a single block rather than two; live lines need Always Expand Details. Results and screenshots in §3 | ½ day |
-| **P1 Progress in reasoning blocks** | `ProgressEvent` + renderer; `start`, `tool_start`, `tool_end`, `step`; tool calls shown with their outcome, code summaries for all 13 tools; optional plain labels; `PROGRESS_STYLE` and `PROGRESS_LABELS` settings (+ `.env.example`); `e2e_progress.py` | 1–2 days |
+| **P1 Progress in reasoning blocks** ✅ | `api/progress.py` (`ProgressRenderer`, `summarize()` for all 13 tools, optional plain labels); `PROGRESS_STYLE` / `PROGRESS_LABELS`; prompt line against narrating before tool calls; demo account gets Always Expand Details (`owui.expand_details`); `e2e_progress.py` 6/6, with first progress visible in **0.3 s** (was ~2 s) | 1–2 days |
 | **P2 Progress from inside tools** | `get_stream_writer` in `search_hotels` and `search_flights`; `"custom"` stream mode | ½ day |
 | **P3 Waiting is visible** | Model retries via a hook that emits `waiting` and logs the 429 body (with #51) | ½–1 day |
 | **P4 Docs** | architecture.html (data flow: progress channel), README screenshots, CLAUDE.md conventions (labels table, "progress never in `content`") | ½ day |

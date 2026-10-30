@@ -9,6 +9,7 @@ from langgraph.store.memory import InMemoryStore
 from tests.fakes import FakeToolModel
 from travel_agent.agent.graph import build_agent
 from travel_agent.api.app import app
+from travel_agent.config import get_settings
 from travel_agent.tools import guidebooks
 
 # No `with` block: skips the lifespan, so tests never touch Postgres
@@ -83,7 +84,29 @@ def test_stream_shows_tool_status(tmp_path, monkeypatch):
         ),
     )
     lines = [line for line in chat(stream=True).text.splitlines() if line.startswith("data: {")]
-    text = "".join(json.loads(line[6:])["choices"][0]["delta"].get("content", "") for line in lines)
-    assert '`🔧 search_guidebooks(query="manta")`' in text
-    assert text.endswith("Done")
+    deltas = [json.loads(line[6:])["choices"][0]["delta"] for line in lines]
+    progress = "".join(d.get("reasoning_content", "") for d in deltas)
+    # Progress goes to Open WebUI's reasoning block: the call, its outcome, then the next step
+    assert progress.startswith("Starting…\n")
+    assert '🔧 `search_guidebooks(query="manta")` → ✓ 1 passage · ' in progress
+    assert progress.endswith("Reading the results…\n")
+    # The answer stays clean
+    assert "".join(d.get("content", "") for d in deltas) == "Done"
     guidebooks.load_books.cache_clear()
+
+
+@pytest.mark.parametrize("style", ["inline", "off"])
+def test_progress_style_inline_or_off(style, monkeypatch, checkpointer):
+    monkeypatch.setenv("PROGRESS_STYLE", style)
+    get_settings.cache_clear()
+    try:
+        lines = [line for line in chat(stream=True).text.splitlines() if line.startswith("data: {")]
+        deltas = [json.loads(line[6:])["choices"][0]["delta"] for line in lines]
+        assert not any("reasoning_content" in d for d in deltas)
+        text = "".join(d.get("content", "") for d in deltas)
+        if style == "inline":
+            assert text.startswith("Starting…") and text.endswith("Hello traveller")
+        else:
+            assert text == "Hello traveller"
+    finally:
+        get_settings.cache_clear()

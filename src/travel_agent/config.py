@@ -1,5 +1,6 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -39,6 +40,12 @@ class Settings(BaseSettings):
     # chats are queued by a trigger there and the agent's copies deleted every few seconds
     openwebui_schema: str = "open_webui"
     chat_deletion_sync_seconds: float = 10
+
+    # Agent progress while streaming: "reasoning" = Open WebUI's collapsible block above the
+    # answer (not resent next turn); "inline" = in the answer text; "off". Labels: the tool calls
+    # themselves ("calls") or plain-language phrases ("plain")
+    progress_style: Literal["reasoning", "inline", "off"] = "reasoning"
+    progress_labels: Literal["calls", "plain"] = "calls"
 
     # Memory consolidation (M5): once a user's chats have been idle this long, one model call
     # reviews their saved facts; at most this many users per minute (~20 calls/min provider limit)

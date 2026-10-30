@@ -21,8 +21,11 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, Remove
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph.message import REMOVE_ALL_MESSAGES
 
-# The `🔧 tool(args)` lines the API streams into the chat; noise when replayed to the model
-_STATUS_LINE = re.compile(r"^`🔧 .*`\s*$", re.MULTILINE)
+# Progress lines the API can stream into the answer text (old `🔧 tool(args)` lines, and
+# PROGRESS_STYLE=inline); noise when replayed to the model
+_STATUS_LINE = re.compile(
+    r"^\s*(?:`?🔧 .*|[✓✗] \S+ → .*|Starting…|Reading the results…)\s*$", re.MULTILINE
+)
 
 
 class SyncAction(StrEnum):

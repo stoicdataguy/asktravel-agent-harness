@@ -20,7 +20,9 @@ from fastapi.responses import StreamingResponse
 from langchain_core.messages import AIMessage, ToolMessage
 from pydantic import BaseModel, ConfigDict
 
+from travel_agent.api.progress import ProgressRenderer
 from travel_agent.api.thread_sync import Turn, plan_run
+from travel_agent.config import get_settings
 from travel_agent.context import UserContext
 from travel_agent.observability import run_config
 
@@ -78,20 +80,6 @@ def _chunk(completion_id: str, model: str, delta: dict, finish_reason: str | Non
     return f"data: {json.dumps(payload)}\n\n"
 
 
-MAX_STATUS_ARG_CHARS = 80
-
-
-def _short(value: Any) -> str:
-    text = json.dumps(value, ensure_ascii=False)
-    return text if len(text) <= MAX_STATUS_ARG_CHARS else text[: MAX_STATUS_ARG_CHARS - 1] + "…"
-
-
-def tool_status(tool_call: dict) -> str:
-    """One-line markdown note shown in the chat while a tool runs (long args truncated)."""
-    args = ", ".join(f"{k}={_short(v)}" for k, v in tool_call["args"].items())
-    return f"\n\n`🔧 {tool_call['name']}({args})`\n\n"
-
-
 def displayed_artifacts(messages: list) -> list[str]:
     """Rendered markdown that tools (present_itinerary) produced for the user to see."""
     return [
@@ -114,9 +102,22 @@ def error_message(exc: Exception) -> str:
 
 async def _stream(agent, inputs, config, context, model: str) -> AsyncIterator[str]:
     completion_id = f"chatcmpl-{uuid.uuid4().hex}"
+    settings = get_settings()
+    progress = ProgressRenderer(labels=settings.progress_labels)
+
+    def show(text: str) -> str | None:
+        """A chunk carrying progress text, wherever PROGRESS_STYLE puts it."""
+        if not text or settings.progress_style == "off":
+            return None
+        if settings.progress_style == "inline":
+            return _chunk(completion_id, model, {"content": text.replace("\n", "\n\n")})
+        return _chunk(completion_id, model, {"reasoning_content": text})
+
     yield _chunk(completion_id, model, {"role": "assistant", "content": ""})
-    # "messages" streams model tokens; "updates" delivers each completed model turn, whose
-    # tool_calls (with full args) we surface as status lines
+    if chunk := show(progress.start()):
+        yield chunk
+    # "messages" streams model tokens; "updates" delivers each finished model step (its tool
+    # calls, with full args) and each tool result (its outcome, and any artifact to display)
     try:
         async for mode, payload in agent.astream(
             inputs, config, context=context, stream_mode=["messages", "updates"]
@@ -129,10 +130,16 @@ async def _stream(agent, inputs, config, context, model: str) -> AsyncIterator[s
                         yield _chunk(completion_id, model, {"content": message.text})
             elif "model" in payload and isinstance(payload["model"], dict):
                 for message in payload["model"].get("messages", []):
-                    for tool_call in getattr(message, "tool_calls", None) or []:
-                        yield _chunk(completion_id, model, {"content": tool_status(tool_call)})
+                    if tool_calls := getattr(message, "tool_calls", None):
+                        if chunk := show(progress.calls(tool_calls)):
+                            yield chunk
             elif "tools" in payload and isinstance(payload["tools"], dict):
-                for artifact in displayed_artifacts(payload["tools"].get("messages", [])):
+                messages = payload["tools"].get("messages", [])
+                for message in messages:
+                    if isinstance(message, ToolMessage):
+                        if chunk := show(progress.result(message.tool_call_id, message.text)):
+                            yield chunk
+                for artifact in displayed_artifacts(messages):
                     yield _chunk(completion_id, model, {"content": f"\n\n{artifact}\n\n"})
     except Exception as exc:
         # Headers are already sent: end the stream properly with a readable message instead of

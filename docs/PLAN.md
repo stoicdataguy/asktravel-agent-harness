@@ -104,6 +104,7 @@ Open WebUI (:3000) ── OpenAI-compatible HTTP + X-OpenWebUI-User-Email / -Cha
   `uv run playwright install chromium`.
 
 #### #11 Knowledge-base subagent
+Design: [plans/kb-subagent.md](plans/kb-subagent.md) (subagent-as-tool pattern, K0–K3 roadmap).
 - Move the guidebook tools into their own `create_agent`, exposed to the main agent as a single
   `ask_guidebook(question, destination)` tool that returns a cited summary.
 - Why: a single itinerary request made 13 guidebook calls on the main agent, and every page read
@@ -278,6 +279,9 @@ likely dominate: a tool-heavy itinerary run is 15+ model calls.
 
 - [User feedback → audit tables](plans/feedback-audit.md): capture every 👍/👎 in an append-only
   Postgres audit table, linked to the agent turn and its Langfuse trace.
+- [Guidebook research subagent](plans/kb-subagent.md): knowledge-base retrieval as a subagent the
+  travel agent calls like a tool; why (8 guidebook calls and ~6.6k tokens of pages per research
+  turn), pattern choice, design, risks, eval and the K0–K3 roadmap.
 - [Memory architecture](plans/memory-architecture.md): procedural / semantic / episodic inventory,
   What-When-How, TTL policy, context-window budget, the memory eval baseline (M0, §8), and the
   M0–M7 roadmap (revised 2026-10-29:
@@ -306,3 +310,4 @@ likely dominate: a tool-heavy itinerary run is 15+ model calls.
 - **LLM provider:** keep OpenRouter, or call providers directly (e.g. Bedrock) to keep traffic
   inside AWS?
 - **#11 subagent model:** same model as the main agent, or a cheaper one for guidebook research?
+  (Measured in K1, see [the plan](plans/kb-subagent.md#7-open-questions).)

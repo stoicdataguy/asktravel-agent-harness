@@ -180,6 +180,7 @@ th.us { color: var(--work); }
 .pick { color: var(--ok); font-weight: 600; }
 
 /* Status */
+.results-side { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 18px 0; }
 .st { display: inline-flex; align-items: center; gap: 6px; font: 600 12px var(--font-body); letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; }
 .st::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: currentColor; }
 .st.ok { color: var(--ok); }
@@ -245,6 +246,7 @@ footer { color: var(--muted); font-size: 13px; padding-bottom: 40px; display: fl
       <a href="#what-when-how">2 · What, when, how</a>
       <a href="#how">3 · How</a>
       <a href="#when">4 · When</a>
+      <a href="#results">5 · Results</a>
       <a href="#demo">Demo</a>
     </nav>
   </div>
@@ -269,7 +271,7 @@ footer { color: var(--muted); font-size: 13px; padding-bottom: 40px; display: fl
     <div class="flow">
       <div class="box">
         <div class="hd"><h3>Open WebUI</h3><small>chat UI · :3000</small></div>
-        <p>Login by email. Sends the whole transcript plus the user's email and chat id with every message.</p>
+        <p>Login by email. Sends the whole transcript plus the user's email and chat id with every message. Its tables live in our Postgres, so deleting a chat there deletes the agent's copy.</p>
       </div>
       <div class="down"><small>POST /v1/chat/completions</small></div>
       <div class="box">
@@ -279,17 +281,17 @@ footer { color: var(--muted); font-size: 13px; padding-bottom: 40px; display: fl
       <div class="down"><small>LangChain create_agent · ReAct loop</small></div>
       <div class="box work t-work">
         <div class="hd"><h3>Working memory: the context window</h3><span class="pill">working</span></div>
-        <p>Rebuilt before every model call by a middleware.</p>
+        <p>Rebuilt before every model call by two middlewares: one builds the prompt, one compacts earlier turns.</p>
         <div class="ctx">
           <div><b>System prompt</b><span>rules, skills index, saved facts and trips</span></div>
-          <div><b>Tool schemas</b><span>12 tools the model can call</span></div>
-          <div><b>Thread messages</b><span>this chat so far, incl. tool results</span></div>
+          <div><b>Tool schemas</b><span>13 tools the model can call</span></div>
+          <div><b>Thread messages</b><span>this turn in full; earlier turns as question, answer and a note of tools used</span></div>
         </div>
       </div>
       <div class="down"><small>reads before each call · writes via tools and checkpoints</small></div>
       <div class="stores">
-        <div class="store t-epi"><span class="pill">episodic</span><h3>Checkpointer</h3><span class="mono">Postgres · checkpoints</span><p>Every chat's full history, one thread per email + chat.</p></div>
-        <div class="store t-sem"><span class="pill">semantic</span><h3>Store</h3><span class="mono">Postgres · store (jsonb)</span><p>Profile facts, trips and itineraries per user.</p></div>
+        <div class="store t-epi"><span class="pill">episodic</span><h3>Checkpointer</h3><span class="mono">Postgres · checkpoints</span><p>Every chat's full history, one thread per email + chat. Past chats are searchable with <span class="mono">recall_conversations</span>.</p></div>
+        <div class="store t-sem"><span class="pill">semantic</span><h3>Store</h3><span class="mono">Postgres · store (jsonb)</span><p>Profile facts (with provenance), trips (stable ids), itineraries and a chat index per user.</p></div>
         <div class="store t-sem"><span class="pill">semantic</span><h3>Guidebooks</h3><span class="mono">files · data/guidebooks/*.md</span><p>5 Lonely Planet books, keyword search.</p></div>
         <div class="store t-proc"><span class="pill">procedural</span><h3>Skills and prompts</h3><span class="mono">files · skills/*.md + code</span><p>7 playbooks loaded on demand; rules; tool docstrings.</p></div>
       </div>
@@ -327,16 +329,16 @@ footer { color: var(--muted); font-size: 13px; padding-bottom: 40px; display: fl
         <li class="t-sem"><div class="seg"><b>Saved facts and trips</b><span class="mono">store · (email, memories / trips)</span></div><div class="bar"><i style="width:3.3%"></i></div><span class="tok">658</span><p>Every saved fact plus one line per current trip</p></li>
         <li class="t-proc"><div class="seg"><b>Tool schemas</b><span class="mono">tool docstrings</span></div><div class="bar"><i style="width:18.9%"></i></div><span class="tok">3,799</span><p>12 tools; <span class="mono">present_itinerary</span> alone is 1,397</p></li>
         <li class="t-epi"><div class="seg"><b>Conversation</b><span class="mono">checkpointer · this thread</span></div><div class="bar"><i style="width:35.8%"></i></div><span class="tok">7,183</span><p>User and assistant messages and tool calls</p></li>
-        <li class="t-sem"><div class="seg"><b>Tool results</b><span class="mono">checkpointer · this thread</span></div><div class="bar"><i style="width:100%"></i></div><span class="tok">20,101</span><p>Guidebook pages, flight and hotel results, loaded skill bodies. Never removed.</p></li>
+        <li class="t-sem"><div class="seg"><b>Tool results</b><span class="mono">checkpointer · this thread</span></div><div class="bar"><i style="width:100%"></i></div><span class="tok">20,101</span><p>Guidebook pages, flight and hotel results, loaded skill bodies. Before M2 never removed; now sent only for the current turn.</p></li>
       </ol>
       <div class="wm-side">
-        <div><b>5.3k</b><span>tokens sent before the user types anything: prompt plus tool schemas</span></div>
-        <div><b>32.6k</b><span>tokens per call at the end of the largest thread, after 4 user messages</span></div>
-        <div><b>~15</b><span>model calls in one research turn, each resending the whole window</span></div>
-        <div><b>15–25k</b><span>target per call: clear old tool results, summarise long threads (roadmap M1)</span></div>
+        <div><b>~4.4k</b><span>tokens sent before the user types anything: prompt plus 13 tool schemas</span></div>
+        <div><b>70k → 13.9k</b><span>peak tokens per call in a 10-turn planning chat, before and after turn compaction (M2)</span></div>
+        <div><b>74%</b><span>of input tokens are read from the provider's prompt cache</span></div>
+        <div><b>≤ 25k</b><span>target per call, now met: earlier turns lose their tool results, the saved thread keeps them</span></div>
       </div>
     </div>
-    <p class="budget-key">Token counts are approximate, measured on the POC database (17 threads). The colour of each row shows which memory type fills it.</p>
+    <p class="budget-key">Bar lengths are measured on the POC database before compaction (17 threads, largest at 32.6k tokens per call). Since M2, earlier turns send only their question, answer and a one-line note of the tools used; skills and the latest itinerary stay. The colour of each row shows which memory type fills it.</p>
   </div>
 
   <div class="types">
@@ -349,7 +351,8 @@ footer { color: var(--muted); font-size: 13px; padding-bottom: 40px; display: fl
         <dt>Stored in</dt><dd><span class="mono">AsyncPostgresSaver</span>: <span class="mono">checkpoints</span>, <span class="mono">checkpoint_blobs</span>, <span class="mono">checkpoint_writes</span></dd>
         <dt>Keyed by</dt><dd><span class="mono">thread_id = email:chat id</span></dd>
         <dt>Size today</dt><dd>17 threads, 209 checkpoints, about 5 MB of blobs</dd>
-        <dt>Gap</dt><dd>Only the current chat is ever loaded. There is no recall of past chats yet.</dd>
+        <dt>Recall</dt><dd><span class="mono">recall_conversations</span> keyword-searches the user's other chats (each turn's question and final answer); a chat index finds them</dd>
+        <dt>Deletion</dt><dd>Deleting a chat in Open WebUI deletes its thread within seconds (trigger + sync loop); <span class="mono">/api/memory</span> exports or deletes everything</dd>
       </dl>
     </article>
     <article class="type t-proc">
@@ -370,10 +373,11 @@ footer { color: var(--muted); font-size: 13px; padding-bottom: 40px; display: fl
       <p class="stores-what">Stores <b>knowledge</b>: facts about the user and about the world.</p>
       <dl>
         <dt>About the user</dt><dd>Profile facts (diet, home airport…) and trips (dates, stay, travellers, linked itinerary)</dd>
-        <dt>Stored in</dt><dd><span class="mono">AsyncPostgresStore</span>, namespaces <span class="mono">(email, memories)</span>, <span class="mono">(email, trips)</span>, <span class="mono">(email, itineraries)</span></dd>
+        <dt>Stored in</dt><dd><span class="mono">AsyncPostgresStore</span>, namespaces <span class="mono">(email, memories)</span>, <span class="mono">(email, trips)</span>, <span class="mono">(email, itineraries)</span>, <span class="mono">(email, chats)</span></dd>
         <dt>About the world</dt><dd>5 Lonely Planet guidebooks as markdown; live flights and hotels (fetched, never stored)</dd>
         <dt>Shape</dt><dd>A <a href="https://docs.langchain.com/oss/python/concepts/memory#semantic-memory">collection</a>: one small document per fact or trip, not one big profile</dd>
-        <dt>Gap</dt><dd>Duplicate trips and run-on facts; no provenance or expiry</dd>
+        <dt>Hygiene</dt><dd>Trips keep one stable id and are matched on write; likes and interests are lists; every fact records its chat; sensitive facts are marked</dd>
+        <dt>Gap</dt><dd>No expiry yet (M6)</dd>
       </dl>
     </article>
   </div>
@@ -387,7 +391,7 @@ footer { color: var(--muted); font-size: 13px; padding-bottom: 40px; display: fl
         <tbody>
           <tr><td><span class="pill t-sem">semantic</span></td><td>Pre-trained knowledge. gpt-6-luna knows Rome has the Colosseum.</td><td>Retrieved facts. Saved facts and trips, guidebook pages, flight and hotel results.</td></tr>
           <tr><td><span class="pill t-proc">procedural</span></td><td>Instruction following, learned in training.</td><td>Retrieved skills. The 7 playbooks and the prompt rules.</td></tr>
-          <tr><td><span class="pill t-epi">episodic</span></td><td>Not applicable.</td><td>Retrieved conversations. Today only the current thread.</td></tr>
+          <tr><td><span class="pill t-epi">episodic</span></td><td>Not applicable.</td><td>Retrieved conversations: the current thread, plus past chats on demand via <span class="mono">recall_conversations</span>.</td></tr>
         </tbody>
       </table>
     </div>
@@ -402,7 +406,7 @@ footer { color: var(--muted); font-size: 13px; padding-bottom: 40px; display: fl
   <div class="slide-head">
     <span class="slide-no">Chapter 2 · lecture p. 24</span>
     <h2>Architecture: what, when and how</h2>
-    <p class="lead">Every memory design answers three questions. Here are the lecture's options, what AskTravel does today, and where it goes next.</p>
+    <p class="lead">Every memory design answers three questions. Here are the lecture's options, what AskTravel does after the M0–M4 roadmap, and what is still ahead.</p>
   </div>
   <div class="table-wrap">
     <table>
@@ -412,31 +416,31 @@ footer { color: var(--muted); font-size: 13px; padding-bottom: 40px; display: fl
           <td class="q"><b>What</b><span>gets stored and retrieved?</span></td>
           <td>Facts (specific and general), procedures, conversation progression</td>
           <td><ul>
-            <li><span class="pill t-sem">semantic</span> facts the agent chooses to save; trips; itineraries</li>
+            <li><span class="pill t-sem">semantic</span> facts with provenance (which chat, when confirmed, sensitive or not); trips with stable ids; itineraries</li>
             <li><span class="pill t-proc">procedural</span> hand-written skills and rules</li>
-            <li><span class="pill t-epi">episodic</span> raw chat threads, every step</li>
+            <li><span class="pill t-epi">episodic</span> raw chat threads, every step, plus a chat index to find them</li>
           </ul></td>
-          <td>Conversation summaries; where each fact came from; one record per real trip</td>
+          <td>Expiry for trips and sensitive facts (M6); skill proposals from feedback (M7)</td>
         </tr>
         <tr>
           <td class="q"><b>When</b><span>is it triggered?</span></td>
           <td>Agent tools (on demand), background workers, event-driven</td>
           <td><ul>
-            <li><b>Agent tools:</b> <span class="mono">save_memory</span>, <span class="mono">save_trip_details</span>, <span class="mono">get_trip</span>, <span class="mono">load_skill</span></li>
-            <li><b>Events:</b> checkpoint after every step; each itinerary filed under its trip; facts and trips read before every model call</li>
-            <li><b>Background:</b> none</li>
+            <li><b>Agent tools:</b> <span class="mono">save_memory</span>, <span class="mono">save_trip_details</span>, <span class="mono">get_trip</span>, <span class="mono">recall_conversations</span>, <span class="mono">load_skill</span></li>
+            <li><b>Events:</b> checkpoint after every step; chat index after every run; each itinerary filed under its trip; earlier turns compacted before every model call; chat deleted in Open WebUI → trigger</li>
+            <li><b>Background:</b> the chat-deletion sync loop; startup migrations and backfills</li>
           </ul></td>
-          <td>A background pass after a chat goes quiet; nightly retention; weekly skill review from feedback</td>
+          <td>Nightly retention (M6); weekly skill review from feedback (M7). LLM consolidation (M5) only if an eval case starts failing</td>
         </tr>
         <tr>
           <td class="q"><b>How</b><span>is it stored and retrieved?</span></td>
           <td>Filesystem, databases (retrieval), knowledge graphs</td>
           <td><ul>
-            <li><b>Database:</b> Postgres checkpointer and store, exact key lookup, all facts injected</li>
+            <li><b>Database:</b> Postgres checkpointer and store (exact key lookup, all facts injected, rules applied on write); keyword search over past chats; Open WebUI's own tables in the same database</li>
             <li><b>Filesystem:</b> skills and guidebooks as markdown, keyword search</li>
             <li><b>Knowledge graph:</b> none</li>
           </ul></td>
-          <td>pgvector in the same Postgres for searching past conversations by meaning</td>
+          <td>pgvector in the same Postgres, only if keyword recall falls short</td>
         </tr>
       </tbody>
     </table>
@@ -468,11 +472,11 @@ footer { color: var(--muted); font-size: 13px; padding-bottom: 40px; display: fl
   </div>
   <div class="verdicts">
     <div class="verdict t-proc"><span class="pill">procedural</span><b>Filesystem (git)</b><span>Skills are reviewed like code. Stays.</span></div>
-    <div class="verdict t-epi"><span class="pill">episodic</span><b>Postgres checkpointer</b><span>Plus summaries with pgvector for recall.</span></div>
-    <div class="verdict t-sem"><span class="pill">semantic · user</span><b>Postgres store</b><span>Collection of facts and trips; add TTL and provenance.</span></div>
+    <div class="verdict t-epi"><span class="pill">episodic</span><b>Postgres checkpointer</b><span>Searched by keyword for recall; pgvector only if that falls short.</span></div>
+    <div class="verdict t-sem"><span class="pill">semantic · user</span><b>Postgres store</b><span>Collection of facts and trips, with provenance; TTL next.</span></div>
     <div class="verdict t-sem"><span class="pill">semantic · world</span><b>Files today</b><span>Postgres full-text or pgvector if keyword search falls short.</span></div>
   </div>
-  <p class="ref">MongoDB isn't needed for this POC: Postgres already holds the JSON and gives transactions, SQL for review and pgvector, without adding a second database.</p>
+  <p class="ref">MongoDB isn't needed for this POC: Postgres already holds the JSON and gives transactions, SQL for review and pgvector, without adding a second database. Open WebUI moved onto the same Postgres too (schema <span class="mono">open_webui</span>), so a trigger on its chat table can tell the agent when a chat is deleted. One database is what makes that possible: a trigger can't write across databases.</p>
 </section>
 
 <!-- ============ 4 · WHEN ============ -->
@@ -480,7 +484,7 @@ footer { color: var(--muted); font-size: 13px; padding-bottom: 40px; display: fl
   <div class="slide-head">
     <span class="slide-no">Chapter 4 · when · lecture p. 29</span>
     <h2>Memory patterns: what's implemented</h2>
-    <p class="lead">The lecture's four architecture patterns, each set against what the POC does today.</p>
+    <p class="lead">The lecture's four architecture patterns, each set against what the POC does after the M0–M4 roadmap.</p>
     <div class="legend"><span class="st ok">Implemented</span><span class="st part">Partly</span><span class="st todo">Not yet</span></div>
   </div>
   <div class="patterns">
@@ -495,15 +499,16 @@ footer { color: var(--muted); font-size: 13px; padding-bottom: 40px; display: fl
         <li class="n">Learning new skills from feedback and good runs (roadmap M7)</li>
       </ul>
     </article>
-    <article class="pattern part">
-      <div class="ph"><span class="num">Pattern 2</span><span class="st part">Partly</span></div>
+    <article class="pattern ok">
+      <div class="ph"><span class="num">Pattern 2</span><span class="st ok">Implemented</span></div>
       <h3>Tiered memory hierarchy</h3>
       <p>Organise memory into tiers, and let the model manage its own memory with tools.</p>
       <span class="papers">MemGPT · MemoryOS</span>
       <ul>
         <li class="y">Tiers: context window → current thread → long-term store</li>
         <li class="y">The model manages its memory with tools: <code>save_memory</code>, <code>delete_memory</code>, <code>save_trip_details</code>, <code>get_trip</code></li>
-        <li class="n">Search over past chats (M5); evicting old tool results from context (M1)</li>
+        <li class="y">Old tool results evicted from context: earlier turns keep only question, answer and a note of tools used (M2)</li>
+        <li class="y">Archival tier searched on demand: <code>recall_conversations</code> over past chats (M3)</li>
       </ul>
     </article>
     <article class="pattern">
@@ -512,8 +517,7 @@ footer { color: var(--muted); font-size: 13px; padding-bottom: 40px; display: fl
       <p>Reflect on experiences before storing them as memory.</p>
       <span class="papers">Reflexion · Generative Agents</span>
       <ul>
-        <li class="n">Summarise each chat once it goes quiet (M4)</li>
-        <li class="n">Turn the summary into fact and trip updates, instead of whatever the agent saved mid-chat</li>
+        <li class="n">Deliberately deferred (M5): summaries would cost a model call per turn, and the evals show no failure they would fix. Recall searches the raw chats instead; updates are checked by rules on write</li>
       </ul>
     </article>
     <article class="pattern part">
@@ -522,16 +526,63 @@ footer { color: var(--muted); font-size: 13px; padding-bottom: 40px; display: fl
       <p>Clean up, update and remove old memories.</p>
       <span class="papers">Sleep-time compute · Mem0-style add / update / delete</span>
       <ul>
-        <li class="y">Saving under an existing key updates the fact; delete tools forget on request</li>
-        <li class="y">Startup backfill links older itineraries to trips</li>
-        <li class="n">Dedupe trips, expiry (TTL) and nightly pruning (M2–M4)</li>
+        <li class="y">Rules on write: a trip is matched to the existing one instead of duplicated (M1a); likes and interests are lists, and an overwrite reports the old value (M1b)</li>
+        <li class="y">Startup migrations re-key old trips, split run-on facts and link older itineraries</li>
+        <li class="y">Forgetting: delete tools, <code>DELETE /api/memory</code>, and chats deleted in Open WebUI (M4)</li>
+        <li class="n">Expiry (TTL) and checkpoint pruning (M6); LLM consolidation of conflicts (M5)</li>
       </ul>
     </article>
   </div>
   <div class="timing">
-    <div><b>In the hot path · today</b><span>Every memory write happens during the conversation, through a tool call or a checkpoint. Memories are available at once, but the agent spends attention and time on them.</span></div>
-    <div><b>In the background · next</b><span>Consolidation and maintenance run after the chat, with no latency for the user. LangChain's memory guide describes both modes.</span></div>
+    <div><b>In the hot path · today</b><span>Memory writes happen during the conversation, through a tool call or a checkpoint, and deterministic rules clean them as they're written. No extra model calls: the provider allows about 20 a minute.</span></div>
+    <div><b>In the background · today and next</b><span>Today only the chat-deletion sync runs in the background. Retention (M6) and skill proposals (M7) will too, with no latency for the user. LangChain's memory guide describes both modes.</span></div>
   </div>
+</section>
+
+<!-- ============ 5 · RESULTS ============ -->
+<section class="slide" id="results">
+  <div class="slide-head">
+    <span class="slide-no">Chapter 5 · measured · lecture p. 68</span>
+    <h2>Results: before and after the roadmap</h2>
+    <p class="lead">Every change was measured with <span class="mono">scripts/eval_memory.py</span>: eight cases run against the real model and Postgres, each three times because the model isn't deterministic. The baseline came first (M0), so each phase had a number to beat.</p>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Case</th><th>Checks</th><th>Baseline</th><th class="us">After M0–M4</th><th>Fixed by</th></tr></thead>
+      <tbody>
+        <tr><td><span class="pill t-sem">semantic</span> Trip identity</td><td>One trip described in three chats keeps one id that isn't stale</td><td>0/3</td><td><b>3/3</b></td><td>M1a stable ids, matched on write</td></tr>
+        <tr><td><span class="pill t-epi">episodic</span> Conversation recall</td><td>"Which gelato shops did you recommend?" in a new chat</td><td>0/3</td><td><b>3/3</b></td><td>M3 <span class="mono">recall_conversations</span></td></tr>
+        <tr><td><span class="pill t-work">working</span> Long chat</td><td>10-turn Rome plan: turn-1 constraints recalled; no call over 25k tokens</td><td>0/1 (70k)</td><td><b>1/1 (13.9k)</b></td><td>M2 turn compaction</td></tr>
+        <tr><td><span class="pill t-sem">semantic</span> Cross-chat recall</td><td>A hotel mentioned in one chat is used in the next</td><td>3/3</td><td>3/3</td><td></td></tr>
+        <tr><td><span class="pill t-sem">semantic</span> Time questions</td><td>"Where am I going in the next 2 months?" against seeded trips</td><td>3/3</td><td>3/3</td><td>(hardened in M1a: status computed per trip)</td></tr>
+        <tr><td><span class="pill t-sem">semantic</span> Preference change</td><td>"I'm vegetarian", later "I eat fish now": one fact, updated</td><td>3/3</td><td>3/3</td><td></td></tr>
+        <tr><td><span class="pill t-sem">semantic</span> Over-personalisation</td><td>"Capital of Peru?" doesn't drag in saved facts</td><td>3/3</td><td>3/3</td><td></td></tr>
+        <tr><td><span class="pill t-sem">semantic</span> Forgetting</td><td>"Forget my diet" deletes it and keeps the rest</td><td>3/3</td><td>3/3</td><td></td></tr>
+        <tr><td><b>All runs</b></td><td></td><td><b>15/22</b></td><td><b>22/22</b></td><td></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="wm-side results-side">
+    <div><b>70k → 13.9k</b><span>peak input tokens per model call in the 10-turn chat</span></div>
+    <div><b>16.8k → 5.5k</b><span>mean input tokens per call across all cases</span></div>
+    <div><b>91% → 74%</b><span>share read from the prompt cache: each turn is compacted once, when the next one starts</span></div>
+    <div><b>0</b><span>extra model calls per turn: recall searches raw chats and hygiene is rules, not an LLM</span></div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Phase</th><th>What changed</th><th>Pattern</th></tr></thead>
+      <tbody>
+        <tr><td>M0 baseline</td><td>The eval suite and per-call token numbers; confirmed the provider caches prompts</td><td>Evaluation</td></tr>
+        <tr><td>M1a trips</td><td>Opaque trip ids, matching on write, status computed for the prompt, migration of old ids</td><td>Maintenance</td></tr>
+        <tr><td>M1b facts</td><td>List-valued likes and interests, old value shown on overwrite, provenance on every fact</td><td>Maintenance</td></tr>
+        <tr><td>M2 context</td><td>Earlier turns sent without tool results; the saved thread untouched, so branching still works</td><td>Tiered hierarchy</td></tr>
+        <tr><td>M3 recall</td><td>Chat index plus keyword search over past chats</td><td>Tiered hierarchy</td></tr>
+        <tr><td>M4 control</td><td>View, export and delete-all API; a chat deleted in Open WebUI deletes the agent's copy</td><td>Maintenance · trust</td></tr>
+        <tr><td>Next</td><td>Expiry and pruning (M6), skills from feedback (M7), LLM consolidation only if needed (M5)</td><td></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="ref">One design choice ran through all of it: never rewrite the saved thread to save tokens. Summarising the stored history would have broken regenerate and edit in Open WebUI, so compaction changes only what the model is sent.</p>
 </section>
 
 <!-- ============ DEMO ============ -->
@@ -541,7 +592,7 @@ footer { color: var(--muted); font-size: 13px; padding-bottom: 40px; display: fl
 
 <footer>
   <span>Framework: CoALA, <a href="https://arxiv.org/abs/2309.02427">Sumers et al., 2024</a>. Lecture: CS329Z Engineering AI Agents, lecture 7, agent memory architecture (pp. 15–29).</span>
-  <span>LangChain: <a href="https://docs.langchain.com/oss/python/concepts/memory">Memory overview</a>. Measurements: AskTravel POC database, October 2026.</span>
+  <span>LangChain: <a href="https://docs.langchain.com/oss/python/concepts/memory">Memory overview</a>. Measurements: AskTravel POC database and <span class="mono">eval_memory.py</span>, October 2026.</span>
 </footer>
 
 </main>

@@ -9,6 +9,7 @@ from travel_agent.api.openai_compat import router as openai_router
 from travel_agent.config import get_settings
 from travel_agent.memory import open_memory
 from travel_agent.observability import check_tracing_config, flush_traces
+from travel_agent.tools.conversations import backfill_chat_index
 from travel_agent.tools.itinerary import list_itineraries
 from travel_agent.tools.memory import migrate_memories
 from travel_agent.tools.trips import backfill_trips, migrate_trip_ids
@@ -21,6 +22,7 @@ async def lifespan(app: FastAPI):
         await migrate_memories(store)
         await migrate_trip_ids(store)
         await backfill_trips(store)
+        await backfill_chat_index(checkpointer, store)
         app.state.store = store
         app.state.agent = build_agent(checkpointer, store)
         yield

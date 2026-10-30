@@ -35,7 +35,7 @@ def describe_call(call: dict) -> str:
     return f"{call['name']}({args})"
 
 
-def _turns(messages: list[BaseMessage]) -> list[list[BaseMessage]]:
+def split_turns(messages: list[BaseMessage]) -> list[list[BaseMessage]]:
     """Split into turns, each starting at a human message (a leading non-human run is its own)."""
     turns: list[list[BaseMessage]] = []
     for message in messages:
@@ -47,7 +47,7 @@ def _turns(messages: list[BaseMessage]) -> list[list[BaseMessage]]:
 
 def compact_messages(messages: list[BaseMessage]) -> list[BaseMessage]:
     """Earlier turns reduced to user message, kept tool pairs and final answer (+ tool note)."""
-    turns = _turns(messages)
+    turns = split_turns(messages)
     if len(turns) < 2:
         return list(messages)
     *earlier, current = turns

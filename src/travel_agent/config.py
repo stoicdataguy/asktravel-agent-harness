@@ -35,6 +35,11 @@ class Settings(BaseSettings):
     langfuse_secret_key: SecretStr = SecretStr("sk-lf-travel-agent-dev")
     langfuse_host: str = "http://localhost:3001"
 
+    # Open WebUI keeps its tables in this schema of our database (docker-compose.yml); deleted
+    # chats are queued by a trigger there and the agent's copies deleted every few seconds
+    openwebui_schema: str = "open_webui"
+    chat_deletion_sync_seconds: float = 10
+
     # Raw guidebook PDFs (local only, gitignored) and their extracted markdown
     reference_dir: Path = Path("reference")
     guidebooks_dir: Path = Path("data/guidebooks")

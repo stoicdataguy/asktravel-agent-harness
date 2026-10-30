@@ -1,3 +1,4 @@
+import asyncio
 import time
 from contextlib import asynccontextmanager
 
@@ -7,6 +8,7 @@ from travel_agent import user_data
 from travel_agent.agent.graph import build_agent
 from travel_agent.api.openai_compat import resolve_user
 from travel_agent.api.openai_compat import router as openai_router
+from travel_agent.chat_deletions import run_chat_deletion_sync
 from travel_agent.config import get_settings
 from travel_agent.memory import open_memory
 from travel_agent.observability import check_tracing_config, flush_traces
@@ -27,7 +29,18 @@ async def lifespan(app: FastAPI):
         app.state.store = store
         app.state.checkpointer = checkpointer
         app.state.agent = build_agent(checkpointer, store)
+        settings = get_settings()
+        sync = asyncio.create_task(
+            run_chat_deletion_sync(
+                checkpointer.conn,
+                checkpointer,
+                store,
+                settings.openwebui_schema,
+                settings.chat_deletion_sync_seconds,
+            )
+        )
         yield
+        sync.cancel()
     flush_traces()
 
 

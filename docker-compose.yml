@@ -19,12 +19,32 @@ services:
       interval: 5s
       retries: 10
 
+  # Creates the schema Open WebUI keeps its tables in, inside our database. One database (not a
+  # separate one) so a trigger on Open WebUI's `chat` table can queue deletions for the agent API.
+  db-init:
+    image: postgres:16-alpine
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: travel
+    command: psql -h postgres -U travel -d travel_agent -c "create schema if not exists open_webui"
+    restart: "no"
+
   # Chat client (Ollama-style UI). Talks to our FastAPI agent via the OpenAI-compatible /v1 API.
   open-webui:
     image: ghcr.io/open-webui/open-webui:main
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
     ports:
       - "3000:8080"
     environment:
+      # Accounts, chats and ratings live in our Postgres (schema open_webui), not SQLite, so the
+      # agent API can follow chat deletions. scripts/migrate_owui_to_postgres.py copies an
+      # existing SQLite database over once.
+      DATABASE_URL: postgresql://travel:travel@postgres:5432/travel_agent
+      DATABASE_SCHEMA: open_webui
       OPENAI_API_BASE_URL: http://host.docker.internal:8000/v1
       OPENAI_API_KEY: not-used
       ENABLE_OLLAMA_API: "false"

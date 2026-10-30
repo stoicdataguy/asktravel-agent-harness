@@ -204,8 +204,8 @@ th.us { color: var(--work); }
 .pattern p { font-size: 13.5px; color: var(--muted); }
 .pattern .papers { font: 500 12px var(--font-mono); color: var(--muted); }
 .pattern ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 13.5px; }
-.pattern li { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 6px; }
-.pattern li::before { font-weight: 700; }
+.pattern li { position: relative; padding-left: 26px; }
+.pattern li::before { position: absolute; left: 0; top: 0; width: 20px; font-weight: 700; }
 .pattern li.y::before { content: "✓"; color: var(--ok); }
 .pattern li.n::before { content: "○"; color: var(--todo); }
 .pattern li code { font-size: 0.82em; }
@@ -505,10 +505,10 @@ footer { color: var(--muted); font-size: 13px; padding-bottom: 40px; display: fl
       <p>Organise memory into tiers, and let the model manage its own memory with tools.</p>
       <span class="papers">MemGPT · MemoryOS</span>
       <ul>
-        <li class="y">Tiers: context window → current thread → long-term store</li>
-        <li class="y">The model manages its memory with tools: <code>save_memory</code>, <code>delete_memory</code>, <code>save_trip_details</code>, <code>get_trip</code></li>
-        <li class="y">Old tool results evicted from context: earlier turns keep only question, answer and a note of tools used (M2)</li>
-        <li class="y">Archival tier searched on demand: <code>recall_conversations</code> over past chats (M3)</li>
+        <li class="y">Three tiers: the context window (what the model sees now), this chat's saved thread, and long-term memory (facts, trips, past chats)</li>
+        <li class="y">The model moves things between tiers itself, with tools: it saves and deletes facts and trips, and fetches a trip's full plan when it needs it</li>
+        <li class="y">The context window stays small: earlier turns are sent as question and answer only, without their tool results (M2)</li>
+        <li class="y">Past chats are searched only when needed, with <code>recall_conversations</code> (M3)</li>
       </ul>
     </article>
     <article class="pattern">
@@ -526,10 +526,10 @@ footer { color: var(--muted); font-size: 13px; padding-bottom: 40px; display: fl
       <p>Clean up, update and remove old memories.</p>
       <span class="papers">Sleep-time compute · Mem0-style add / update / delete</span>
       <ul>
-        <li class="y">Rules on write: a trip is matched to the existing one instead of duplicated (M1a); likes and interests are lists, and an overwrite reports the old value (M1b)</li>
-        <li class="y">Startup migrations re-key old trips, split run-on facts and link older itineraries</li>
-        <li class="y">Forgetting: delete tools, <code>DELETE /api/memory</code>, and chats deleted in Open WebUI (M4)</li>
-        <li class="n">Expiry (TTL) and checkpoint pruning (M6); LLM consolidation of conflicts (M5)</li>
+        <li class="y">Cleaned as it's written: mentioning a trip again updates it instead of creating a duplicate (M1a); likes and interests are kept as lists, and replacing a fact shows the old value (M1b)</li>
+        <li class="y">Older data upgraded at startup: old trip ids re-keyed, run-on facts split, itineraries linked to their trips</li>
+        <li class="y">Forgetting on request: "forget my diet" in the chat, delete everything through the API, or delete a chat in Open WebUI (M4)</li>
+        <li class="n">Not yet: automatic expiry and pruning of old checkpoints (M6), and an LLM pass that resolves conflicting facts (M5)</li>
       </ul>
     </article>
   </div>

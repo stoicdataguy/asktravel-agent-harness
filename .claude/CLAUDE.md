@@ -14,12 +14,11 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
   `AGENT_DISPLAY_NAME` (AskTravel).
 
 ## Commands
-- Infra: `docker compose up -d` → Postgres :5433, Open WebUI http://localhost:3000, Langfuse http://localhost:3001
+- Infra: `docker compose up -d` → Postgres :5433, Open WebUI http://localhost:3000
   (Open WebUI's tables live in our Postgres, schema `open_webui`; an old SQLite install is copied over
   once with `scripts/migrate_owui_to_postgres.py`, see its docstring)
 - Chat deletion e2e: `uv run python scripts/e2e_chat_deletion.py [--api …]` — a chat deleted in Open WebUI
   loses its thread and chat-index entry (needs an API from current code)
-  (Langfuse stack lives in `docker/langfuse.compose.yml`; local dev secrets only)
 - Run API: `uv run travel-agent` (or `uv run uvicorn travel_agent.api.app:app --reload`)
 - Guidebooks: `uv run travel-agent-ingest [--force]` converts `reference/*.pdf` → `data/guidebooks/*.md`
   (PyMuPDF, AGPL, lives in the `ingest` dependency group: installed locally by default, left out of
@@ -43,7 +42,8 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
 - `src/travel_agent/agent/` — `build_agent()` (create_agent + middleware that injects skills and saved memories), prompts;
   `compaction.py` = turn compaction (earlier turns sent without tool results; request-only).
 - `src/travel_agent/memory.py` — Postgres checkpointer + store on one connection pool.
-- `src/travel_agent/observability.py` — Langfuse callback + `run_config()`. Tracing is Langfuse only (no LangSmith).
+- `src/travel_agent/observability.py` — LangSmith tracer + `run_config()`. Tracing is LangSmith only (cloud; #87
+  replaced self-hosted Langfuse). Don't also enable OpenRouter Broadcast: it double-counts model calls.
 - `src/travel_agent/tools/` — agent tools; `guidebooks.py` = keyword search / page reads over extracted guidebooks.
 - `src/travel_agent/context.py` — `UserContext` (runtime context: `user_id`).
 - `src/travel_agent/agent/schemas.py` — `Itinerary` schema + `render_itinerary()` markdown.
@@ -115,7 +115,7 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
   number in the plan (e.g. M2 tokens, M3 recall). Run live suites in the background and keep working.
 - A worktree can test against its own server: run it on another port and pass `--api` to
   `e2e_memory.py` (other e2e scripts still assume :8000).
-- Token usage per model call (input, cache read, cache write) is on every Langfuse generation;
+- Token usage per model call (input, cache read, cache write) is on every LangSmith LLM run;
   OpenRouter does cache `gpt-6-luna` prompts, so keep the start of the prompt stable.
 - After changing flight or hotel search, run `uv run python scripts/e2e_flights.py` / `e2e_hotels.py`
   (both check quoted prices against a live Google lookup). If Google changes its markup, update
@@ -133,8 +133,10 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
 - Flights: `fast-flights`. Hotels and web pages: Playwright scraping. No paid search APIs.
 - `reference/` (raw PDFs) and `data/guidebooks/*.md` are copyrighted material: never commit them.
 - Every agent invocation (incl. future subagents) uses `observability.run_config(user_id, thread_id)`
-  so traces get tracing callbacks plus session/user metadata (`langfuse_session_id`, `langfuse_user_id`).
-- Langfuse v4 runs in events-only mode: query traces via `/api/public/v2/observations`, not `/traces`.
+  so traces get the tracer plus `thread_id` / `user_id` metadata (a chat's traces form one LangSmith
+  thread). Eval scripts use `eval_run_config`: untraced unless `LANGSMITH_TRACE_EVALS=true`, so they
+  don't spend the free plan's 5k traces/month. Settings are ours (`LANGSMITH_*` via `config.py`), and
+  the client is built explicitly: don't rely on LangChain's env-var auto-tracing.
 - Streaming shows agent progress (`api/progress.py`): each tool call as `🔧 name(args)` plus an
   outcome summarised in code (`summarize()`, counts and prices only, never guidebook text), sent
   as `reasoning_content` so Open WebUI shows it in a collapsible block above the answer and never

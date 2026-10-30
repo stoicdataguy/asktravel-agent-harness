@@ -29,12 +29,13 @@ class Settings(BaseSettings):
     # Checkpointer (thread memory) and store (long-term memory) both live here
     database_url: str = "postgresql://travel:travel@localhost:5433/travel_agent"
 
-    # Langfuse tracing (self-hosted via docker compose, UI on :3001). Keys match the project
-    # docker/langfuse.compose.yml bootstraps, so this works out of the box locally.
-    langfuse_tracing: bool = False
-    langfuse_public_key: str = "pk-lf-travel-agent-dev"
-    langfuse_secret_key: SecretStr = SecretStr("sk-lf-travel-agent-dev")
-    langfuse_host: str = "http://localhost:3001"
+    # LangSmith tracing (cloud, https://smith.langchain.com). Off by default; evals stay untraced
+    # unless langsmith_trace_evals, so they don't use up the free plan's monthly traces.
+    langsmith_tracing: bool = False
+    langsmith_api_key: SecretStr = SecretStr("")
+    langsmith_project: str = "travel-agent"
+    langsmith_endpoint: str = "https://api.smith.langchain.com"
+    langsmith_trace_evals: bool = False
 
     # Open WebUI keeps its tables in this schema of our database (docker-compose.yml); deleted
     # chats are queued by a trigger there and the agent's copies deleted every few seconds

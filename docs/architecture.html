@@ -499,7 +499,7 @@ body { margin: 0; }
 
       <div class="pipe">
         <div class="rail"></div>
-        <small>agent.astream(stream_mode=["messages", "updates"])<br>config: thread_id + Langfuse callback · context: UserContext(user_id)</small>
+        <small>agent.astream(stream_mode=["messages", "updates"])<br>config: thread_id + LangSmith tracer · context: UserContext(user_id)</small>
       </div>
 
       <div class="layer">
@@ -592,9 +592,9 @@ body { margin: 0; }
       </div>
       <div class="ext-card">
         <span class="eyebrow">Observability</span>
-        <h3>Langfuse</h3>
-        <span class="mono">self-hosted · :3001</span>
-        <p>One trace per turn: model calls, tool calls, timings. Session = chat, user = email.</p>
+        <h3>LangSmith</h3>
+        <span class="mono">cloud · smith.langchain.com</span>
+        <p>One trace per turn: model calls, tool calls, middleware, timings, tokens. Thread = chat, user_id = email.</p>
       </div>
       <div class="ext-card">
         <span class="eyebrow">Offline step</span>
@@ -614,7 +614,7 @@ body { margin: 0; }
       <li><div><b>The middleware builds the prompt.</b><span>Base instructions, the skills list and the user's saved facts from the store. Earlier turns are sent compacted: question, answer and a note of the tools used.</span></div></li>
       <li><div><b>The model works through tools.</b><span>It may load a skill, search the guidebooks, save a fact or present an itinerary. Each step is checkpointed.</span></div></li>
       <li><div><b>The API streams back.</b><span>Answer tokens and any rendered itinerary as <code>content</code>; progress (each tool call with its outcome) as <code>reasoning_content</code>, which Open WebUI shows in a collapsible block above the answer and doesn't resend. OpenAI-style SSE chunks.</span></div></li>
-      <li><div><b>Everything is traced.</b><span>Langfuse records the turn under the chat's session and the user's email.</span></div></li>
+      <li><div><b>Everything is traced.</b><span>LangSmith records the turn in the chat's thread, with the user's email as <span class="mono">user_id</span>.</span></div></li>
     </ol>
   </div>
 
@@ -634,7 +634,7 @@ body { margin: 0; }
           <tr><td>Hotel search</td><td>Playwright (Google Hotels)</td><td class="mono">tools/hotels.py</td><td>Live nightly rates, ratings and booking links</td></tr>
           <tr><td>Flight search</td><td>fast-flights (Google Flights)</td><td class="mono">tools/flights.py</td><td>Live fares, times and booking links</td></tr>
           <tr class="ext"><td>LLM</td><td>OpenRouter</td><td class="mono">llm.py</td><td>GPT-6 Luna for every model call</td></tr>
-          <tr class="ext"><td>Tracing</td><td>Langfuse v4</td><td class="mono">observability.py · docker/langfuse.compose.yml</td><td>Traces per session and user</td></tr>
+          <tr class="ext"><td>Tracing</td><td>LangSmith</td><td class="mono">observability.py</td><td>Traces per thread and user</td></tr>
         </tbody>
       </table>
     </div>
@@ -692,7 +692,7 @@ body { margin: 0; }
           <tr class="long"><td>Store · chats</td><td class="mono">(email, "chats") / thread_id</td><td>After every agent run (title + time); startup backfill</td><td>recall_conversations, which then loads the chats' messages from the checkpointer</td><td>No: searched on demand</td></tr>
           <tr class="long"><td>Store · itineraries</td><td class="mono">(email, "itineraries") / thread_id</td><td>present_itinerary (latest replaces)</td><td>GET /api/itineraries</td><td>No: kept for the API; the plan is also in the thread</td></tr>
           <tr><td>Open WebUI database</td><td class="mono">Postgres schema open_webui (same database) · chat id</td><td>Every message, by Open WebUI</td><td>When the chat is displayed</td><td>Only to resync the thread when the chat branches (fork, regenerate, edit). A trigger on its chat table queues deletions in <code>chat_deletions</code>; the API then deletes the thread and chat-index entry within seconds</td></tr>
-          <tr class="ext"><td>Langfuse</td><td class="mono">session = thread_id, user = email</td><td>Every turn (when tracing is on)</td><td>When you inspect traces</td><td>No: observability only</td></tr>
+          <tr class="ext"><td>LangSmith (cloud)</td><td class="mono">thread = thread_id, user_id = email</td><td>Every turn (when tracing is on)</td><td>When you inspect traces</td><td>No: observability only</td></tr>
         </tbody>
       </table>
     </div>
@@ -895,7 +895,7 @@ conversations. What you know so far:
         <tr><td class="l">2 × <span class="mono">search_hotels</span>, measured directly: every step overlaps</td><td>9.2 s</td><td>~18 s</td></tr>
       </tbody>
     </table></div>
-    <p class="sub">To see it: ask for something that needs several searches ("compare fares to Rome from JFK and EWR"). Several <span class="mono">🔧</span> lines appear together in the progress block before any answer, and in Langfuse the tool spans overlap on the trace timeline.</p>
+    <p class="sub">To see it: ask for something that needs several searches ("compare fares to Rome from JFK and EWR"). Several <span class="mono">🔧</span> lines appear together in the progress block before any answer, and in LangSmith the tool runs overlap on the trace timeline.</p>
   </div>
 
   <div class="block cw-example">
@@ -924,7 +924,7 @@ conversations. What you know so far:
     <div class="kind">
       <span class="eyebrow">Tools</span>
       <h3>Typed functions the model calls</h3>
-      <p>The model sees each tool's name, arguments and docstring. Every call appears in the progress block above the answer as a <code>🔧 name(args)</code> line with its outcome and in Langfuse as its own step. Tools never raise into the loop; they return an error message the model can act on.</p>
+      <p>The model sees each tool's name, arguments and docstring. Every call appears in the progress block above the answer as a <code>🔧 name(args)</code> line with its outcome and in LangSmith as its own run. Tools never raise into the loop; they return an error message the model can act on.</p>
     </div>
     <div class="kind">
       <span class="eyebrow">Skills</span>

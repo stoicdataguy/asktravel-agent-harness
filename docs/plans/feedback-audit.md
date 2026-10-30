@@ -6,6 +6,10 @@ is visible in Langfuse next to that trace.
 
 *Status: proposal. Findings below were verified against the running stack on 2026-10-28.*
 
+> **Tracing moved to LangSmith (#87).** Read "Langfuse score" below as LangSmith feedback
+> (`Client.create_feedback(run_id, key="user_feedback", score=…)`), and the deterministic trace id
+> as a run id that the API sets from the message id (`run_id` in the run config).
+
 ## Contents
 
 - [What happens today](#what-happens-today)

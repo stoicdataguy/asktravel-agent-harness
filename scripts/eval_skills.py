@@ -18,7 +18,7 @@ from langgraph.store.memory import InMemoryStore
 
 from travel_agent.agent.graph import build_agent
 from travel_agent.context import UserContext
-from travel_agent.observability import flush_traces, run_config
+from travel_agent.observability import eval_run_config, flush_traces
 
 CASES: list[tuple[str, set[str]]] = [
     ("I want to go somewhere warm next year, can you help me plan a trip?", {"trip-intake"}),
@@ -52,7 +52,7 @@ async def run_case(agent, index: int, prompt: str, max_turns: int) -> set[str]:
     thread_id = f"skill-eval:{index}"
     stream = agent.astream(
         {"messages": [HumanMessage(prompt)]},
-        run_config("skill-eval", thread_id),
+        eval_run_config("skill-eval", thread_id),
         context=UserContext("skill-eval"),
         stream_mode="updates",
     )

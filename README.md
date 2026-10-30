@@ -44,7 +44,7 @@ Each row is one part of the harness. Each part has a test or an eval that uses t
 | Context control | Earlier turns go to the model without their tool results. In the longest chat, this sends 62% fewer tokens, and 87% of input tokens come from the prompt cache. | [Context window tab](docs/architecture.html) |
 | Streaming progress | Each tool call and its result stream into a block above the answer. Slow tools report their steps. | `scripts/e2e_progress.py` |
 | Reliability | The harness retries rate-limited model calls and shows each wait to the user. | `tests/test_retry.py` |
-| Tracing | Langfuse records each model call, tool call and middleware step, by user and by chat. | Langfuse UI |
+| Tracing | LangSmith records each agent run with its model calls, tool calls and middleware steps. The traces of one chat are one thread. | `tests/test_observability.py`, LangSmith UI |
 | User data | A user can see, export and delete all saved data. When a user deletes a chat in Open WebUI, the agent deletes its copy too. | `scripts/e2e_chat_deletion.py` |
 
 ## How the parts connect
@@ -59,18 +59,20 @@ FastAPI (:8000) ── LangChain agent ── middleware: prompt + memories, com
    │                    └── model ── OpenRouter
    ▼
 Postgres (:5433) ── chat threads, long-term memory, Open WebUI tables
-Langfuse (:3001) ── traces
+LangSmith (cloud) ── traces
 ```
 
 ## Quick start
 
 You need Docker, [uv](https://docs.astral.sh/uv/) and an [OpenRouter](https://openrouter.ai) API key.
+For traces, you also need a free [LangSmith](https://smith.langchain.com) API key.
 
 1. Copy the settings file: `cp .env.example .env`
-2. Add your `OPENROUTER_API_KEY` to `.env`.
+2. Add your `OPENROUTER_API_KEY` to `.env`. For traces, add `LANGSMITH_API_KEY` too. Without it,
+   set `LANGSMITH_TRACING=false`.
 3. Install the dependencies: `uv sync`
 4. Install the browser for hotel search: `uv run playwright install chromium`
-5. Start Postgres, Open WebUI and Langfuse: `docker compose up -d`
+5. Start Postgres and Open WebUI: `docker compose up -d`
 6. Put your guidebook PDFs in `reference/`. Then convert them: `uv run travel-agent-ingest`
 7. Start the agent API: `uv run travel-agent`
 8. Open http://localhost:3000 and sign up with an email.
@@ -80,9 +82,6 @@ You need Docker, [uv](https://docs.astral.sh/uv/) and an [OpenRouter](https://op
 
 > **Note:** Each email is a different user with its own memory. Sign up with more emails to test
 > more users. The password is not checked by the agent.
-
-To run without Langfuse (it uses about six containers), start only two services:
-`docker compose up -d postgres open-webui`
 
 ## Use the agent
 
@@ -120,8 +119,9 @@ curl -s -X DELETE "localhost:8000/api/memory?confirm=you@example.com" -H "$H"   
 [notebooks/inspect_state.ipynb](notebooks/inspect_state.ipynb). It shows the memories, plans and
 decoded chat threads.
 
-**Look at the traces.** Open http://localhost:3001 (user `admin@travel.local`, password
-`travel-agent-dev`). Each trace has the chat as its session and the email as its user.
+**Look at the traces.** Open https://smith.langchain.com and the `travel-agent` project. Each
+chat is one thread. Each trace has the user's email in its `user_id` metadata. The evals do not
+send traces unless you set `LANGSMITH_TRACE_EVALS=true`, so they do not use up the free plan.
 
 ## Tests and evals
 

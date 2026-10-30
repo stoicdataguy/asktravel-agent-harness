@@ -31,7 +31,7 @@ from travel_agent.consolidation import consolidate_user, llm_proposer
 from travel_agent.context import UserContext
 from travel_agent.llm import get_chat_model
 from travel_agent.memory import open_memory, user_namespace
-from travel_agent.observability import flush_traces, run_config
+from travel_agent.observability import eval_run_config, flush_traces
 from travel_agent.tools.trips import upsert_trip
 
 KINDS = ("memories", "trips", "itineraries", "chats", "memory_log")
@@ -72,7 +72,7 @@ class Session:
         thread_id = f"{self.user}:{chat_id}"
         result = await self.agent.ainvoke(
             {"messages": [HumanMessage(text)]},
-            run_config(self.user, thread_id),
+            eval_run_config(self.user, thread_id),
             context=UserContext(self.user),
         )
         messages = result["messages"]

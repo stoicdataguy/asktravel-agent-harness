@@ -51,7 +51,7 @@ is context memory.
 | Trips (destination, dates, lodging, transport, travellers, notes) | Semantic (user, time-bound) | Postgres `store`, `(email, "trips")`, one row per trip | Agent calls `save_trip_details`; automatically by `present_itinerary`; startup backfill | Every model call: one line per trip, up to 8, past trips hidden after 30 days; full detail via `get_trip` | Per user | 1–2 per test user | **None** |
 | Saved itineraries (structured plan) | Episodic artifact / semantic | Postgres `store`, `(email, "itineraries")`, one per chat | `present_itinerary` (latest replaces) | `get_trip`, `GET /api/itineraries` | Per user + chat | 2 (demo user) | **None** |
 | Chat threads (every message, tool call and tool result) | Episodic (raw) + working | Postgres `checkpoints`, `checkpoint_blobs`, `checkpoint_writes`, key `email:chat_id` | Automatically after **every agent step** | Start of each turn (whole thread loaded) | Per user + chat | 17 threads, **209 checkpoints, ~7 MB** | **None** |
-| Open WebUI chat copies | Episodic (UI) | Open WebUI SQLite volume | Open WebUI, every message | Displayed to the user; resent as the transcript (used only to resync branches) | Per user | n/a | User deletes chats manually |
+| Open WebUI chat copies | Episodic (UI) | Open WebUI's tables, in our Postgres (schema `open_webui`, since M4b) | Open WebUI, every message | Displayed to the user; resent as the transcript (used only to resync branches) | Per user | n/a | User deletes chats manually |
 | Langfuse traces | Episodic (observability) | Langfuse (ClickHouse + Postgres + MinIO) | Every turn when tracing is on | By developers only | All | n/a | **None** configured |
 | Guidebooks | Semantic (world) | Files: `data/guidebooks/*.md` (≈10 MB from 5 PDFs) | Offline: `travel-agent-ingest` | On demand: `search_guidebooks`, `read_guidebook_pages` | All users | 5 books | n/a (editions are 2016-era) |
 | Live flights / hotels | Semantic (world, volatile) | Not stored; fetched from Google per call | n/a | On demand: `search_flights`, `search_hotels` | n/a | n/a | n/a (results live on only inside the thread) |
@@ -175,7 +175,7 @@ Mapped to the lecture's "problems without memory" (p. 9) and open challenges (p.
 | Saved itineraries | Follow their trip's lifecycle; orphans (no trip) deleted after 180 days | Same job as trips |
 | Live-search cache (new) | Flights **6 hours**, hotels **24 hours** | Store TTL; LangGraph's Postgres store supports per-item `ttl` and a background sweeper (`start_ttl_sweeper`) |
 | Langfuse traces | **90 days** | Langfuse data-retention setting |
-| Open WebUI chats | User-controlled; agent-side data follows deletion (above) | Hook |
+| Open WebUI chats | User-controlled; agent-side data follows deletion (above) | Trigger on `open_webui.chat` → `chat_deletions` queue → API deletes the thread and index entry (M4b) |
 | Guidebooks, skills, prompts | No TTL; versioned files. Guidebook refresh is a content task (newer editions) | n/a |
 
 **Expected effect:**
@@ -244,7 +244,7 @@ M0 baseline in its PR.
 | **M2 Context budget** ✅ (turn compaction, #20) | Turn-compaction middleware (§6). Moving date, facts and trips out of the system prompt and trimming tool schemas (`present_itinerary` is 1.4k tokens) are split out as a follow-up: compaction alone met the budget | Tiered hierarchy (MemGPT/MemoryOS: working vs recall) | 1–2 days |
 | **M3 Episodic recall** ✅ (#24) | Chat index written after every run + startup backfill; `recall_conversations(query)` keyword-searches the user's other chats (user message + final answer per turn) and returns the best turns from up to 3 chats. No summaries, no extra model calls; summaries/pgvector only if the eval shows keyword search falls short | Tiered hierarchy (archival search) | 1 day |
 | **M4a User control** ✅ (#25) | `GET /api/memory` (what it remembers), `GET /api/memory/export` (everything incl. chat messages), `DELETE /api/memory?confirm=<email>` (every user namespace + threads, found generically); `sensitive` flag on facts. **Before the v1 deploy (#30)** | Trust, privacy, user control | 1 day |
-| **M4b Chat deletion follow-through** (#58) | Move Open WebUI to Postgres; a trigger on its `chat` table deletes the matching thread and chat-index entry (same mechanism as the feedback plan's F2). The "facts only from the user's own words" guard moved to the web tool (#33), where untrusted text arrives | Trust, privacy, user control | 1–2 days |
+| **M4b Chat deletion follow-through** ✅ (#58) | Open WebUI moved onto our Postgres (schema `open_webui` in the same database, so a trigger can reach our tables); existing SQLite data copied over; a trigger on its `chat` table queues deletions and the API deletes the thread and chat-index entry within seconds. The "facts only from the user's own words" guard moved to the web tool (#33) | Trust, privacy, user control | 1 day |
 | **M5 LLM consolidation** | Only if M0's preference-evolution and duplicate-trip cases still fail after M1: a background Mem0-style ADD/UPDATE/DELETE/NOOP pass over facts and trips for conflicts that rules can't catch | Reflective consolidation | 1–2 days, maybe never |
 | **M6 Retention** | Turn-boundary checkpoint pruning (our own SQL, §5); store TTLs + `start_ttl_sweeper`; Langfuse retention; live-search cache | Memory maintenance | 1 day, at production scale |
 | **M7 Procedural learning** | Weekly job: cluster 👎 reasons and comments by skill and tool, and mine successful itinerary trajectories into "workflow" notes (AWM); open a **PR** proposing skill edits for human review | Learning procedures from experience (AWM, skill files) | 2 days, after the feedback plan |
@@ -333,6 +333,7 @@ What the baseline says about the roadmap:
 | M2 turn compaction (2026-10-30) | 2/2 (`long_thread`, `time_relative`, 1 run each) | `long_thread` 0/1 → **1/1**: max input per call 70,013 → **16,560**, mean 42,972 → **9,405** (−78%), 44 → 35 calls; turn-1 constraints still recalled | cache-read share 93% → 84% (each turn is compacted once, when the next starts) |
 | M3 episodic recall (2026-10-30) | 4/4 (`conversation_recall` ×3, `over_personalization` ×1) | `conversation_recall` 0/3 → **3/3** (all three shops named each time); no unprompted recall | fixed prompt ~4.5k (+ the `recall_conversations` schema and prompt line); no extra model calls per turn |
 | M4a user control (2026-10-30) | 2/2 (`forgetting`, `over_personalization`, 1 run each) | none (no eval case targets it); delete-all verified against Postgres: 0 rows left for the user, other users untouched | fixed prompt ~4.2k |
+| **Full suite after M0–M4a** (2026-10-30) | **22/22** (baseline 15/22) | every case passes | fixed prompt ~4.4k (baseline ~3.9k: new tools and prompt lines); long chat max **13,917** (baseline 70,013); mean per call 5,469 (baseline 16,781); 115 calls (baseline 139); cache-read share 74% (baseline 91%) |
 
 ## 9. Open questions
 

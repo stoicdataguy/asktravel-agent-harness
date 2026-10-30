@@ -15,6 +15,10 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
 
 ## Commands
 - Infra: `docker compose up -d` → Postgres :5433, Open WebUI http://localhost:3000, Langfuse http://localhost:3001
+  (Open WebUI's tables live in our Postgres, schema `open_webui`; an old SQLite install is copied over
+  once with `scripts/migrate_owui_to_postgres.py`, see its docstring)
+- Chat deletion e2e: `uv run python scripts/e2e_chat_deletion.py [--api …]` — a chat deleted in Open WebUI
+  loses its thread and chat-index entry (needs an API from current code)
   (Langfuse stack lives in `docker/langfuse.compose.yml`; local dev secrets only)
 - Run API: `uv run travel-agent` (or `uv run uvicorn travel_agent.api.app:app --reload`)
 - Guidebooks: `uv run travel-agent-ingest [--force]` converts `reference/*.pdf` → `data/guidebooks/*.md`
@@ -120,6 +124,9 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
 - Langfuse v4 runs in events-only mode: query traces via `/api/public/v2/observations`, not `/traces`.
 - Streaming shows each tool call to the user as a `🔧 name(args)` status line (from the agent's
   "updates" stream), so keep tool names and args human-readable.
+- Deleting a chat in Open WebUI is followed through by a trigger on `open_webui.chat` (installed by
+  the API, `chat_deletions.py`) plus the API's sync loop. Upgrading Open WebUI can change its tables:
+  rerun `e2e_chat_deletion.py` after an Open WebUI upgrade.
 - Open WebUI runs with `ENABLE_PERSISTENT_CONFIG=false`: docker-compose.yml is the source of truth for
   its settings (it otherwise disables signup in its DB after the first account). Admin-panel changes
   don't survive restarts; put them in compose instead.

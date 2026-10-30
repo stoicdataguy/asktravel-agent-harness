@@ -58,7 +58,7 @@ Verified by rating a message in a real browser session:
 ## Design
 
 ```
-Open WebUI ──👍/👎──▶ feedback table (Open WebUI's DB, moved to Postgres: open_webui db)
+Open WebUI ──👍/👎──▶ feedback table (open_webui schema in our travel_agent db, done in memory M4b)
                           │  AFTER INSERT/UPDATE/DELETE trigger
                           ▼
                  audit.feedback_events  (append-only, our travel_agent db)
@@ -144,7 +144,7 @@ Options considered:
 
 **Costs:**
 - **Coupling to Open WebUI's schema:** the trigger depends on its `feedback` table. A schema check at startup plus option A's nightly reconciliation catch Open WebUI upgrades that change it.
-- **Fresh start for Open WebUI's local data:** existing chats and accounts in its SQLite volume aren't carried over. That's acceptable for the current demo data. Re-create the demo account with `scripts/owui.py`.
+- **Done in memory M4b (#58):** Open WebUI already runs on our Postgres, in schema `open_webui` of the `travel_agent` database (one database, because a trigger can't write across databases), and the existing SQLite data was copied over with `scripts/migrate_owui_to_postgres.py`.
 
 The trigger is a small PL/pgSQL function. It extracts `rating`, `reason`, `comment`, `details`,
 `tags`, `chat_id` and `message_id` from the JSON, pulls the rated message and the prompt before

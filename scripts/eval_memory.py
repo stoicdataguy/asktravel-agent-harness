@@ -27,12 +27,14 @@ from langchain_core.messages import AIMessage, HumanMessage
 
 from travel_agent.agent.graph import build_agent
 from travel_agent.config import get_settings
+from travel_agent.consolidation import consolidate_user, llm_proposer
 from travel_agent.context import UserContext
+from travel_agent.llm import get_chat_model
 from travel_agent.memory import open_memory, user_namespace
 from travel_agent.observability import flush_traces, run_config
 from travel_agent.tools.trips import upsert_trip
 
-KINDS = ("memories", "trips", "itineraries", "chats")
+KINDS = ("memories", "trips", "itineraries", "chats", "memory_log")
 # The §6 target for input tokens per model call
 CALL_BUDGET = 25_000
 # Same pattern as e2e_memory.py: the agent asking for something it should already know
@@ -93,6 +95,13 @@ class Session:
             user_namespace(self.user, "memories"),
             key,
             {"value": value, "updated_at": datetime.now(UTC).isoformat()},
+        )
+
+    async def consolidate(self) -> list[dict] | None:
+        """Run the M5 consolidation pass now, as the API does once the user's chats go idle."""
+        model = get_chat_model().model_copy(update={"streaming": False})
+        return await consolidate_user(
+            self.store, self.checkpointer, llm_proposer(model), self.user, timedelta(0)
         )
 
     async def cleanup(self) -> None:
@@ -308,7 +317,10 @@ async def indirect_preference(s: Session) -> None:
 
 
 async def blob_cleanup(s: Session) -> None:
-    """A dislike already filed as an interest gets moved (the demo user's real case). (M5)"""
+    """A dislike already filed as an interest gets moved (the demo user's real case).
+
+    Failed 0/3 before M5: nothing revisited saved memory. Now the consolidation pass does.
+    """
     seeded = ["astronomy", "enjoys adventure sports but dislikes watersport activities"]
     await s.store.aput(
         user_namespace(s.user, "memories"),
@@ -316,6 +328,7 @@ async def blob_cleanup(s: Session) -> None:
         {"items": seeded, "value": "; ".join(seeded), "updated_at": datetime.now(UTC).isoformat()},
     )
     await s.say(s.new_chat(), "Any quick tips for a weekend in Lucerne? Two lines.")
+    await s.consolidate()  # the API runs this once the chat has been idle for a while
     items = await saved_items(s)
     s.check("watersports moved to dislikes", mentions(items, ("dislikes",), r"water"), str(items))
     s.check("no dislike left in interests", not mentions(items, LIKE_KEYS, r"dislike"), str(items))

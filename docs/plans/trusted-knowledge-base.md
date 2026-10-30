@@ -26,7 +26,7 @@ and in Langfuse.*
 
 | Part | How it works |
 |---|---|
-| **Content** | 5 Lonely Planet books (Big Island, Italy 2016, Peru, Thailand 2016, Switzerland), converted from PDF by `travel-agent-ingest` to markdown with `[p. N]` markers and TOC headings. Copyrighted: never committed |
+| **Content** | 7 Lonely Planet books (Big Island, Italy 2016, Peru, Spain 2016, Thailand 2016, Turkey 15th edition, Switzerland), converted from PDF by `travel-agent-ingest` to markdown with `[p. N]` markers and TOC headings. Copyrighted: never committed |
 | **Index** | None. Each book is parsed into paragraphs in memory at startup |
 | **Search** | `search_guidebooks(query, book?)`: counts how many query words appear in each paragraph as substrings (accents and ʻokina folded), plus a bonus for the exact phrase. No word weighting, no stemming, no synonyms |
 | **Read** | `read_guidebook_pages(book, start, end?)`: up to 4 pages, 15k characters |
@@ -43,7 +43,7 @@ and in Langfuse.*
 - **Retrieval by keyword only.** "Ice cream" misses "gelato"; "where to see lava" misses "volcano
   viewing". A paragraph that mentions a word once ranks like one about it.
 - **No measurement.** Nothing checks that answers are right or that cited pages contain the fact.
-- **Age and coverage.** The editions are 2016-era, and there are only 5 destinations.
+- **Age and coverage.** The editions are 2016-era, and there are only 7 destinations.
 
 ## 2. A knowledge base, not an agent
 
@@ -123,7 +123,7 @@ reference/*.pdf ──ingest──▶ data/guidebooks/*.md        (today)
 **Recommendation:**
 - **Measure first (K0).**
 - **Then try option 0.** It costs nothing and fixes ranking.
-- **Move to pgvector** if paraphrased questions still miss. At five books it's the right size, and
+- **Move to pgvector** if paraphrased questions still miss. At seven books it's the right size, and
   it shares the database, backups and connection pool with memory.
 - **Choose OpenSearch only when a trigger is hit:**
   - the corpus grows to hundreds of sources or several languages;

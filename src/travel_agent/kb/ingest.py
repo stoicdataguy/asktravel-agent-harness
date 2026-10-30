@@ -19,10 +19,20 @@ from travel_agent.config import get_settings
 _NOISE = re.compile(r"\((?:[^)]*z-lib[^)]*|[^)]*eBook[^)]*)\)|full pdf ebook", re.IGNORECASE)
 
 
+# "Title -- collection -- 2016 -- publisher -- isbn13 … -- hash -- source" style filenames
+_EDITION = re.compile(r"\b(?:19|20)\d{2}\b|\b\d+(?:st|nd|rd|th) edition\b", re.IGNORECASE)
+
+
 def slugify(pdf_name: str) -> str:
-    name = _NOISE.sub("", Path(pdf_name).stem)
-    # Drop remaining parentheticals (authors) but keep editions like "(2016)"
-    name = re.sub(r"\((?![^)]*\d{4})[^)]*\)", "", name)
+    stem = Path(pdf_name).stem
+    if " -- " in stem:
+        # Title from the first field; the year or edition from the metadata fields after it
+        title, *meta = stem.split(" -- ")
+        edition = next((m.group() for f in meta if (m := _EDITION.search(f))), "")
+        stem = f"{title} ({edition})" if edition else title
+    name = _NOISE.sub("", stem)
+    # Drop remaining parentheticals (authors) but keep editions like "(2016)" or "(15th edition)"
+    name = re.sub(r"\((?![^)]*(?:\d{4}|\d(?:st|nd|rd|th) edition))[^)]*\)", "", name)
     return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
 
 

@@ -95,6 +95,10 @@ For the rest:
 - a prompt line asks the model not to narrate before tool calls;
 - the timer then reads as "time spent researching".
 
+**Decision (2026-10-30):** the reasoning block is the default (`PROGRESS_STYLE=reasoning`). The
+demo account gets Always Expand Details in setup, and the README tells users where to turn it
+on. `inline` stays available.
+
 **What it changes in the design:**
 - **Live visibility needs the setting.** It's per user, so document it, and turn it on for the
   demo account in setup.

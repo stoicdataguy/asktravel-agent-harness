@@ -49,7 +49,7 @@ Measured gaps, longest first:
 | A hotel search (Playwright on Google Hotels) | 25–30 s each; two barely overlap | one `🔧 search_hotels(…)` line |
 | A model step deciding what to do next | 2–3 s, up to ~15 per research turn | nothing between `🔧` lines |
 | Parallel tool batches (76 seen, up to 10 tools) | 1–10 s | 10 lines at once, no sign of which finished |
-| Memory being written or recalled | instant | a raw `🔧 save_memory(key=…)` line |
+| Memory being written or recalled | instant | a `🔧 save_memory(key=…)` line, with no sign it worked |
 
 The first two are where users think the agent has hung.
 
@@ -93,17 +93,21 @@ agent.astream(stream_mode=["messages", "updates", "custom"])
 
 | Kind | Source | Example rendered line |
 |---|---|---|
-| `start` | stream opens | `Reading your trips and preferences…` (sent at once, so something shows in < 0.5 s) |
-| `tool_start` | `updates` (model step) | `Searching the Italy guidebook: "Rome neighbourhoods"` |
-| `tool_progress` | `custom` stream, from inside a tool | `Google Hotels: 12 hotels loaded, filtering by price` |
-| `tool_end` | `updates` (tools) | `✓ 8 passages found · 0.4 s` or `✗ no flights found · 3.1 s` |
-| `memory` | save/delete/recall tool calls | `Remembered: dislikes → overnight flights` |
-| `waiting` | model retry hook | `The model provider is busy; retrying in 20 s (attempt 2)` |
+| `start` | stream opens | `Starting…` (sent at once, so something shows in < 0.5 s) |
+| `tool_start` | `updates` (model step) | `` 🔧 search_guidebooks(query="Rome neighbourhoods", book="italy") `` |
+| `tool_progress` | `custom` stream, from inside a tool | `   Google Hotels: 12 hotels loaded, filtering by price` |
+| `tool_end` | `updates` (tools) | appended to the call's line: `→ ✓ 8 passages · 0.4 s` or `→ ✗ no flights found · 3.1 s` |
+| `waiting` | model retry hook | `⏳ The model provider is busy; retrying in 20 s (attempt 2)` |
 | `step` | a model step that follows tool results | `Reading the results…` |
 
-- **Human labels, not raw calls.** Each tool gets a short template in one table, e.g.
-  `search_flights` → "Checking fares {origin} → {destination}, {depart_date}". Unknown tools
-  fall back to today's `name(args)`.
+- **The tool calls stay visible.** Every line shows the real call, as `🔧 name(args)` does today
+  (args truncated the same way). Seeing which tools ran, with what arguments, is part of the
+  point: for users who want to know how an answer was found, and for debugging. What's new is the
+  outcome after it. Memory tools get the same treatment: `` 🔧 save_memory(key="dislikes",
+  value="overnight flights") → ✓ saved ``.
+- **Optional plain labels.** `PROGRESS_LABELS=calls|plain` (default `calls`). `plain` swaps the
+  call for a short phrase from one template table ("Checking fares JFK → FCO, Nov 23"), for
+  audiences who don't need tool names; unknown tools fall back to the call.
 - **Results summarised in code, not by the model.** A `summarize(tool, result)` per tool reads
   its compact result: hit counts, the cheapest fare, the number of hotels. No extra model calls.
 - **Parallel batches** print one start line per call, then each `✓` as it finishes. This needs
@@ -125,12 +129,13 @@ A research turn ("plan 3 days in Rome") in Open WebUI, while it runs:
 
 ```
 ▾ Thinking… 9s
-  Reading your trips and preferences…
-  Loading the itinerary-builder playbook ✓
-  Searching the Italy guidebook: "Rome one week itinerary" ✓ 6 passages
-  Reading Italy guidebook p. 65 ✓
-  Searching the Italy guidebook: "Colosseum Forum tickets" … 
-  Searching the Italy guidebook: "Vatican Museums booking" ✓ 5 passages
+  Starting…
+  🔧 load_skill(name="itinerary-builder") → ✓ playbook loaded
+  🔧 search_guidebooks(query="Rome one week itinerary", book="italy") → ✓ 6 passages · 0.4 s
+  Reading the results…
+  🔧 read_guidebook_pages(book="italy", start_page=65) → ✓ 1 page · 0.1 s
+  🔧 search_guidebooks(query="Colosseum Forum tickets", book="italy") …
+  🔧 search_guidebooks(query="Vatican Museums booking", book="italy") → ✓ 5 passages · 0.3 s
 ```
 
 When the answer starts, the block collapses to `▸ Thought for 14 s`. A later research step in
@@ -162,7 +167,7 @@ chat history keeps the collapsed blocks for the user to reopen; the model never 
 | Phase | Scope | Effort |
 |---|---|---|
 | **P0 Spike** | Stream a hand-made `reasoning_content` sequence (reasoning, content, reasoning, content) to Open WebUI; confirm the two blocks, the timers, what's stored, and that the next request omits them. Record screenshots here | ½ day |
-| **P1 Progress in reasoning blocks** | `ProgressEvent` + renderer; `start`, `tool_start`, `tool_end`, `memory`, `step`; human labels and code summaries for all 13 tools; `PROGRESS_STYLE` setting (+ `.env.example`); `e2e_progress.py` | 1–2 days |
+| **P1 Progress in reasoning blocks** | `ProgressEvent` + renderer; `start`, `tool_start`, `tool_end`, `step`; tool calls shown with their outcome, code summaries for all 13 tools; optional plain labels; `PROGRESS_STYLE` and `PROGRESS_LABELS` settings (+ `.env.example`); `e2e_progress.py` | 1–2 days |
 | **P2 Progress from inside tools** | `get_stream_writer` in `search_hotels` and `search_flights`; `"custom"` stream mode | ½ day |
 | **P3 Waiting is visible** | Model retries via a hook that emits `waiting` and logs the 429 body (with #51) | ½–1 day |
 | **P4 Docs** | architecture.html (data flow: progress channel), README screenshots, CLAUDE.md conventions (labels table, "progress never in `content`") | ½ day |
@@ -174,15 +179,15 @@ Each phase is one PR. P1 alone fixes the clutter; P2 and P3 fix the "is it stuck
 | Risk | Mitigation |
 |---|---|
 | Open WebUI changes how it handles `reasoning_content` | P0 records the behaviour; `e2e_progress.py` catches a change; `PROGRESS_STYLE=inline` is the fallback |
-| Reasoning blocks look like the model's thinking | Labels are plain actions ("Searching…", "Checking fares…"), not first-person thoughts; the block title is Open WebUI's |
+| Reasoning blocks look like the model's thinking | Lines are tool calls and their outcomes, not first-person thoughts; the block title is Open WebUI's |
 | Very long research turns make long blocks | One line per tool; collapsed by default once the answer starts |
-| Progress text leaks private arguments (emails, ids) | Labels template only chosen fields; trip ids and user ids never shown |
+| Progress text leaks private arguments | Same exposure as today's `🔧` lines (the user's own chat); the user id is never a tool argument. `plain` labels show only chosen fields |
 | Moving retries changes error behaviour | P3 keeps the same retry counts and backoff; `test_resilience.py` covers 429 → readable error |
 
 ## 9. Open questions
 
-- **Keep `🔧` lines as an option at all?** They help when debugging in other clients; `inline`
-  costs little to keep.
+- **Keep the old in-answer `🔧` lines as an option?** They help in clients that hide reasoning;
+  `PROGRESS_STYLE=inline` costs little to keep.
 - **Should the itinerary also stream progressively** (day by day) instead of appearing at once?
   It's produced by one tool call, so it would need a different design. Out of scope here.
 - **Percentages?** The agent can't know how many steps remain. Show counts ("3 of 5 searches

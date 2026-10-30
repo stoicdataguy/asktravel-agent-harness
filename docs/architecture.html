@@ -154,6 +154,17 @@ section.view { display: flex; flex-direction: column; gap: 40px; }
 .unit .mono { color: var(--ink); }
 .unit.planned { border-style: dashed; background: transparent; }
 .unit.planned h3::after { content: " · planned"; font: 500 11px var(--font-body); color: var(--muted); letter-spacing: 0.04em; }
+.multiagent { margin-top: 14px; border: 1.5px dashed var(--line); border-radius: 6px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.multiagent .ma-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+.multiagent .ma-head span { font-size: 12px; color: var(--muted); }
+.multiagent p { margin: 0; font-size: 13px; color: var(--muted); }
+.ma-flow { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: center; }
+.ma-box { border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; background: var(--surface); display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.ma-box span { color: var(--muted); }
+.ma-box.planned { border-style: dashed; background: transparent; }
+.ma-arrow { display: flex; flex-direction: column; align-items: center; gap: 2px; font: 500 11.5px var(--font-mono); color: var(--muted); text-align: center; }
+.ma-arrow .dir { font-size: 20px; line-height: 1; color: var(--ink); }
+@media (max-width: 640px) { .ma-flow { grid-template-columns: 1fr; } .ma-arrow .dir { transform: rotate(90deg); } }
 .unit.short { background: var(--short-bg); border-color: color-mix(in srgb, var(--short) 45%, transparent); }
 .unit.long { background: var(--long-bg); border-color: color-mix(in srgb, var(--long) 45%, transparent); }
 .unit.short h3 { color: var(--short); }
@@ -455,7 +466,7 @@ body { margin: 0; }
           </div>
           <div class="unit long">
             <h3>Memory tools</h3>
-            <ul><li class="mono">save_memory(key, value)</li><li class="mono">delete_memory(key)</li><li class="mono">save_trip_details · get_trip · delete_trip</li></ul>
+            <ul><li class="mono">save_memory(key, value, sensitive?)</li><li class="mono">delete_memory(key, item?)</li><li class="mono">save_trip_details · get_trip · delete_trip</li><li class="mono">recall_conversations(query)</li></ul>
           </div>
           <div class="unit long">
             <h3>Structured output</h3>
@@ -474,13 +485,22 @@ body { margin: 0; }
             <ul><li class="mono">fetch_page (#7)</li></ul>
           </div>
           <div class="unit planned">
-            <h3>Guidebook subagent</h3>
-            <ul><li class="mono">ask_guidebook (#11)</li></ul>
+            <h3>Guidebook research subagent</h3>
+            <ul><li class="mono">ask_guidebook(question, destination?)</li><li>Replaces the three guidebook tools (#34, <a href="https://github.com/stoicdataguy/travel-agent-react/blob/main/docs/plans/kb-subagent.md">plan</a>)</li></ul>
           </div>
           <div class="unit planned">
             <h3>MCP tools</h3>
             <ul><li>from mcp.json (#12)</li></ul>
           </div>
+        </div>
+        <div class="multiagent">
+          <div class="ma-head"><b>Planned · multi-agent research</b><span>subagent-as-tool pattern · <a href="https://github.com/stoicdataguy/travel-agent-react/blob/main/docs/plans/kb-subagent.md">plan</a> · #34</span></div>
+          <div class="ma-flow">
+            <div class="ma-box"><b>Travel agent</b><span>Talks to the user. Keeps memories, trips, skills, flights, hotels and the itinerary. Asks research questions, possibly several in parallel.</span></div>
+            <div class="ma-arrow"><span>ask_guidebook(question, destination)</span><span class="dir" aria-hidden="true">⇄</span><span>short answer + citations</span></div>
+            <div class="ma-box planned"><b>Guidebook research agent</b><span>Own ReAct loop over list / search / read pages, capped at ~10 calls. Stateless: no checkpointer, no store, no user memory. Its context is thrown away after each question.</span></div>
+          </div>
+          <p>Why: a research turn makes a median of 8 guidebook calls and reads ~6.6k tokens of pages, and every main-agent step resends them with the full prompt. Later, a second research agent with <span class="mono">fetch_page</span> (#33) uses the same contract.</p>
         </div>
       </div>
 
@@ -763,7 +783,7 @@ conversations. What you know so far:
     <span class="eyebrow">Current MVP</span>
     <h1>What the agent can do</h1>
     <p class="lead">Tools are actions the agent can take: Python functions it calls with arguments. Skills are instructions: markdown playbooks it reads before tackling a kind of request. Skills tell the agent which tools to use and how.</p>
-    <div class="counts"><span><b>12</b>tools</span><span><b>7</b>skills</span><span><b>9/9</b>skill trigger cases passing</span><span><b>3</b>tools planned</span></div>
+    <div class="counts"><span><b>13</b>tools</span><span><b>7</b>skills</span><span><b>9/9</b>skill trigger cases passing</span><span><b>3</b>tools planned</span></div>
   </div>
 
   <div class="kinds">
@@ -805,7 +825,7 @@ conversations. What you know so far:
           <tr><td>Present itinerary</td><td class="sig">present_itinerary(itinerary)</td><td>Takes a Pydantic <code>Itinerary</code> (days → activities, stays, bookings, caveats). Validation errors go back to the model; valid plans render as formatted markdown in the chat and are filed under a trip (created if new).</td><td><span class="badge long">store · (email, itineraries)</span><span class="badge chat">chat output</span></td></tr>
           <tr class="group"><td colspan="4">Planned</td></tr>
           <tr class="planned"><td>Fetch page</td><td class="sig">fetch_page(url)</td><td>Playwright fetch → readable text.</td><td><span class="badge planned">#7</span></td></tr>
-          <tr class="planned"><td>Ask guidebook</td><td class="sig">ask_guidebook(question, destination)</td><td>Guidebook subagent that returns a cited summary, replacing the three guidebook tools on the main agent.</td><td><span class="badge planned">#11</span></td></tr>
+          <tr class="planned"><td>Ask guidebook</td><td class="sig">ask_guidebook(question, destination)</td><td>Research subagent with its own ReAct loop over the three guidebook tools; returns a short, cited answer, so raw pages never enter the travel agent's context. No access to user memory.</td><td><span class="badge planned">#34</span></td></tr>
           <tr class="planned"><td>MCP tools</td><td class="sig">from mcp.json</td><td>Tools from MCP servers (e.g. weather, currency).</td><td><span class="badge planned">#12</span></td></tr>
         </tbody>
       </table>

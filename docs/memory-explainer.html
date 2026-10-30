@@ -292,7 +292,7 @@ footer { color: var(--muted); font-size: 13px; padding-bottom: 40px; display: fl
       <div class="stores">
         <div class="store t-epi"><span class="pill">episodic</span><h3>Checkpointer</h3><span class="mono">Postgres · checkpoints</span><p>Every chat's full history, one thread per email + chat. Past chats are searchable with <span class="mono">recall_conversations</span>.</p></div>
         <div class="store t-sem"><span class="pill">semantic</span><h3>Store</h3><span class="mono">Postgres · store (jsonb)</span><p>Profile facts (with provenance), trips (stable ids), itineraries and a chat index per user.</p></div>
-        <div class="store t-sem"><span class="pill">semantic</span><h3>Guidebooks</h3><span class="mono">files · data/guidebooks/*.md</span><p>5 Lonely Planet books, keyword search.</p></div>
+        <div class="store t-sem"><span class="pill">semantic</span><h3>Guidebooks</h3><span class="mono">files · data/guidebooks/*.md</span><p>7 Lonely Planet books, keyword search.</p></div>
         <div class="store t-proc"><span class="pill">procedural</span><h3>Skills and prompts</h3><span class="mono">files · skills/*.md + code</span><p>7 playbooks loaded on demand; rules; tool docstrings.</p></div>
       </div>
     </div>
@@ -374,7 +374,7 @@ footer { color: var(--muted); font-size: 13px; padding-bottom: 40px; display: fl
       <dl>
         <dt>About the user</dt><dd>Profile facts (diet, home airport…) and trips (dates, stay, travellers, linked itinerary)</dd>
         <dt>Stored in</dt><dd><span class="mono">AsyncPostgresStore</span>, namespaces <span class="mono">(email, memories)</span>, <span class="mono">(email, trips)</span>, <span class="mono">(email, itineraries)</span>, <span class="mono">(email, chats)</span></dd>
-        <dt>About the world</dt><dd>5 Lonely Planet guidebooks as markdown; live flights and hotels (fetched, never stored)</dd>
+        <dt>About the world</dt><dd>7 Lonely Planet guidebooks as markdown; live flights and hotels (fetched, never stored)</dd>
         <dt>Shape</dt><dd>A <a href="https://docs.langchain.com/oss/python/concepts/memory#semantic-memory">collection</a>: one small document per fact or trip, not one big profile</dd>
         <dt>Hygiene</dt><dd>Trips keep one stable id and are matched on write; likes and interests are lists; every fact records its chat; sensitive facts are marked</dd>
         <dt>Gap</dt><dd>No expiry yet (M6)</dd>

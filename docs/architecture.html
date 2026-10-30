@@ -499,7 +499,7 @@ body { margin: 0; }
         <div class="future">
           <div class="fu-head"><b>Future state · trusted knowledge base</b><span>retrieval-augmented generation behind the existing tools</span></div>
           <div class="fu-flow">
-            <div class="fu-box"><b>Today</b><span>5 Lonely Planet guidebooks (2016 editions) as markdown on disk. <span class="mono">search_guidebooks</span> does in-process keyword search over paragraphs; <span class="mono">read_guidebook_pages</span> returns up to 4 pages by page number.</span></div>
+            <div class="fu-box"><b>Today</b><span>7 Lonely Planet guidebooks (2016-era editions) as markdown on disk. <span class="mono">search_guidebooks</span> does in-process keyword search over paragraphs; <span class="mono">read_guidebook_pages</span> returns up to 4 pages by page number.</span></div>
             <div class="fu-arrow"><span>same tool contract</span><span class="dir" aria-hidden="true">→</span><span>agent unchanged</span></div>
             <div class="fu-box planned"><b>Indexed and searched by meaning</b><span>Curated sources only (guidebooks, vetted official pages), chunked by section with book, edition, page and date. Hybrid retrieval: keyword (BM25) plus vector similarity, re-ranked, every result carrying its citation.</span></div>
           </div>
@@ -529,7 +529,7 @@ body { margin: 0; }
           </div>
           <div class="unit">
             <h3>Files</h3>
-            <ul><li class="mono">data/guidebooks/*.md</li><li>5 Lonely Planet books, extracted from PDFs</li><li class="mono">skills/*.md</li></ul>
+            <ul><li class="mono">data/guidebooks/*.md</li><li>7 Lonely Planet books, extracted from PDFs</li><li class="mono">skills/*.md</li></ul>
           </div>
         </div>
       </div>
@@ -581,7 +581,7 @@ body { margin: 0; }
           <tr><td>Agent</td><td>LangChain v1 create_agent</td><td class="mono">agent/graph.py · agent/prompts.py · agent/compaction.py</td><td>ReAct loop, dynamic prompt middleware, turn compaction middleware</td></tr>
           <tr class="short"><td>Short-term memory</td><td>AsyncPostgresSaver</td><td class="mono">memory.py</td><td>Per-chat message history, checkpointed each step</td></tr>
           <tr class="long"><td>Long-term memory</td><td>AsyncPostgresStore</td><td class="mono">tools/memory.py · tools/itinerary.py</td><td>Per-user facts and itineraries across chats</td></tr>
-          <tr><td>Guidebooks</td><td>PyMuPDF + keyword search</td><td class="mono">kb/ingest.py · tools/guidebooks.py</td><td>Cited research from 5 Lonely Planet guides</td></tr>
+          <tr><td>Guidebooks</td><td>PyMuPDF + keyword search</td><td class="mono">kb/ingest.py · tools/guidebooks.py</td><td>Cited research from 7 Lonely Planet guides</td></tr>
           <tr><td>Skills</td><td>Markdown + YAML frontmatter</td><td class="mono">skills/*.md</td><td>Task playbooks loaded on demand</td></tr>
           <tr><td>Hotel search</td><td>Playwright (Google Hotels)</td><td class="mono">tools/hotels.py</td><td>Live nightly rates, ratings and booking links</td></tr>
           <tr><td>Flight search</td><td>fast-flights (Google Flights)</td><td class="mono">tools/flights.py</td><td>Live fares, times and booking links</td></tr>
@@ -778,7 +778,7 @@ conversations. What you know so far:
     <ul class="gaps">
       <li><span class="sev">Trust</span><b>Identity comes from a header.</b><span>The agent API trusts <code>X-OpenWebUI-User-Email</code>, and <code>/api/memory</code> can read or delete a user's data, so a forged header reaches someone else's memory. Fine on a laptop; before any deployment it needs a bearer token and a private network (#27).</span></li>
       <li><span class="sev">Retention</span><b>Nothing expires.</b><span>Checkpoints are never pruned and memories have no TTL (the store already supports <code>ttl_minutes</code>; planned as M6). Users can delete everything themselves with <code>DELETE /api/memory</code>, and deleting a chat in Open WebUI now deletes its thread. Its saved itinerary stays with the trip on purpose.</span></li>
-      <li><span class="sev">Knowledge</span><b>The knowledge base is keyword search over 2016 guidebooks.</b><span>Only 5 destinations, editions years out of date (the agent flags prices and hours), and no search by meaning: a question worded differently from the book can miss. Future state: a trusted, indexed knowledge base (above).</span></li>
+      <li><span class="sev">Knowledge</span><b>The knowledge base is keyword search over 2016 guidebooks.</b><span>Only 7 destinations, editions years out of date (the agent flags prices and hours), and no search by meaning: a question worded differently from the book can miss. Future state: a trusted, indexed knowledge base (above).</span></li>
       <li><span class="sev">Quality</span><b>Research answers aren't measured.</b><span>Memory has an eval suite (22/22) but guidebook answers don't: nothing checks that facts are right or that page citations point at the right page. Needed before changing retrieval.</span></li>
       <li><span class="sev">Capacity</span><b>The model provider rate-limits at about 20 requests a minute.</b><span>Busy minutes trigger 429s, and retries add 30–50 s waits. Not yet known whether the limit is OpenRouter's or the upstream provider's (#51).</span></li>
       <li><span class="sev">Coupling</span><b>Chat deletion depends on Open WebUI's tables.</b><span>A trigger on <code>open_webui.chat</code> queues deletions. An Open WebUI upgrade that changes that table would silently stop it; rerun <code>e2e_chat_deletion.py</code> after upgrading.</span></li>
@@ -816,7 +816,7 @@ conversations. What you know so far:
         <thead><tr><th>Tool</th><th>Signature</th><th>What it does</th><th>Reads / writes</th></tr></thead>
         <tbody>
           <tr class="group"><td colspan="4">Guidebook research</td></tr>
-          <tr><td>List guidebooks</td><td class="sig">list_guidebooks()</td><td>Lists the 5 Lonely Planet books with page counts and chapters, so the agent knows what's covered.</td><td><span class="badge files">data/guidebooks/*.md</span></td></tr>
+          <tr><td>List guidebooks</td><td class="sig">list_guidebooks()</td><td>Lists the 7 Lonely Planet books with page counts and chapters, so the agent knows what's covered.</td><td><span class="badge files">data/guidebooks/*.md</span></td></tr>
           <tr><td>Search guidebooks</td><td class="sig">search_guidebooks(query, book?, max_results?)</td><td>Keyword search over paragraphs. Each hit carries its book, page and section path. Ignores accents and ʻokina; skips contents, index and map keys.</td><td><span class="badge files">data/guidebooks/*.md</span></td></tr>
           <tr><td>Read pages</td><td class="sig">read_guidebook_pages(book, start_page, end_page?)</td><td>Full text of up to 4 pages around a hit, grouped by section, for detail and citations.</td><td><span class="badge files">data/guidebooks/*.md</span></td></tr>
           <tr class="group"><td colspan="4">Live travel search</td></tr>

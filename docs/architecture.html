@@ -613,7 +613,7 @@ body { margin: 0; }
       <li><div><b>The agent loads the thread.</b><span>The checkpointer restores this chat's message history from Postgres.</span></div></li>
       <li><div><b>The middleware builds the prompt.</b><span>Base instructions, the skills list and the user's saved facts from the store. Earlier turns are sent compacted: question, answer and a note of the tools used.</span></div></li>
       <li><div><b>The model works through tools.</b><span>It may load a skill, search the guidebooks, save a fact or present an itinerary. Each step is checkpointed.</span></div></li>
-      <li><div><b>The API streams back.</b><span>Tokens, a 🔧 status line per tool call, and any rendered itinerary, as OpenAI-style SSE chunks.</span></div></li>
+      <li><div><b>The API streams back.</b><span>Answer tokens and any rendered itinerary as <code>content</code>; progress (each tool call with its outcome) as <code>reasoning_content</code>, which Open WebUI shows in a collapsible block above the answer and doesn't resend. OpenAI-style SSE chunks.</span></div></li>
       <li><div><b>Everything is traced.</b><span>Langfuse records the turn under the chat's session and the user's email.</span></div></li>
     </ol>
   </div>
@@ -721,7 +721,7 @@ body { margin: 0; }
         </tbody>
       </table>
     </div>
-    <p class="seq-caption">Only user messages are compared: Open WebUI's copy of each answer includes tool status lines and rendered itineraries, so it never matches the model's own messages exactly. Covered by <code>tests/test_thread_sync.py</code> and the browser test <code>scripts/e2e_branching.py</code>.</p>
+    <p class="seq-caption">Only user messages are compared: Open WebUI's copy of each answer includes rendered itineraries (and, in older chats or with <code>PROGRESS_STYLE=inline</code>, progress lines), so it never matches the model's own messages exactly. Covered by <code>tests/test_thread_sync.py</code> and the browser test <code>scripts/e2e_branching.py</code>.</p>
   </div>
 
   <div class="block">
@@ -894,7 +894,7 @@ conversations. What you know so far:
         <tr><td class="l">2 × <span class="mono">search_hotels</span> (barely overlaps: likely serialised inside the browser tool)</td><td>51 s</td><td>61 s</td></tr>
       </tbody>
     </table></div>
-    <p class="sub">To see it: ask for something that needs several searches ("compare fares to Rome from JFK and EWR"). Several <span class="mono">🔧</span> lines appear before any answer, and in Langfuse the tool spans overlap on the trace timeline.</p>
+    <p class="sub">To see it: ask for something that needs several searches ("compare fares to Rome from JFK and EWR"). Several <span class="mono">🔧</span> lines appear together in the progress block before any answer, and in Langfuse the tool spans overlap on the trace timeline.</p>
   </div>
 
   <div class="block cw-example">
@@ -923,7 +923,7 @@ conversations. What you know so far:
     <div class="kind">
       <span class="eyebrow">Tools</span>
       <h3>Typed functions the model calls</h3>
-      <p>The model sees each tool's name, arguments and docstring. Every call appears in the chat as a <code>🔧 name(args)</code> line and in Langfuse as its own step. Tools never raise into the loop; they return an error message the model can act on.</p>
+      <p>The model sees each tool's name, arguments and docstring. Every call appears in the progress block above the answer as a <code>🔧 name(args)</code> line with its outcome and in Langfuse as its own step. Tools never raise into the loop; they return an error message the model can act on.</p>
     </div>
     <div class="kind">
       <span class="eyebrow">Skills</span>
@@ -1080,7 +1080,7 @@ conversations. What you know so far:
     [3, 5, "model call with updated facts", "req"],
     [5, 3, "final answer tokens", "req", true],
     [3, 2, "final checkpoint", "short"],
-    [1, 0, "SSE: status lines + answer", "req", true],
+    [1, 0, "SSE: progress block + answer", "req", true],
     [0, 0, "Open WebUI saves its own copy", ""]
   ];
   var seq = document.getElementById("seq");

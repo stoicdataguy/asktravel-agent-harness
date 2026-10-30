@@ -25,6 +25,25 @@ def get_token(base_url: str, name: str, email: str, password: str) -> str:
         return _post(f"{base_url}/api/v1/auths/signup", payload)["token"]
 
 
+def expand_details(base_url: str, token: str) -> None:
+    """Turn on Open WebUI's "Always Expand Details" for this user.
+
+    The agent streams its progress (tool calls and outcomes) as a collapsible reasoning block;
+    with this per-user setting the block stays open, so the lines show live while it works.
+    """
+    headers = {"authorization": f"Bearer {token}", "content-type": "application/json"}
+    request = urllib.request.Request(f"{base_url}/api/v1/users/user/settings", headers=headers)
+    settings = json.load(urllib.request.urlopen(request)) or {}
+    settings.setdefault("ui", {})["expandDetails"] = True
+    request = urllib.request.Request(
+        f"{base_url}/api/v1/users/user/settings/update",
+        data=json.dumps(settings).encode(),
+        headers=headers,
+        method="POST",
+    )
+    urllib.request.urlopen(request).read()
+
+
 def delete_chat(base_url: str, token: str, chat_id: str) -> None:
     request = urllib.request.Request(
         f"{base_url}/api/v1/chats/{chat_id}",

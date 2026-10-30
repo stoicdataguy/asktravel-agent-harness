@@ -14,7 +14,7 @@ import json
 import time
 from pathlib import Path
 
-from owui import get_token, wait_for_answer
+from owui import expand_details, get_token, wait_for_answer
 from PIL import Image
 from playwright.async_api import Page, async_playwright
 
@@ -55,6 +55,7 @@ async def scroll_review(page: Page, step_px: int, pause_ms: int) -> None:
 
 async def record(args) -> tuple[list[tuple[float, bytes]], float, float]:
     token = get_token(args.base_url, "Demo Traveller", args.email, args.password)
+    expand_details(args.base_url, token)  # show the agent's progress live
     frames: list[tuple[float, bytes]] = []
     stop = asyncio.Event()
     async with async_playwright() as p:

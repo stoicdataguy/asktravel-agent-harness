@@ -422,6 +422,9 @@ footer { color: var(--muted); font-size: 13px; padding-block: 0 40px; }
 .cw-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .cw-cards div { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; font-size: 13.5px; }
 .cw-cards span { color: var(--muted); }
+.cw-steps { margin: 0; padding-left: 20px; display: grid; gap: 6px; font-size: 13.5px; }
+.cw-steps li span.mono, .cw-parallel .sub span.mono { font-size: 0.92em; }
+.cw table.cw-small { min-width: 480px; }
 .cw-example h2 { font-size: 20px; }
 .cw-example .lead { font-size: 14.5px; color: var(--muted); max-width: 80ch; }
 .cw #cw-table { min-width: 860px; }
@@ -872,6 +875,26 @@ conversations. What you know so far:
     <div><b>Within a turn: append only</b><span>Each step adds the model's tool calls and their results to the end. The window grows (turn 5: 7k → 26k across 7 calls while the agent reads guidebook pages), but everything before the new results is read from cache.</span></div>
     <div><b>At a new turn: compact once</b><span>The previous turn's tool results are dropped, leaving its question, answer and a one-line note. The window falls back (26k → 11k at turn 6) and the new request still extends one the cache holds.</span></div>
     <div><b>When the cache misses</b><span>Turns 13–15 each present a new itinerary. Compaction keeps only the latest plan, so the earlier one leaves the middle of the window and ~7k tokens are rewritten. A new day or a mid-turn memory save does the same (#55).</span></div>
+  </div>
+
+  <div class="cw-chart cw-parallel">
+    <h3>Parallel tool calls: one step, several tools at once</h3>
+    <p class="sub">This ReAct agent doesn't have to act one tool at a time. In a single step the model can ask for several tools, and they all run at the same moment. The bars above show it: <b>turn 12, call 4</b> asked for two guidebook searches and three page reads in one response. That's why a research turn takes a median of 3 model steps for 8 guidebook calls.</p>
+    <ol class="cw-steps">
+      <li><b>The model asks for several tools in one response.</b> Parallel tool calls are on by default for this model (OpenAI, via OpenRouter); nothing in the code turns them off.</li>
+      <li><b>LangGraph runs them concurrently.</b> <span class="mono">create_agent</span> sends each tool call to the tools node as its own task, and tasks in the same step run together. Sync tools (the guidebook search) run in worker threads; <span class="mono">search_flights</span> runs its blocking library in a thread; <span class="mono">search_hotels</span> is async.</li>
+      <li><b>The model sees all the results in its next step,</b> appended to the window together, so the cache still reads everything before them.</li>
+    </ol>
+    <div class="table-scroll"><table class="cw-small">
+      <thead><tr><th class="l">Measured in Langfuse (last 3 days, 1,000 tool runs)</th><th>Together</th><th>One after another</th></tr></thead>
+      <tbody>
+        <tr><td class="l">76 batches where 2+ tools ran at the same moment (up to 10)</td><td>114 s</td><td>205 s</td></tr>
+        <tr><td class="l">10 × <span class="mono">search_flights</span></td><td>1.2 s</td><td>9.0 s</td></tr>
+        <tr><td class="l">3 × <span class="mono">search_guidebooks</span> + 2 × <span class="mono">search_flights</span></td><td>3.3 s</td><td>12.2 s</td></tr>
+        <tr><td class="l">2 × <span class="mono">search_hotels</span> (barely overlaps: likely serialised inside the browser tool)</td><td>51 s</td><td>61 s</td></tr>
+      </tbody>
+    </table></div>
+    <p class="sub">To see it: ask for something that needs several searches ("compare fares to Rome from JFK and EWR"). Several <span class="mono">🔧</span> lines appear before any answer, and in Langfuse the tool spans overlap on the trace timeline.</p>
   </div>
 
   <div class="block cw-example">

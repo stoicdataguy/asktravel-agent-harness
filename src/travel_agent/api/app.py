@@ -10,6 +10,7 @@ from travel_agent.config import get_settings
 from travel_agent.memory import open_memory
 from travel_agent.observability import check_tracing_config, flush_traces
 from travel_agent.tools.itinerary import list_itineraries
+from travel_agent.tools.memory import migrate_memories
 from travel_agent.tools.trips import backfill_trips, migrate_trip_ids
 
 
@@ -17,6 +18,7 @@ from travel_agent.tools.trips import backfill_trips, migrate_trip_ids
 async def lifespan(app: FastAPI):
     check_tracing_config()
     async with open_memory(get_settings().database_url) as (checkpointer, store):
+        await migrate_memories(store)
         await migrate_trip_ids(store)
         await backfill_trips(store)
         app.state.store = store

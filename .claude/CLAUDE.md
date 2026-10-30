@@ -70,6 +70,11 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
   (`save_trip_details`, per-trip details). Both are injected into the prompt by the middleware;
   `present_itinerary` always files the plan under a trip. Store values must be JSON-safe
   (`model_dump(mode="json")` for models with dates).
+- Profile facts: keys in `tools/memory.LIST_KEYS` (likes, dislikes, interests) are lists: a save
+  adds de-duplicated items (`{"items": [...], "value": "a; b"}`), never rewrites. Other keys
+  overwrite, and the tool result shows the old value. Every fact carries `source` (thread id),
+  `confirmed_at` and `updated_at`. Read facts via `value`; reshape old rows in a startup migration
+  (`migrate_memories`) rather than in readers.
 - Store/checkpointer are async Postgres: anything touching them (tools, middleware) must be
   `async def` and use `aput`/`asearch`/…; sync calls fail inside the event loop.
 - Identity: `user_id` = `X-OpenWebUI-User-Email` header (lowercased), passed as `UserContext` runtime
@@ -79,7 +84,13 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
   empty (forked) thread from the transcript, or rewind/replace on regenerate and edit. Clients must
   send the full transcript, as OpenAI-style clients do.
 - After changing memory, prompts or tools, run `uv run python scripts/e2e_memory.py` (cross-chat memory)
-  and `scripts/eval_memory.py`, and report pass rates and tokens per call against the plan's baseline.
+  and the `eval_memory.py` cases the change can affect, and report pass rates against the plan's §8.
+- **Live test budget (they're slow, ~20 model calls/min):** while coding, unit tests only. Before a
+  PR, only the eval cases the change can affect, once each (`--only a,b --runs 1`), plus the one
+  e2e script that covers the feature. The full 3-run suite (~15 min) only when a phase targets a
+  number in the plan (e.g. M2 tokens, M3 recall). Run live suites in the background and keep working.
+- A worktree can test against its own server: run it on another port and pass `--api` to
+  `e2e_memory.py` (other e2e scripts still assume :8000).
 - Token usage per model call (input, cache read, cache write) is on every Langfuse generation;
   OpenRouter does cache `gpt-6-luna` prompts, so keep the start of the prompt stable.
 - After changing flight or hotel search, run `uv run python scripts/e2e_flights.py` / `e2e_hotels.py`

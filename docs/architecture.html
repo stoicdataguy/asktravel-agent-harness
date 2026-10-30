@@ -700,7 +700,13 @@ body { margin: 0; }
 prefix  <span class="l">ana@example%2Ecom.memories</span>
 key     <span class="l">diet</span>
 value   {"value": "vegetarian",
-         "updated_at": "2026-10-28T05:14:47+00:00"}</pre>
+         "updated_at": "2026-10-28T05:14:47+00:00",
+         "confirmed_at": "2026-10-28T05:14:47+00:00",
+         "source": "ana@example.com:c1"}
+<span class="c">-- likes, dislikes, interests are lists; value joins the items</span>
+key     <span class="l">interests</span>
+value   {"items": ["astronomy", "hiking"],
+         "value": "astronomy; hiking", …}</pre>
       </div>
       <div class="sample">
         <h3>An itinerary row</h3>
@@ -785,8 +791,8 @@ conversations. What you know so far:
           <tr class="group"><td colspan="4">Skills</td></tr>
           <tr><td>Load skill</td><td class="sig">load_skill(name)</td><td>Returns a playbook's full instructions. Unknown names get the list of available skills.</td><td><span class="badge files">skills/*.md</span></td></tr>
           <tr class="group"><td colspan="4">Long-term memory</td></tr>
-          <tr><td>Save memory</td><td class="sig">save_memory(key, value)</td><td>Stores a lasting fact under a snake_case topic (diet, home_airport…). Reusing a key updates it.</td><td><span class="badge long">store · (email, memories)</span></td></tr>
-          <tr><td>Delete memory</td><td class="sig">delete_memory(key)</td><td>Forgets a saved fact when the user asks or it's wrong.</td><td><span class="badge long">store · (email, memories)</span></td></tr>
+          <tr><td>Save memory</td><td class="sig">save_memory(key, value)</td><td>Stores a lasting fact under a snake_case topic (diet, home_airport…). Reusing a key replaces it and reports the old value; likes, dislikes and interests are lists that each save adds one item to.</td><td><span class="badge long">store · (email, memories)</span></td></tr>
+          <tr><td>Delete memory</td><td class="sig">delete_memory(key, item?)</td><td>Forgets a saved fact when the user asks or it's wrong, or one item of a list key.</td><td><span class="badge long">store · (email, memories)</span></td></tr>
           <tr><td>Save trip details</td><td class="sig">save_trip_details(destination, trip_id?, start_date?, end_date?, travellers?, lodging?, transport?, budget?, note?)</td><td>Creates or updates a trip. Without a known id, reuses the one upcoming trip with matching destination words and dates. Scalars overwrite; lodging, transport and notes accumulate.</td><td><span class="badge long">store · (email, trips)</span></td></tr>
           <tr><td>Get trip</td><td class="sig">get_trip(trip_id)</td><td>Everything saved about a trip, plus its full day-by-day itinerary, for use in a new chat.</td><td><span class="badge long">store · trips + itineraries</span></td></tr>
           <tr><td>Delete trip</td><td class="sig">delete_trip(trip_id)</td><td>Forgets a trip when it's cancelled or the user asks.</td><td><span class="badge long">store · (email, trips)</span></td></tr>

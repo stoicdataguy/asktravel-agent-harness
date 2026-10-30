@@ -87,7 +87,7 @@ Open WebUI (:3000) ── OpenAI-compatible HTTP + X-OpenWebUI-User-Email / -Cha
 | 10 | Skills + trigger eval | ✅ Done |
 | 11 | Trusted knowledge base (pgvector / OpenSearch retrieval) | ⬜ Planned |
 | 12 | MCP tools | ⬜ Planned |
-| 13 | Streaming polish | ⬜ Planned |
+| 13 | Streaming polish: agent progress | ✅ Done (#81 and the P2–P4 follow-ups, issue #36) |
 | 14 | AWS deployment | ⬜ Planned |
 
 ### Next up
@@ -133,6 +133,16 @@ See [Deployment on AWS](#deployment-on-aws). The first step, locking down the ag
 worth doing even before any deployment.
 
 ### Done: notes and deviations
+
+- **#13 Agent progress (issue #36, [plan](plans/streaming-progress.md)):** progress streams as
+  Open WebUI reasoning blocks (`reasoning_content`) instead of `🔧` lines in the answer:
+  - each tool call with its outcome, summarised in code;
+  - slow tools report their own steps (`tools/report.py`; hotels);
+  - model retries are visible (`⏳`, `agent/retry.py`), and each retried failure is logged for #51.
+
+  The P0 spike corrected the design: Open WebUI shows one block above the answer, not one per
+  research step, and the lines show live only with its per-user "Always Expand Details" setting.
+  First progress now appears in ~0.3 s (was ~2 s).
 
 - **#4 Guidebook ingestion:** one paragraph per line, PDF bookmarks as markdown headings, `[p. N]`
   page markers. Icon-font glyphs and soft hyphens are stripped.

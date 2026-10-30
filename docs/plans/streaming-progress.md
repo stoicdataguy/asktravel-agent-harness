@@ -3,8 +3,9 @@
 **Goal:** while the agent works, show the user what it's doing, how far along it is and why it's
 waiting, without cluttering the answer, without slowing the agent, and without building our own UI.
 
-*Status: proposal, 2026-10-30. Supersedes issue #36 ("streaming polish"). Open WebUI behaviour
-checked in its 0.12.4 source; timings from Langfuse.*
+*Status: done, 2026-10-30 (P0–P4). Supersedes issue #36 ("streaming polish"). Open WebUI
+behaviour checked in its 0.12.4 source and in the P0 spike; timings from Langfuse and
+`e2e_progress.py`.*
 
 ## Contents
 
@@ -208,7 +209,7 @@ The chat history keeps the block for the user to reopen; the model never sees it
 | **P1 Progress in reasoning blocks** ✅ | `api/progress.py` (`ProgressRenderer`, `summarize()` for all 13 tools, optional plain labels); `PROGRESS_STYLE` / `PROGRESS_LABELS`; prompt line against narrating before tool calls; demo account gets Always Expand Details (`owui.expand_details`); `e2e_progress.py` 6/6, with first progress visible in **0.3 s** (was ~2 s) | 1–2 days |
 | **P2 Progress from inside tools** ✅ | `tools/report.py` (`report(runtime, text)` via LangGraph's custom stream; a no-op outside a stream; logs step timings); `search_hotels` reports 4 steps; the API streams `"custom"` and renders `⋯` lines. Flights skipped (1–3 s, one blocking call). Timing the steps showed two hotel searches overlap fully (9.2 s together): the 51 s trace was a slow Google response, not serialisation. `e2e_progress` 13/13 with a hotel case | ½ day |
 | **P3 Waiting is visible** ✅ | `agent/retry.py`: a retry middleware owns the agent's model retries (client `max_retries=0`): 429/408/409/5xx/timeouts/connection errors, Retry-After (≤ 60 s) or exponential backoff, a `⏳` progress line before each wait, and a WARNING log of status, rate-limit headers and body for #51. The "forced 429" check is an API-level test (`tests/test_retry.py`: the real app and stream with a model raising genuine `RateLimitError`s) rather than a test switch in production code | ½–1 day |
-| **P4 Docs** | architecture.html (data flow: progress channel), README screenshots, CLAUDE.md conventions (labels table, "progress never in `content`") | ½ day |
+| **P4 Docs** ✅ | README ("Agent progress" section, the Always Expand Details setting, example lines), CLAUDE.md conventions (P1–P3), architecture.html (data flow, tools, parallel-calls note, corrected hotel timing, Capacity gap), PLAN.md #13 done, and a re-recorded demo GIF showing the progress block | ½ day |
 
 Each phase is one PR. P1 alone fixes the clutter; P2 and P3 fix the "is it stuck?" moments.
 

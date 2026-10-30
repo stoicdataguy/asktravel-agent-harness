@@ -8,9 +8,10 @@ can be the frontend.
 
 ![Demo: the agent searches Lonely Planet guidebooks with tool calls, then answers with a cited 3-day plan](docs/demo.gif)
 
-*Open WebUI talking to the agent: each `🔧` line is a tool call (guidebook search / page read)
-streamed live, followed by a day-by-day plan citing guidebook pages. Playback of the wait is 2× speed.
-(Recorded before progress moved into the collapsible block above the answer; see [Agent progress](#agent-progress).)*
+*Open WebUI talking to the agent: the **Thinking…** block fills live with each tool call
+(`🔧 search_guidebooks(…) → ✓ 22 passages`), including a parallel batch of three searches, then the
+answer streams as a day-by-day plan citing guidebook pages. Playback of the wait is 2× speed.
+See [Agent progress](#agent-progress).*
 
 **Architecture & state persistence:** [docs/architecture.html](docs/architecture.html) ([view rendered](https://raw.githack.com/stoicdataguy/travel-agent-react/main/docs/architecture.html)). Three tabs: the system architecture, a data-flow page on how short-term (checkpointer) and long-term (store) memory are kept in Postgres, and the tools and skills in the current MVP.
 

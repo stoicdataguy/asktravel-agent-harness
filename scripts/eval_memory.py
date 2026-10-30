@@ -344,7 +344,8 @@ async def run_case(agent, checkpointer, store, name: str, run: int, keep: bool) 
 
 
 async def main(args) -> int:
-    names = [n for n in CASES if not args.only or args.only in n]
+    wanted = [w.strip() for w in (args.only or "").split(",") if w.strip()]
+    names = [n for n in CASES if not wanted or any(w in n for w in wanted)]
     async with open_memory(get_settings().database_url) as (checkpointer, store):
         agent = build_agent(checkpointer, store)
         semaphore = asyncio.Semaphore(args.concurrency)
@@ -411,7 +412,9 @@ async def main(args) -> int:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--only", help="run only cases whose name contains this text")
+    parser.add_argument(
+        "--only", help="run only cases whose name contains this text (comma-separated for several)"
+    )
     parser.add_argument("--runs", type=int, default=3, help="runs per case")
     parser.add_argument("--runs-long", type=int, default=1, help="runs of the long_thread case")
     parser.add_argument("--concurrency", type=int, default=3)

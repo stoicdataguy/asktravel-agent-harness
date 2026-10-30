@@ -8,7 +8,7 @@ A. itinerary: plan a trip with dates and a hotel in chat 1; in a new chat 2, ask
 B. passing mention: mention a hotel for another trip in chat 3 (no itinerary); in a new chat 4,
    ask for day trips from that hotel.
 
-Usage: uv run python scripts/e2e_memory.py [--keep]
+Usage: uv run python scripts/e2e_memory.py [--keep] [--api http://localhost:8001]
 """
 
 import argparse
@@ -22,7 +22,7 @@ import uuid
 from travel_agent.config import get_settings
 from travel_agent.memory import open_memory, user_namespace
 
-API = "http://localhost:8000/v1/chat/completions"
+API = "http://localhost:8000"
 USER = "e2e-memory@travel.local"
 # What the agent said in the bug report when it had lost the trip context
 ASKS_WHERE = re.compile(
@@ -37,7 +37,7 @@ def chat(chat_id: str, history: list[dict], text: str) -> str:
     messages = [*history, {"role": "user", "content": text}]
     body = json.dumps({"model": "travel-agent", "stream": False, "messages": messages}).encode()
     request = urllib.request.Request(
-        API,
+        f"{API}/v1/chat/completions",
         data=body,
         headers={
             "content-type": "application/json",
@@ -70,6 +70,8 @@ async def cleanup(chats: list[str]) -> None:
 
 
 async def main(args) -> int:
+    global API
+    API = args.api.rstrip("/")
     await cleanup([])  # start from a clean user
     results: list[bool] = []
     chats = [f"e2e-{uuid.uuid4().hex[:8]}" for _ in range(4)]
@@ -124,4 +126,5 @@ async def main(args) -> int:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--keep", action="store_true", help="keep the test user's data")
+    parser.add_argument("--api", default=API, help="agent API base URL, e.g. a worktree's server")
     sys.exit(asyncio.run(main(parser.parse_args())))

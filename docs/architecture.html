@@ -154,17 +154,20 @@ section.view { display: flex; flex-direction: column; gap: 40px; }
 .unit .mono { color: var(--ink); }
 .unit.planned { border-style: dashed; background: transparent; }
 .unit.planned h3::after { content: " · planned"; font: 500 11px var(--font-body); color: var(--muted); letter-spacing: 0.04em; }
-.multiagent { margin-top: 14px; border: 1.5px dashed var(--line); border-radius: 6px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
-.multiagent .ma-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
-.multiagent .ma-head span { font-size: 12px; color: var(--muted); }
-.multiagent p { margin: 0; font-size: 13px; color: var(--muted); }
-.ma-flow { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: center; }
-.ma-box { border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; background: var(--surface); display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
-.ma-box span { color: var(--muted); }
-.ma-box.planned { border-style: dashed; background: transparent; }
-.ma-arrow { display: flex; flex-direction: column; align-items: center; gap: 2px; font: 500 11.5px var(--font-mono); color: var(--muted); text-align: center; }
-.ma-arrow .dir { font-size: 20px; line-height: 1; color: var(--ink); }
-@media (max-width: 640px) { .ma-flow { grid-template-columns: 1fr; } .ma-arrow .dir { transform: rotate(90deg); } }
+.future { margin-top: 14px; border: 1.5px dashed var(--line); border-radius: 6px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.future .fu-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+.future .fu-head span { font-size: 12px; color: var(--muted); }
+.future p { margin: 0; font-size: 13px; color: var(--muted); }
+.fu-flow { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: center; }
+.fu-box { border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; background: var(--surface); display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.fu-box span { color: var(--muted); }
+.fu-box.planned { border-style: dashed; background: transparent; }
+.fu-arrow { display: flex; flex-direction: column; align-items: center; gap: 2px; font: 500 11.5px var(--font-mono); color: var(--muted); text-align: center; }
+.fu-arrow .dir { font-size: 20px; line-height: 1; color: var(--ink); }
+@media (max-width: 640px) { .fu-flow { grid-template-columns: 1fr; } .fu-arrow .dir { transform: rotate(90deg); } }
+.fu-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+.fu-options div { border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.fu-options span { color: var(--muted); }
 .unit.short { background: var(--short-bg); border-color: color-mix(in srgb, var(--short) 45%, transparent); }
 .unit.long { background: var(--long-bg); border-color: color-mix(in srgb, var(--long) 45%, transparent); }
 .unit.short h3 { color: var(--short); }
@@ -485,22 +488,26 @@ body { margin: 0; }
             <ul><li class="mono">fetch_page (#7)</li></ul>
           </div>
           <div class="unit planned">
-            <h3>Guidebook research subagent</h3>
-            <ul><li class="mono">ask_guidebook(question, destination?)</li><li>Replaces the three guidebook tools (#34, <a href="https://github.com/stoicdataguy/travel-agent-react/blob/main/docs/plans/kb-subagent.md">plan</a>)</li></ul>
+            <h3>Trusted knowledge base</h3>
+            <ul><li>Same guidebook tools, backed by an OpenSearch or pgvector index (see below)</li></ul>
           </div>
           <div class="unit planned">
             <h3>MCP tools</h3>
             <ul><li>from mcp.json (#12)</li></ul>
           </div>
         </div>
-        <div class="multiagent">
-          <div class="ma-head"><b>Planned · multi-agent research</b><span>subagent-as-tool pattern · <a href="https://github.com/stoicdataguy/travel-agent-react/blob/main/docs/plans/kb-subagent.md">plan</a> · #34</span></div>
-          <div class="ma-flow">
-            <div class="ma-box"><b>Travel agent</b><span>Talks to the user. Keeps memories, trips, skills, flights, hotels and the itinerary. Asks research questions, possibly several in parallel.</span></div>
-            <div class="ma-arrow"><span>ask_guidebook(question, destination)</span><span class="dir" aria-hidden="true">⇄</span><span>short answer + citations</span></div>
-            <div class="ma-box planned"><b>Guidebook research agent</b><span>Own ReAct loop over list / search / read pages, capped at ~10 calls. Stateless: no checkpointer, no store, no user memory. Its context is thrown away after each question.</span></div>
+        <div class="future">
+          <div class="fu-head"><b>Future state · trusted knowledge base</b><span>retrieval-augmented generation behind the existing tools</span></div>
+          <div class="fu-flow">
+            <div class="fu-box"><b>Today</b><span>5 Lonely Planet guidebooks (2016 editions) as markdown on disk. <span class="mono">search_guidebooks</span> does in-process keyword search over paragraphs; <span class="mono">read_guidebook_pages</span> returns up to 4 pages by page number.</span></div>
+            <div class="fu-arrow"><span>same tool contract</span><span class="dir" aria-hidden="true">→</span><span>agent unchanged</span></div>
+            <div class="fu-box planned"><b>Indexed and searched by meaning</b><span>Curated sources only (guidebooks, vetted official pages), chunked by section with book, edition, page and date. Hybrid retrieval: keyword (BM25) plus vector similarity, re-ranked, every result carrying its citation.</span></div>
           </div>
-          <p>Why: a research turn makes a median of 8 guidebook calls and reads ~6.6k tokens of pages, and every main-agent step resends them with the full prompt. Later, a second research agent with <span class="mono">fetch_page</span> (#33) uses the same contract.</p>
+          <div class="fu-options">
+            <div><b>OpenSearch</b><span>Purpose-built search engine: BM25 and k-NN vectors in one hybrid query, scales to many books and languages. A separate cluster to run (Amazon OpenSearch Service on AWS).</span></div>
+            <div><b>Postgres + pgvector</b><span>Vectors and full-text search in the database that already holds memory: one system, transactions, SQL. The <span class="mono">pgvector/pgvector</span> image and an embedding model are the only additions. Fits this scale.</span></div>
+          </div>
+          <p>"Trusted" means the knowledge base holds curated, versioned content, kept apart from untrusted web pages (<span class="mono">fetch_page</span>, #33), and every answer cites where it came from. Measure research quality first (correct answers, valid citations), then choose: pgvector while the corpus is a handful of books, OpenSearch once it grows or needs heavy search features.</p>
         </div>
       </div>
 
@@ -769,10 +776,13 @@ conversations. What you know so far:
   <div class="block">
     <h2>Gaps to know about</h2>
     <ul class="gaps">
-      <li><span class="sev">Retention</span><b>Deleting a chat in Open WebUI leaves the agent's thread and saved itinerary.</b><span>Open WebUI doesn't notify the agent. Needs a cleanup job or a delete hook.</span></li>
-      <li><span class="sev">Retention</span><b>Nothing expires.</b><span>Checkpoints are never pruned and memories have no TTL. The store table already supports <code>ttl_minutes</code>.</span></li>
-      <li><span class="sev">Trust</span><b>Identity comes from a header.</b><span>The agent API trusts <code>X-OpenWebUI-User-Email</code>. Fine locally; it needs a bearer token and a private network before deployment.</span></li>
-      <li><span class="sev">Scale</span><b>Memory is capped, not searched.</b><span>Up to 50 facts of 300 characters each are injected every call. Beyond that, switch to semantic search on the store.</span></li>
+      <li><span class="sev">Trust</span><b>Identity comes from a header.</b><span>The agent API trusts <code>X-OpenWebUI-User-Email</code>, and <code>/api/memory</code> can read or delete a user's data, so a forged header reaches someone else's memory. Fine on a laptop; before any deployment it needs a bearer token and a private network (#27).</span></li>
+      <li><span class="sev">Retention</span><b>Nothing expires.</b><span>Checkpoints are never pruned and memories have no TTL (the store already supports <code>ttl_minutes</code>; planned as M6). Users can delete everything themselves with <code>DELETE /api/memory</code>, and deleting a chat in Open WebUI now deletes its thread. Its saved itinerary stays with the trip on purpose.</span></li>
+      <li><span class="sev">Knowledge</span><b>The knowledge base is keyword search over 2016 guidebooks.</b><span>Only 5 destinations, editions years out of date (the agent flags prices and hours), and no search by meaning: a question worded differently from the book can miss. Future state: a trusted, indexed knowledge base (above).</span></li>
+      <li><span class="sev">Quality</span><b>Research answers aren't measured.</b><span>Memory has an eval suite (22/22) but guidebook answers don't: nothing checks that facts are right or that page citations point at the right page. Needed before changing retrieval.</span></li>
+      <li><span class="sev">Capacity</span><b>The model provider rate-limits at about 20 requests a minute.</b><span>Busy minutes trigger 429s, and retries add 30–50 s waits. Not yet known whether the limit is OpenRouter's or the upstream provider's (#51).</span></li>
+      <li><span class="sev">Coupling</span><b>Chat deletion depends on Open WebUI's tables.</b><span>A trigger on <code>open_webui.chat</code> queues deletions. An Open WebUI upgrade that changes that table would silently stop it; rerun <code>e2e_chat_deletion.py</code> after upgrading.</span></li>
+      <li><span class="sev">Scale</span><b>Memory is capped, not searched.</b><span>Up to 50 facts are injected every call. Past chats are found by keyword search. Beyond that, switch facts and chats to semantic search on the store.</span></li>
     </ul>
   </div>
 </section>
@@ -783,7 +793,7 @@ conversations. What you know so far:
     <span class="eyebrow">Current MVP</span>
     <h1>What the agent can do</h1>
     <p class="lead">Tools are actions the agent can take: Python functions it calls with arguments. Skills are instructions: markdown playbooks it reads before tackling a kind of request. Skills tell the agent which tools to use and how.</p>
-    <div class="counts"><span><b>13</b>tools</span><span><b>7</b>skills</span><span><b>9/9</b>skill trigger cases passing</span><span><b>3</b>tools planned</span></div>
+    <div class="counts"><span><b>13</b>tools</span><span><b>7</b>skills</span><span><b>9/9</b>skill trigger cases passing</span><span><b>2</b>tools planned</span></div>
   </div>
 
   <div class="kinds">
@@ -825,7 +835,7 @@ conversations. What you know so far:
           <tr><td>Present itinerary</td><td class="sig">present_itinerary(itinerary)</td><td>Takes a Pydantic <code>Itinerary</code> (days → activities, stays, bookings, caveats). Validation errors go back to the model; valid plans render as formatted markdown in the chat and are filed under a trip (created if new).</td><td><span class="badge long">store · (email, itineraries)</span><span class="badge chat">chat output</span></td></tr>
           <tr class="group"><td colspan="4">Planned</td></tr>
           <tr class="planned"><td>Fetch page</td><td class="sig">fetch_page(url)</td><td>Playwright fetch → readable text.</td><td><span class="badge planned">#7</span></td></tr>
-          <tr class="planned"><td>Ask guidebook</td><td class="sig">ask_guidebook(question, destination)</td><td>Research subagent with its own ReAct loop over the three guidebook tools; returns a short, cited answer, so raw pages never enter the travel agent's context. No access to user memory.</td><td><span class="badge planned">#34</span></td></tr>
+          <tr class="planned"><td>Knowledge base search</td><td class="sig">search_guidebooks · read_guidebook_pages</td><td>Same tools, backed by a trusted, indexed knowledge base (OpenSearch or pgvector) with hybrid keyword + vector retrieval and citations.</td><td><span class="badge planned">future</span></td></tr>
           <tr class="planned"><td>MCP tools</td><td class="sig">from mcp.json</td><td>Tools from MCP servers (e.g. weather, currency).</td><td><span class="badge planned">#12</span></td></tr>
         </tbody>
       </table>

@@ -266,6 +266,62 @@ async def forgetting(s: Session) -> None:
     s.check("other facts kept", "home_airport" in facts, str(facts))
 
 
+async def saved_items(s: Session) -> dict[str, list[str]]:
+    """Every saved fact as {key: items}: list keys hold several items, others one value."""
+    return {
+        item.key: item.value.get("items") or [item.value["value"]]
+        for item in await s.items("memories")
+    }
+
+
+def mentions(items: dict[str, list[str]], keys: tuple[str, ...], pattern: str) -> bool:
+    return any(re.search(pattern, i, re.I) for k in keys for i in items.get(k, []))
+
+
+LIKE_KEYS = ("likes", "interests")
+
+
+async def misfiled_preference(s: Session) -> None:
+    """A like and a dislike in one sentence are saved apart, not as one mixed item. (M5)"""
+    await s.say(
+        s.new_chat(), "Good to know for future trips: I love hiking but I hate crowded places."
+    )
+    items = await saved_items(s)
+    s.check("hiking saved as a like", mentions(items, LIKE_KEYS, r"hik"), str(items))
+    s.check("crowds saved as a dislike", mentions(items, ("dislikes",), r"crowd"), str(items))
+    s.check("no dislike filed as a like", not mentions(items, LIKE_KEYS, r"crowd|hate"), str(items))
+
+
+async def indirect_preference(s: Session) -> None:
+    """A lasting preference said in passing, while asking something else, is saved. (M5)"""
+    await s.say(
+        s.new_chat(),
+        "Ugh, the red-eye last month wrecked me, I'm never booking overnight flights again. "
+        "Anyway, which area of Lisbon is good to stay in? One line.",
+    )
+    items = await saved_items(s)
+    s.check(
+        "avoids overnight flights saved",
+        mentions(items, tuple(items), r"red.?eye|overnight"),
+        str(items),
+    )
+
+
+async def blob_cleanup(s: Session) -> None:
+    """A dislike already filed as an interest gets moved (the demo user's real case). (M5)"""
+    seeded = ["astronomy", "enjoys adventure sports but dislikes watersport activities"]
+    await s.store.aput(
+        user_namespace(s.user, "memories"),
+        "interests",
+        {"items": seeded, "value": "; ".join(seeded), "updated_at": datetime.now(UTC).isoformat()},
+    )
+    await s.say(s.new_chat(), "Any quick tips for a weekend in Lucerne? Two lines.")
+    items = await saved_items(s)
+    s.check("watersports moved to dislikes", mentions(items, ("dislikes",), r"water"), str(items))
+    s.check("no dislike left in interests", not mentions(items, LIKE_KEYS, r"dislike"), str(items))
+    s.check("adventure sports still liked", mentions(items, LIKE_KEYS, r"adventure"), str(items))
+
+
 # Rome, because it's in the guidebooks: guidebook page reads are what make real threads large
 LONG_CHAT = [
     "We're 2 adults planning 4 days in Rome in late May. One of us uses a wheelchair, and we "
@@ -306,6 +362,9 @@ CASES: dict[str, Callable[[Session], Awaitable[None]]] = {
     "over_personalization": over_personalization,
     "forgetting": forgetting,
     "long_thread": long_thread,
+    "misfiled_preference": misfiled_preference,
+    "indirect_preference": indirect_preference,
+    "blob_cleanup": blob_cleanup,
 }
 # Expensive cases (about 10 turns, many model calls) run once unless --runs-long says otherwise
 LONG_CASES = {"long_thread"}

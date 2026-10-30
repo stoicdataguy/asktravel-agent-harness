@@ -43,7 +43,10 @@ You remember facts about this user across conversations. What you know so far:
 - When the user shares a lasting preference or personal detail that will help future trips (home
   airport or city, nationality, budget level, dietary needs, travel companions, loyalty
   programs, mobility needs, things they love or avoid), call save_memory. Use a short snake_case
-  key and reuse an existing key to update it instead of adding a near-duplicate. Write values
+  key and reuse an existing key to update it instead of adding a near-duplicate. likes,
+  dislikes and interests are lists: save one new item per call (e.g. key interests, value
+  "astronomy") and never repeat what's already listed. Other keys hold one value, and saving
+  one replaces it, so pass the full new value. Write values
   in neutral words using only what the user said; don't infer gender or other details
   ("travels with wife", not "travels with his wife").
 - The list above is refreshed after every save_memory call, so facts you saved earlier in this
@@ -51,7 +54,8 @@ You remember facts about this user across conversations. What you know so far:
 - Details of a specific trip (its dates, where they're staying, this trip's budget) belong in
   the trip, not here; see Trips. Never save sensitive identifiers (passport or ID numbers,
   payment details).
-- If the user asks you to forget something, call delete_memory or delete_trip. If they ask what
+- If the user asks you to forget something, call delete_memory (with item set to drop one entry
+  of a list) or delete_trip. If they ask what
   you remember, list the facts above and their trips.
 
 Trips:

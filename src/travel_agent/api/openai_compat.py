@@ -126,7 +126,11 @@ async def _stream(agent, inputs, config, context, model: str) -> AsyncIterator[s
             if mode == "custom":
                 if isinstance(payload, dict) and isinstance(payload.get("progress"), dict):
                     note = payload["progress"]
-                    if chunk := show(progress.note(note.get("tool_call_id", ""), note["text"])):
+                    if note.get("kind") == "waiting":
+                        text = progress.waiting(note["text"])
+                    else:
+                        text = progress.note(note.get("tool_call_id", ""), note["text"])
+                    if chunk := show(text):
                         yield chunk
             elif mode == "messages":
                 message, metadata = payload

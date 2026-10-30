@@ -10,6 +10,20 @@ def _clear_caches():
 
 
 @pytest.fixture(autouse=True)
+def instant_retries(monkeypatch):
+    """Model-call retries wait for real in production; tests record the waits instead."""
+    from travel_agent.agent import retry
+
+    waits: list[float] = []
+
+    async def record(seconds: float) -> None:
+        waits.append(seconds)
+
+    monkeypatch.setattr(retry, "_sleep", record)
+    return waits
+
+
+@pytest.fixture(autouse=True)
 def no_tracing(monkeypatch):
     """Keep tests off the network even when .env enables tracing; env vars beat .env."""
     monkeypatch.setenv("LANGFUSE_TRACING", "false")

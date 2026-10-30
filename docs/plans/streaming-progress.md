@@ -191,7 +191,7 @@ The chat history keeps the block for the user to reopen; the model never sees it
 | Progress is complete | every tool the trace shows has a start line and a `✓`/`✗` line, in the reasoning block |
 | Ordering | progress lines appear in call order in one block above the answer, and none land after the answer has started (on research turns) |
 | Not resent | the next turn's request body (logged by the API in the test) has no progress text |
-| Waiting is visible | with a forced 429 (test hook), a `waiting` line appears and the turn still completes |
+| Waiting is visible | with a forced 429, a `⏳` line appears and the turn still completes (covered by `tests/test_retry.py` through the real API app; a live 429 can't be forced reliably) |
 
 **Regression:**
 - `e2e_branching.py`: fork, regenerate and edit still work; seeding no longer needs the regex,
@@ -207,7 +207,7 @@ The chat history keeps the block for the user to reopen; the model never sees it
 | **P0 Spike** ✅ | Streamed a scripted reasoning / content / reasoning / content turn to Open WebUI. Clean storage and no resend confirmed; a single block rather than two; live lines need Always Expand Details. Results and screenshots in §3 | ½ day |
 | **P1 Progress in reasoning blocks** ✅ | `api/progress.py` (`ProgressRenderer`, `summarize()` for all 13 tools, optional plain labels); `PROGRESS_STYLE` / `PROGRESS_LABELS`; prompt line against narrating before tool calls; demo account gets Always Expand Details (`owui.expand_details`); `e2e_progress.py` 6/6, with first progress visible in **0.3 s** (was ~2 s) | 1–2 days |
 | **P2 Progress from inside tools** ✅ | `tools/report.py` (`report(runtime, text)` via LangGraph's custom stream; a no-op outside a stream; logs step timings); `search_hotels` reports 4 steps; the API streams `"custom"` and renders `⋯` lines. Flights skipped (1–3 s, one blocking call). Timing the steps showed two hotel searches overlap fully (9.2 s together): the 51 s trace was a slow Google response, not serialisation. `e2e_progress` 13/13 with a hotel case | ½ day |
-| **P3 Waiting is visible** | Model retries via a hook that emits `waiting` and logs the 429 body (with #51) | ½–1 day |
+| **P3 Waiting is visible** ✅ | `agent/retry.py`: a retry middleware owns the agent's model retries (client `max_retries=0`): 429/408/409/5xx/timeouts/connection errors, Retry-After (≤ 60 s) or exponential backoff, a `⏳` progress line before each wait, and a WARNING log of status, rate-limit headers and body for #51. The "forced 429" check is an API-level test (`tests/test_retry.py`: the real app and stream with a model raising genuine `RateLimitError`s) rather than a test switch in production code | ½–1 day |
 | **P4 Docs** | architecture.html (data flow: progress channel), README screenshots, CLAUDE.md conventions (labels table, "progress never in `content`") | ½ day |
 
 Each phase is one PR. P1 alone fixes the clutter; P2 and P3 fix the "is it stuck?" moments.

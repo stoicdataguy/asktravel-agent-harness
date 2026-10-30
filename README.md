@@ -49,6 +49,7 @@ Starting…
    ⋯ search_hotels: dates set to Dec 9 → Dec 12, loading prices
    ✓ search_hotels → 3 hotels, from $107/night · 9.2 s
 Reading the results…
+⏳ The model provider is busy (rate limit); retrying in 20 s (attempt 1 of 10)
 ```
 
 The block collapses to "Thought for N seconds" when the answer starts, and isn't sent back to the

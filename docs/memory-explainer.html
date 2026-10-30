@@ -537,13 +537,15 @@ footer { color: var(--muted); font-size: 13px; padding-bottom: 40px; display: fl
         <li class="y">Past chats are searched only when needed, with <code>recall_conversations</code> (M3)</li>
       </ul>
     </article>
-    <article class="pattern">
-      <div class="ph"><span class="num">Pattern 3</span><span class="st todo">Not yet</span></div>
+    <article class="pattern part">
+      <div class="ph"><span class="num">Pattern 3</span><span class="st part">Partly</span></div>
       <h3>Reflective memory consolidation</h3>
       <p>Reflect on experiences before storing them as memory.</p>
       <span class="papers">Reflexion · Generative Agents</span>
       <ul>
-        <li class="n">Deliberately deferred (M5): summaries would cost a model call per turn, and the evals show no failure they would fix. Recall searches the raw chats instead; updates are checked by rules on write</li>
+        <li class="y">Once a user's chats go quiet, one model call reviews their saved facts against what they said and proposes add, update or delete (M5). Fixed the dislike filed as an interest (0/3 → 3/3)</li>
+        <li class="y">Guarded: every change must quote the user or a saved fact; sensitive facts are left alone; every change is logged with its old value</li>
+        <li class="n">No chat summaries or higher-level lessons: recall searches the raw chats instead</li>
       </ul>
     </article>
     <article class="pattern part">
@@ -555,7 +557,8 @@ footer { color: var(--muted); font-size: 13px; padding-bottom: 40px; display: fl
         <li class="y">Cleaned as it's written: mentioning a trip again updates it instead of creating a duplicate (M1a); likes and interests are kept as lists, and replacing a fact shows the old value (M1b)</li>
         <li class="y">Older data upgraded at startup: old trip ids re-keyed, run-on facts split, itineraries linked to their trips</li>
         <li class="y">Forgetting on request: "forget my diet" in the chat, delete everything through the API, or delete a chat in Open WebUI (M4)</li>
-        <li class="n">Not yet: automatic expiry and pruning of old checkpoints (M6), and an LLM pass that resolves conflicting facts (M5)</li>
+        <li class="y">Reviewed after the chat: an LLM pass re-files and corrects saved facts once a user's chats go idle (M5)</li>
+        <li class="n">Not yet: automatic expiry and pruning of old checkpoints (M6)</li>
       </ul>
     </article>
   </div>

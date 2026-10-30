@@ -80,6 +80,11 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
 - Any new per-user data must live in a store namespace from `memory.user_namespace(user_id, kind)`
   or a thread keyed `<email>:…`: `user_data` finds both generically, so view, export and
   delete-all cover it without changes. Anything stored elsewhere needs its own deletion path.
+- Memory consolidation (M5, `consolidation.py`) runs in the API's background loop once a user's
+  chats are idle (`CONSOLIDATION_IDLE_MINUTES`). Its model only sees the user's own messages and
+  saved facts, never tool results; code applies only changes whose evidence quote is really there,
+  never edits `sensitive` facts, and logs each change to `(email, "memory_log")`. The chat index
+  entry is merged, not overwritten: it carries `turns` / `consolidated_turns`.
 - Long-term memory has two kinds: profile facts (`save_memory`, lasting preferences) and trips
   (`save_trip_details`, per-trip details). Both are injected into the prompt by the middleware;
   `present_itinerary` always files the plan under a trip. Store values must be JSON-safe

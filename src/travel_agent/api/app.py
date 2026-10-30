@@ -10,6 +10,8 @@ from travel_agent.api.openai_compat import resolve_user
 from travel_agent.api.openai_compat import router as openai_router
 from travel_agent.chat_deletions import run_chat_deletion_sync
 from travel_agent.config import get_settings
+from travel_agent.consolidation import llm_proposer, run_consolidation_loop
+from travel_agent.llm import get_chat_model
 from travel_agent.memory import open_memory
 from travel_agent.observability import check_tracing_config, flush_traces
 from travel_agent.tools.conversations import backfill_chat_index
@@ -39,8 +41,23 @@ async def lifespan(app: FastAPI):
                 settings.chat_deletion_sync_seconds,
             )
         )
+        background = [sync]
+        if settings.memory_consolidation:
+            model = get_chat_model().model_copy(update={"streaming": False})
+            background.append(
+                asyncio.create_task(
+                    run_consolidation_loop(
+                        store,
+                        checkpointer,
+                        llm_proposer(model),
+                        settings.consolidation_idle_minutes,
+                        settings.consolidation_users_per_cycle,
+                    )
+                )
+            )
         yield
-        sync.cancel()
+        for task in background:
+            task.cancel()
     flush_traces()
 
 

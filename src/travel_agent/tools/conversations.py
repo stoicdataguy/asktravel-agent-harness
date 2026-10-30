@@ -51,10 +51,18 @@ async def index_chat(state, runtime) -> None:
     if not thread_id or runtime.store is None:
         return
     messages = state["messages"]
+    ns = chats_namespace(runtime.context.user_id)
+    previous = await runtime.store.aget(ns, thread_id)
+    # Merge: keep fields other jobs keep here (e.g. what memory consolidation has processed)
     await runtime.store.aput(
-        chats_namespace(runtime.context.user_id),
+        ns,
         thread_id,
-        {"title": _title(messages), "updated_at": datetime.now(UTC).isoformat()},
+        {
+            **(previous.value if previous else {}),
+            "title": _title(messages),
+            "updated_at": datetime.now(UTC).isoformat(),
+            "turns": sum(isinstance(m, HumanMessage) for m in messages),
+        },
     )
 
 

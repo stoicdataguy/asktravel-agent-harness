@@ -40,6 +40,12 @@ class Settings(BaseSettings):
     openwebui_schema: str = "open_webui"
     chat_deletion_sync_seconds: float = 10
 
+    # Memory consolidation (M5): once a user's chats have been idle this long, one model call
+    # reviews their saved facts; at most this many users per minute (~20 calls/min provider limit)
+    memory_consolidation: bool = True
+    consolidation_idle_minutes: float = 10
+    consolidation_users_per_cycle: int = 2
+
     # Raw guidebook PDFs (local only, gitignored) and their extracted markdown
     reference_dir: Path = Path("reference")
     guidebooks_dir: Path = Path("data/guidebooks")

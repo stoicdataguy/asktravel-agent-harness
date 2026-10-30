@@ -45,6 +45,9 @@ call and what it found, as it happens:
 Starting…
 🔧 `search_guidebooks(query="Rome one week itinerary", book="italy")` → ✓ 6 passages · 0.4 s
 🔧 `search_flights(origin="JFK", destination="FCO", …)` → ✓ 5 options, from $1,555 · 1.2 s
+🔧 `search_hotels(location="Prati, Rome", …)`
+   ⋯ search_hotels: dates set to Dec 9 → Dec 12, loading prices
+   ✓ search_hotels → 3 hotels, from $107/night · 9.2 s
 Reading the results…
 ```
 

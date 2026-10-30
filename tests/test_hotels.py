@@ -78,7 +78,7 @@ def google(monkeypatch):
         error: Exception | None = None
         calls: list = []
 
-    async def fake_fetch(location, check_in, check_out):
+    async def fake_fetch(location, check_in, check_out, on_step=lambda text: None):
         Fake.calls.append((location, check_in, check_out))
         if Fake.error:
             raise Fake.error

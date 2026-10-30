@@ -46,7 +46,7 @@ Measured gaps, longest first:
 | Moment | How long | What the user sees now |
 |---|---|---|
 | A rate-limited model call waiting to retry (#51) | 30–50 s, on ~1 in 9 calls | nothing: the last `🔧` line just sits there |
-| A hotel search (Playwright on Google Hotels) | 25–30 s each; two barely overlap | one `🔧 search_hotels(…)` line |
+| A hotel search (Playwright on Google Hotels) | ~9 s, up to ~30 s or more when Google is slow (each wait can take up to 45 s); parallel searches overlap fully | one `🔧 search_hotels(…)` line |
 | A model step deciding what to do next | 2–3 s, up to ~15 per research turn | nothing between `🔧` lines |
 | Parallel tool batches (76 seen, up to 10 tools) | 1–10 s | 10 lines at once, no sign of which finished |
 | Memory being written or recalled | instant | a `🔧 save_memory(key=…)` line, with no sign it worked |
@@ -206,7 +206,7 @@ The chat history keeps the block for the user to reopen; the model never sees it
 |---|---|---|
 | **P0 Spike** ✅ | Streamed a scripted reasoning / content / reasoning / content turn to Open WebUI. Clean storage and no resend confirmed; a single block rather than two; live lines need Always Expand Details. Results and screenshots in §3 | ½ day |
 | **P1 Progress in reasoning blocks** ✅ | `api/progress.py` (`ProgressRenderer`, `summarize()` for all 13 tools, optional plain labels); `PROGRESS_STYLE` / `PROGRESS_LABELS`; prompt line against narrating before tool calls; demo account gets Always Expand Details (`owui.expand_details`); `e2e_progress.py` 6/6, with first progress visible in **0.3 s** (was ~2 s) | 1–2 days |
-| **P2 Progress from inside tools** | `get_stream_writer` in `search_hotels` and `search_flights`; `"custom"` stream mode | ½ day |
+| **P2 Progress from inside tools** ✅ | `tools/report.py` (`report(runtime, text)` via LangGraph's custom stream; a no-op outside a stream; logs step timings); `search_hotels` reports 4 steps; the API streams `"custom"` and renders `⋯` lines. Flights skipped (1–3 s, one blocking call). Timing the steps showed two hotel searches overlap fully (9.2 s together): the 51 s trace was a slow Google response, not serialisation. `e2e_progress` 13/13 with a hotel case | ½ day |
 | **P3 Waiting is visible** | Model retries via a hook that emits `waiting` and logs the 429 body (with #51) | ½–1 day |
 | **P4 Docs** | architecture.html (data flow: progress channel), README screenshots, CLAUDE.md conventions (labels table, "progress never in `content`") | ½ day |
 

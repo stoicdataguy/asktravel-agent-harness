@@ -135,6 +135,10 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
   as `reasoning_content` so Open WebUI shows it in a collapsible block above the answer and never
   resends it. Keep tool names and args human-readable. Progress never goes in `content` unless
   `PROGRESS_STYLE=inline`. A new tool needs a `summarize()` case (or it shows its first line).
+- A tool that takes more than a few seconds reports its steps with `tools/report.py`:
+  `report(runtime, "dates set…")` (add `runtime: ToolRuntime = None`, hidden from the model).
+  It shows as `⋯ tool: text` under the call, logs the step's timing, and does nothing outside a
+  stream.
 - Progress e2e: `uv run python scripts/e2e_progress.py` (browser; checks progress shows fast, the
   answer stays clean, every tool call has an outcome). Run it after changing the request path.
 - Deleting a chat in Open WebUI is followed through by a trigger on `open_webui.chat` (installed by

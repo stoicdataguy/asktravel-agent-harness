@@ -891,7 +891,8 @@ conversations. What you know so far:
         <tr><td class="l">76 batches where 2+ tools ran at the same moment (up to 10)</td><td>114 s</td><td>205 s</td></tr>
         <tr><td class="l">10 × <span class="mono">search_flights</span></td><td>1.2 s</td><td>9.0 s</td></tr>
         <tr><td class="l">3 × <span class="mono">search_guidebooks</span> + 2 × <span class="mono">search_flights</span></td><td>3.3 s</td><td>12.2 s</td></tr>
-        <tr><td class="l">2 × <span class="mono">search_hotels</span> (barely overlaps: likely serialised inside the browser tool)</td><td>51 s</td><td>61 s</td></tr>
+        <tr><td class="l">2 × <span class="mono">search_hotels</span>, one slow trace (Google slow to respond that time)</td><td>51 s</td><td>61 s</td></tr>
+        <tr><td class="l">2 × <span class="mono">search_hotels</span>, measured directly: every step overlaps</td><td>9.2 s</td><td>~18 s</td></tr>
       </tbody>
     </table></div>
     <p class="sub">To see it: ask for something that needs several searches ("compare fares to Rome from JFK and EWR"). Several <span class="mono">🔧</span> lines appear together in the progress block before any answer, and in Langfuse the tool spans overlap on the trace timeline.</p>

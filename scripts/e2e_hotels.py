@@ -21,7 +21,7 @@ import re
 import sys
 from datetime import date
 
-from owui import chat_id, delete_chat, get_token, send
+from owui import agent_tool_calls, answer_text, chat_id, delete_chat, get_token, send
 from playwright.async_api import async_playwright
 
 from travel_agent.config import get_settings
@@ -83,15 +83,18 @@ async def main(args) -> int:
             await send(page, ASK)
             chats.append(chat_id(page))
             reply = await page.locator(".chat-assistant").last.inner_text()
-            call = re.search(r"🔧 search_hotels\((.*?)\)", reply)
-            args_text = call.group(1) if call else ""
+            calls = await agent_tool_calls(EMAIL, chats[-1], "search_hotels")
             check(
                 results,
                 "calls search_hotels with the trip dates",
-                '"2026-12-28"' in args_text and '"2027-01-02"' in args_text,
-                call.group(0)[:150] if call else "no search_hotels call",
+                any(
+                    str(c["args"].get("check_in")) == "2026-12-28"
+                    and str(c["args"].get("check_out")) == "2027-01-02"
+                    for c in calls
+                ),
+                str([c["args"] for c in calls])[:150] or "no search_hotels call",
             )
-            answer = "\n".join(line for line in reply.splitlines() if "🔧" not in line)
+            answer = answer_text(reply)
             live = await live_hotels()
             quoted = dollars(answer)
             named = {

@@ -56,6 +56,15 @@ it as formatted markdown, and the JSON is stored per user and chat:
 curl -s localhost:8000/api/itineraries -H "X-OpenWebUI-User-Email: you@example.com" | jq
 ```
 
+To see, export or delete everything AskTravel remembers about a user (facts, trips, plans, chats):
+
+```bash
+H="X-OpenWebUI-User-Email: you@example.com"
+curl -s localhost:8000/api/memory -H "$H" | jq                  # what it remembers
+curl -s localhost:8000/api/memory/export -H "$H" > me.json      # everything, incl. chat messages
+curl -s -X DELETE "localhost:8000/api/memory?confirm=you@example.com" -H "$H"   # delete all
+```
+
 ### Skills
 
 The agent has seven playbooks in [src/travel_agent/skills/](src/travel_agent/skills/):

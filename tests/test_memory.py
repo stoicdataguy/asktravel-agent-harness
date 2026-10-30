@@ -207,3 +207,19 @@ async def test_migrate_memories_splits_old_list_strings():
 
     assert await migrate_memories(store) == 0
     assert (await store.aget(ns, "interests")).value == migrated
+
+
+async def test_sensitive_facts_are_marked_and_stay_marked():
+    store = InMemoryStore()
+    agent, _ = make_agent(
+        store,
+        call("save_memory", key="mobility", value="uses a wheelchair", sensitive=True),
+        AIMessage("Noted"),
+        call("save_memory", key="mobility", value="uses a wheelchair, can walk short distances"),
+        AIMessage("Updated"),
+    )
+    await ask(agent, "ana@example.com", "c1")
+    await ask(agent, "ana@example.com", "c2")
+    saved = (await store.aget(namespace("ana@example.com"), "mobility")).value
+    assert saved["value"] == "uses a wheelchair, can walk short distances"
+    assert saved["sensitive"] is True  # an update without the flag doesn't unmark it

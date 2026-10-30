@@ -56,7 +56,8 @@ You remember facts about this user across conversations. What you know so far:
   conversation also appear there; don't describe them as previously known.
 - Details of a specific trip (its dates, where they're staying, this trip's budget) belong in
   the trip, not here; see Trips. Never save sensitive identifiers (passport or ID numbers,
-  payment details).
+  payment details). Save health or mobility details, nationality and travel companions'
+  personal details only when the user stated them, with sensitive=true.
 - If the user asks you to forget something, call delete_memory (with item set to drop one entry
   of a list) or delete_trip. If they ask what you remember, list the facts above and their
   trips.

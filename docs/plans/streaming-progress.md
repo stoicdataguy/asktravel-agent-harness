@@ -57,17 +57,50 @@ The first two are where users think the agent has hung.
 
 Open WebUI 0.12.4 (`utils/middleware.py`) treats a `reasoning_content` (or `reasoning`,
 `thinking`) field in a streamed delta as reasoning:
-- **Collapsible block.** Consecutive reasoning deltas fill one collapsible "Thinking" block with
-  a live timer; the block closes, with its duration, when answer text starts.
-- **Interleaving.** Reasoning that arrives *after* answer text opens a **new** block. So a turn
-  can show *[▸ researched for 12 s] answer [▸ checked fares for 4 s] more answer*.
+- **Collapsible block.** Reasoning deltas fill a collapsible "Thinking…" block with a spinner;
+  when answer text starts, the block closes as "Thought for N seconds".
+- **One block per answer, not interleaved** (corrected by the P0 spike, below). The backend
+  source suggests reasoning after answer text opens a second block, but the browser shows a
+  **single** block above the answer. Later lines are appended to it after it has closed.
 - **Not resent.** When it rebuilds the transcript for the next turn, Open WebUI **drops
   reasoning** for models like ours (`get_reasoning_format()` returns `None` unless the model is
   Ollama or llama.cpp). Progress never reaches the model or `thread_sync`.
 - **Harmless elsewhere.** Other OpenAI-compatible clients ignore the unknown field.
 
 So: **progress goes in `reasoning_content`, the answer stays in `content`.** No UI code, no
-Open WebUI plugin. Rejected alternatives:
+Open WebUI plugin.
+
+### P0 spike results (2026-10-30)
+
+A throwaway OpenAI-compatible server on :8010, added to Open WebUI as a second connection, streamed
+a scripted turn: progress, the first half of the answer, more progress, the rest. Driven with
+Playwright as the demo user; the setup was reverted afterwards.
+
+| Question | Result |
+|---|---|
+| Is the stored answer clean? | ✅ The stored `content` holds only the answer |
+| Is progress resent on the next turn? | ✅ No: the next request has the plain answer only, no extra fields |
+| Does markdown render in the block? | ✅ Tool calls show as code spans, one per line |
+| Is progress visible while the agent works? | ⚠️ **Only if expanded.** By default the user sees a collapsed "Thinking…" with a spinner. With Open WebUI's per-user **Always Expand Details** setting, lines appear live as tools start and finish |
+| Does progress after answer text open a second block? | ❌ **No.** Everything is shown in one block above the answer; lines that arrive after the answer has started go into that closed block |
+| Does the timer measure the work? | ⚠️ **It measures time to the first answer text** ("Thought for 4 seconds" for ~10 s of progress) |
+
+![Progress streaming live, with Always Expand Details on](img/streaming-progress-live.png)
+![The finished turn: one block above the answer](img/streaming-progress-done.png)
+
+**Why the single block is acceptable:** in the saved chats, only **4 of 126** tool-calling model
+steps (3%) carried any text alongside their tool calls ("Let me check the Top 15…"). In 97%,
+the answer starts after the last tool call, so all progress lands in the block before it closes.
+For the rest:
+- a prompt line asks the model not to narrate before tool calls;
+- the timer then reads as "time spent researching".
+
+**What it changes in the design:**
+- **Live visibility needs the setting.** It's per user, so document it, and turn it on for the
+  demo account in setup.
+- **`PROGRESS_STYLE=inline` stays** for anyone who wants lines visible without it.
+
+Rejected alternatives:
 
 | Option | Why not |
 |---|---|
@@ -138,9 +171,10 @@ A research turn ("plan 3 days in Rome") in Open WebUI, while it runs:
   🔧 search_guidebooks(query="Vatican Museums booking", book="italy") → ✓ 5 passages · 0.3 s
 ```
 
-When the answer starts, the block collapses to `▸ Thought for 14 s`. A later research step in
-the same turn opens a second block. The itinerary still renders in the answer, as now. The
-chat history keeps the collapsed blocks for the user to reopen; the model never sees them.
+This is with Open WebUI's **Always Expand Details** on; without it, the user sees a collapsed
+"Thinking…" with a spinner and clicks to see the lines. When the answer starts, the block closes
+as `▸ Thought for 14 s`, above the answer. The itinerary still renders in the answer, as now.
+The chat history keeps the block for the user to reopen; the model never sees it.
 
 ## 6. Evaluation
 
@@ -151,7 +185,7 @@ chat history keeps the collapsed blocks for the user to reopen; the model never 
 | Time to first progress | a progress line is visible < 1 s after sending (today: ~2 s, after the first model step) |
 | Answer is clean | the final answer text contains no `🔧` or progress lines |
 | Progress is complete | every tool the trace shows has a start line and a `✓`/`✗` line, in the reasoning block |
-| Interleaving | a turn that researches, writes, then searches again shows two reasoning blocks |
+| Ordering | progress lines appear in call order in one block above the answer, and none land after the answer has started (on research turns) |
 | Not resent | the next turn's request body (logged by the API in the test) has no progress text |
 | Waiting is visible | with a forced 429 (test hook), a `waiting` line appears and the turn still completes |
 
@@ -166,7 +200,7 @@ chat history keeps the collapsed blocks for the user to reopen; the model never 
 
 | Phase | Scope | Effort |
 |---|---|---|
-| **P0 Spike** | Stream a hand-made `reasoning_content` sequence (reasoning, content, reasoning, content) to Open WebUI; confirm the two blocks, the timers, what's stored, and that the next request omits them. Record screenshots here | ½ day |
+| **P0 Spike** ✅ | Streamed a scripted reasoning / content / reasoning / content turn to Open WebUI. Clean storage and no resend confirmed; a single block rather than two; live lines need Always Expand Details. Results and screenshots in §3 | ½ day |
 | **P1 Progress in reasoning blocks** | `ProgressEvent` + renderer; `start`, `tool_start`, `tool_end`, `step`; tool calls shown with their outcome, code summaries for all 13 tools; optional plain labels; `PROGRESS_STYLE` and `PROGRESS_LABELS` settings (+ `.env.example`); `e2e_progress.py` | 1–2 days |
 | **P2 Progress from inside tools** | `get_stream_writer` in `search_hotels` and `search_flights`; `"custom"` stream mode | ½ day |
 | **P3 Waiting is visible** | Model retries via a hook that emits `waiting` and logs the 429 body (with #51) | ½–1 day |

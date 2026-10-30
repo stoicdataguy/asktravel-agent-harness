@@ -40,7 +40,8 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
 - `src/travel_agent/tools/itinerary.py` — `present_itinerary` (structured plan → store + chat).
 - `src/travel_agent/tools/flights.py` — `search_flights` (Google Flights via fast-flights; sync lib run in a thread).
 - `src/travel_agent/tools/hotels.py` — `search_hotels` (Playwright on Google Hotels; `parse_card` is pure and unit-tested).
-- `src/travel_agent/tools/trips.py` — trip memory (`Trip`, `save_trip_details`, `get_trip`, `delete_trip`, startup backfill).
+- `src/travel_agent/tools/trips.py` — trip memory (`Trip`, `save_trip_details`, `get_trip`, `delete_trip`,
+  `match_trip`, `trip_status`, startup id migration + backfill).
 - `src/travel_agent/tools/memory.py` — long-term memory tools (`save_memory`, `delete_memory`) + loaders.
 - `src/travel_agent/skills/` — skill playbooks (`<name>.md` with name/description frontmatter) + `load_skill` tool.
 - `src/travel_agent/kb/` — guidebook ingestion (PDF → markdown with `[p. N]` markers + TOC headings).
@@ -60,6 +61,11 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
   `thread_id = "<user_email>:<chat_id>"`; cross-thread facts via `Store` namespaced
   `(<email with "." → "%2E">, "memories")` (store labels can't contain dots); use
   `memory.user_namespace(user_id, kind)` rather than building namespaces by hand.
+- Trip ids are opaque (`trip-xxxxxx`, `new_trip_id()`) and never derived from the destination or
+  changed. Writes without a known id go through `match_trip` (destination words + compatible dates,
+  upcoming trips only, no merge when ambiguous). Old ids live on in `Trip.aliases`; look trips up
+  with `find_trip`, not `store.aget`. Time-relative facts (`trip_status`) are computed when the
+  prompt is built, never stored.
 - Long-term memory has two kinds: profile facts (`save_memory`, lasting preferences) and trips
   (`save_trip_details`, per-trip details). Both are injected into the prompt by the middleware;
   `present_itinerary` always files the plan under a trip. Store values must be JSON-safe

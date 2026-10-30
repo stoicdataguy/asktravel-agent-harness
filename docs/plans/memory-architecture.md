@@ -239,7 +239,8 @@ M0 baseline in its PR.
 | Phase | Scope | Lecture pattern | Effort |
 |---|---|---|---|
 | **M0 Baseline** ✅ | Log input (and cached) tokens per model call to Langfuse (already there: usage comes back on every generation); `scripts/eval_memory.py` with the §8 cases that run today; baseline recorded in §8; prompt caching confirmed | Memory evaluation (p. 68) | 1 day |
-| **M1 Trips and facts that stay correct** | Opaque, stable trip ids; on write, match a new trip to an existing one (normalised destination + overlapping dates) and let an undated trip be claimed when dates arrive; computed status and relative dates in the prompt ("upcoming, in 25 days"); list-valued fact keys; `save_memory` returns the previous value on overwrite; `source` (thread id) and `confirmed_at` on facts and trips; migration that merges today's duplicates and re-keys trips | Memory maintenance, done on write | 1–2 days |
+| **M1a Trips that stay correct** (#21) ✅ | Opaque, stable trip ids (`trip-xxxxxx`); on write without a known id, match an existing upcoming trip by destination words and compatible dates, never merging when ambiguous; status computed for the prompt ("upcoming, in 25 days"); `source` (thread id); startup migration that re-keys trips, merges duplicates, keeps old ids as aliases and repoints itineraries | Memory maintenance, done on write | 1 day |
+| **M1b Facts that stay tidy** (#52) | List-valued fact keys (`likes`, `dislikes`, `interests`); `save_memory` returns the previous value on overwrite; `source` and `confirmed_at` on facts; migration that splits today's blobs | Memory maintenance, done on write | 1 day |
 | **M2 Context budget** | Move date, facts and trips out of the system prompt into a user-context message; turn-compaction middleware (§6); trim tool schemas (`present_itinerary` is 1.4k tokens) | Tiered hierarchy (MemGPT/MemoryOS: working vs recall) | 1–2 days |
 | **M3 Episodic recall** | Chat summary refreshed in a background task after each turn; store `(email, "episodes")`; `recall_conversations(query)` tool with keyword search; pgvector only if the M0 recall case shows keyword search falls short | Tiered hierarchy (archival search) | 1–2 days |
 | **M4 User control** | "What AskTravel remembers" endpoint + notebook view; export and delete-all per user; deleting a chat in Open WebUI deletes its thread (`adelete_thread`) and summary; `sensitivity` on facts; facts only writable from the user's own words (guard against injected instructions). **Before the v1 deploy (#30)** | Trust, privacy, user control | 1–2 days |
@@ -320,6 +321,13 @@ What the baseline says about the roadmap:
 - **Episodic recall is absent, as expected:** "I can't see the earlier chat."
 - **Preference updates, forgetting and restraint already work** (3/3 each), so M5's LLM
   consolidation has no failing case to justify it yet.
+
+### Progress against the baseline
+
+| Phase | Runs passed | Changed cases | Tokens |
+|---|---|---|---|
+| Baseline (2026-10-29) | 15/22 | | fixed prompt ~3.9k; long chat max 70,013 |
+| M1a trips (2026-10-29) | **18/22** | `trip_identity` 0/3 → **3/3**; all others unchanged | fixed prompt +50 tokens (trip status and its prompt line); long chat max 71,326 (run-to-run noise) |
 
 ## 9. Open questions
 

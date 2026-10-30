@@ -137,7 +137,8 @@ async def cross_chat_recall(s: Session) -> None:
 async def time_relative(s: Session) -> None:
     """Questions about when trips are, against trips seeded at +25, +60 and +120 days.
 
-    Mirrors the 2026-10-29 bug: Rome under a stale id, asked about "the next 2 months".
+    Mirrors the 2026-10-29 bug report, asked about "the next 2 months". (The seeded ids are the
+    stale ones from that report; since M1 unknown ids get a fresh opaque id instead.)
     Expected to improve with M1 (relative dates computed for the prompt).
     """
     today = date.today()
@@ -182,7 +183,7 @@ async def time_relative(s: Session) -> None:
 async def trip_identity(s: Session) -> None:
     """One real trip described across chats stays one trip, with an id that isn't stale.
 
-    Expected to fail today on the stale id; M1 makes ids stable and dedupes on write.
+    Failed on the stale id until M1 made ids opaque (baseline 0/3).
     """
     await s.say(
         s.new_chat(),

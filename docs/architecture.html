@@ -422,7 +422,13 @@ footer { color: var(--muted); font-size: 13px; padding-block: 0 40px; }
 .cw-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .cw-cards div { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; font-size: 13.5px; }
 .cw-cards span { color: var(--muted); }
-.cw details summary { cursor: pointer; font-size: 13.5px; color: var(--accent); }
+.cw-example h2 { font-size: 20px; }
+.cw-example .lead { font-size: 14.5px; color: var(--muted); max-width: 80ch; }
+.cw #cw-table { min-width: 860px; }
+.cw #cw-table td.l { max-width: 280px; }
+.cw #cw-table td.ask { color: var(--ink); }
+.cw #cw-table td.did { color: var(--muted); }
+.cw #cw-table tr.phase td { text-align: left; font: 600 12px var(--font-body); letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); background: var(--surface-2); padding-top: 8px; }
 .cw .table-scroll { overflow-x: auto; margin-top: 8px; }
 .cw table { border-collapse: collapse; width: 100%; font-size: 12.5px; min-width: 620px; font-variant-numeric: tabular-nums; }
 .cw th, .cw td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--line); }
@@ -867,13 +873,14 @@ conversations. What you know so far:
     <div><b>When the cache misses</b><span>Turns 13–15 each present a new itinerary. Compaction keeps only the latest plan, so the earlier one leaves the middle of the window and ~7k tokens are rewritten. A new day or a mid-turn memory save does the same (#55).</span></div>
   </div>
 
-  <details>
-    <summary>Show the data as a table (per turn)</summary>
+  <div class="block cw-example">
+    <h2>The example: planning a Thanksgiving trip to Rome</h2>
+    <p class="lead">One chat with the demo account. The user plans a week abroad from NYC for a group of friends: picks a destination from the guidebooks, gets a Rome itinerary, then flights, hotels and four rounds of edits to the plan. Each row is one turn: what was asked (paraphrased), what the agent did, and what its calls sent.</p>
     <div class="table-scroll"><table id="cw-table">
-      <thead><tr><th>Turn</th><th>Calls</th><th class="l">Tools called</th><th>First call</th><th>Last call</th><th>Last call, no compaction</th><th>Written to cache</th></tr></thead>
+      <thead><tr><th>Turn</th><th class="l">The user asked</th><th class="l">The agent</th><th>Calls</th><th>Window, first → last call</th><th>Last call, no compaction</th><th>Written to cache</th></tr></thead>
       <tbody></tbody>
     </table></div>
-  </details>
+  </div>
   <p class="sub" style="font-size:12.5px;color:var(--muted)">Replayed by <span class="mono">scripts/context_window_trace.py</span> on 2026-10-30, as if the whole chat ran today with today's compaction. Fixed prompt parts are the provider's own counts; message sizes are tokenizer estimates. Cache reads and writes are simulated with the measured rule (a request hits only when it extends an earlier one) and ignore date changes and cache expiry.</p>
 </section>
 
@@ -1092,6 +1099,8 @@ conversations. What you know so far:
   // Context window view: one stacked bar per model call, from the replay data embedded above
   (function () {
     var calls = JSON.parse(document.getElementById("cw-data").textContent);
+    // What each turn of the example chat was about (paraphrased; tool counts come from the data)
+    var TURNS = {"1": {"phase": "Intake", "ask": "Plan a Thanksgiving trip with friends, leaving from NYC; open to going abroad", "did": "Loads the trip-intake skill, checks which guidebooks exist, saves a draft trip (destination to be decided)"}, "2": {"phase": "Intake", "ask": "Six nights, Nov 23 to 29; flights under 8 hours", "did": "Saves the dates and the flight limit to the trip"}, "3": {"phase": "Choosing a destination", "ask": "Allow 10-hour flights, suggest places from the guidebooks; 6 people in total", "did": "Searches the Italy and Switzerland guides, compares live fares to several destinations, corrects the group size"}, "4": {"phase": "Choosing a destination", "ask": "Stick to the guidebooks", "did": "Searches the Italy, Switzerland, Thailand and Peru guides for November options"}, "5": {"phase": "Itinerary", "ask": "Rome looks good: plan an itinerary", "did": "Loads the itinerary skill, searches and reads Rome pages, presents a day-by-day plan (the research peak)"}, "6": {"phase": "Flights", "ask": "Flights just for me and my wife", "did": "Searches JFK and EWR fares for two, renames the trip to Rome"}, "7": {"phase": "Flights", "ask": "Compare JFK and EWR side by side, top 5 each", "did": "Answers from the fares already found, no new calls"}, "8": {"phase": "Flights", "ask": "Stick to United, leaving on the 23rd", "did": "Saves the airline preference, checks nonstop United fares"}, "9": {"phase": "Hotels", "ask": "Hotels at $250 a night or less, taxes included", "did": "Reads the saved trip, searches hotels in the centre, Monti and Prati, saves the budget"}, "10": {"phase": "Hotels", "ask": "Should I split the stay across two neighbourhoods?", "did": "Compares neighbourhoods in the guidebook, searches hotels for each part of the stay"}, "11": {"phase": "Hotels", "ask": "I like the 3 + 2 nights split", "did": "Saves the split stay to the trip"}, "12": {"phase": "Revisions", "ask": "Revise the itinerary: activities closer to my hotels", "did": "Re-researches Prati and the centre, presents the revised plan"}, "13": {"phase": "Revisions", "ask": "Add dates to each day", "did": "Presents the plan again, with dates"}, "14": {"phase": "Revisions", "ask": "Add the flight details from earlier", "did": "Presents the plan again, with the flights"}, "15": {"phase": "Revisions", "ask": "Show departure and arrival under each day", "did": "Re-checks the fares, presents the plan again"}};
     var PARTS = [
       ["rules_skills_tools", "--s1", "Rules, skills, tool schemas"],
       ["user_memory", "--s2", "User memory"],
@@ -1121,7 +1130,7 @@ conversations. What you know so far:
       plot.innerHTML = "";
       var W = plot.clientWidth; if (!W) return;
       var narrow = W < 600, H = o.height(narrow);
-      var m = { l: 40, r: 6, t: 20, b: 18 }, pw = W - m.l - m.r, ph = H - m.t - m.b;
+      var m = { l: 40, r: 6, t: 20, b: o.phases && !narrow ? 34 : 18 }, pw = W - m.l - m.r, ph = H - m.t - m.b;
       var svg = el("svg", { viewBox: "0 0 " + W + " " + H, width: W, height: H }, plot);
       var max = Math.ceil(o.max / o.step) * o.step, slot = pw / calls.length;
       var gap = slot > 8 ? 2 : 1, bw = Math.max(1.5, slot - gap);
@@ -1157,6 +1166,19 @@ conversations. What you know so far:
           base += s[0];
         });
       });
+      // Conversation phases along the bottom (wide screens only)
+      if (o.phases && !narrow) {
+        var from = 0;
+        calls.forEach(function (c, i) {
+          var nxt = calls[i + 1];
+          if (nxt && TURNS[nxt.turn].phase === TURNS[c.turn].phase) return;
+          var x0 = m.l + from * slot + 2, x1 = m.l + (i + 1) * slot - 2;
+          el("line", { x1: x0, x2: x1, y1: H - 14, y2: H - 14, "stroke-width": 1 }, svg, { stroke: "var(--muted)" });
+          var pt = el("text", { x: (x0 + x1) / 2, y: H - 2, "text-anchor": "middle" }, svg);
+          pt.textContent = TURNS[c.turn].phase;
+          from = i + 1;
+        });
+      }
       // Comparison line
       if (o.line) {
         var pts = calls.map(function (c, i) { return (x(i) + bw / 2) + "," + y(o.line(c)); }).join(" ");
@@ -1191,7 +1213,7 @@ conversations. What you know so far:
     function row(color, label, value) {
       return "<div><span>" + (color ? "<i style=\"background:var(" + color + ")\"></i>" : "") + label + "</span><span>" + value + "</span></div>";
     }
-    function head(c) { return "<b>Turn " + c.turn + " · call " + c.step + "</b>"; }
+    function head(c) { return "<b>Turn " + c.turn + " · call " + c.step + "</b><p class=\"tools\" style=\"margin:0 0 4px\">" + TURNS[c.turn].ask + "</p>"; }
     function toolsLine(c) { return "<p class=\"tools\">" + (c.tools.length ? "then calls: " + c.tools.join(", ") : "then answers the user") + "</p>"; }
 
     var maxNow = Math.max.apply(null, calls.map(function (c) { return c.without_compaction; }));
@@ -1199,7 +1221,7 @@ conversations. What you know so far:
     window.drawContextWindow = function () {
       if (document.getElementById("context-window").hidden) return;
       draw(document.getElementById("cw-window"), {
-        height: function (narrow) { return narrow ? 260 : 330; }, max: maxNow, step: 20000,
+        height: function (narrow) { return narrow ? 260 : 350; }, max: maxNow, step: 20000, phases: true,
         segments: function (c) { return PARTS.map(function (p) { return [c[p[0]], p[1]]; }); },
         line: function (c) { return c.without_compaction; },
         notes: [
@@ -1227,16 +1249,22 @@ conversations. What you know so far:
       });
     };
 
-    // Per-turn table (the accessible view of both charts)
-    var tbody = document.querySelector("#cw-table tbody"), byTurn = {};
+    // Per-turn table: the example chat, and the accessible view of both charts
+    var tbody = document.querySelector("#cw-table tbody"), byTurn = {}, lastPhase = "";
     calls.forEach(function (c) { (byTurn[c.turn] = byTurn[c.turn] || []).push(c); });
     Object.keys(byTurn).forEach(function (t) {
-      var cs = byTurn[t], counts = {};
+      var cs = byTurn[t], counts = {}, info = TURNS[t];
+      if (info.phase !== lastPhase) {
+        var ph = document.createElement("tr"); ph.className = "phase";
+        ph.innerHTML = "<td colspan=\"7\">" + info.phase + "</td>"; tbody.appendChild(ph); lastPhase = info.phase;
+      }
       cs.forEach(function (c) { c.tools.forEach(function (n) { counts[n] = (counts[n] || 0) + 1; }); });
-      var tools = Object.keys(counts).map(function (n) { return n + (counts[n] > 1 ? " ×" + counts[n] : ""); }).join(", ") || "—";
+      var tools = Object.keys(counts).map(function (n) { return n + (counts[n] > 1 ? " ×" + counts[n] : ""); }).join(", ");
       var tr = document.createElement("tr");
-      tr.innerHTML = "<td>" + t + "</td><td>" + cs.length + "</td><td class=\"l\">" + tools + "</td><td>" + num(total(cs[0])) + "</td><td>" + num(total(cs[cs.length - 1])) +
-        "</td><td>" + num(cs[cs.length - 1].without_compaction) + "</td><td>" + num(cs.reduce(function (s, c) { return s + c.cache_written; }, 0)) + "</td>";
+      tr.innerHTML = "<td>" + t + "</td><td class=\"l ask\">" + info.ask + "</td><td class=\"l did\">" + info.did +
+        (tools ? "<br><span class=\"mono\" style=\"font-size:11px\">" + tools + "</span>" : "") + "</td><td>" + cs.length +
+        "</td><td>" + num(total(cs[0])) + " → " + num(total(cs[cs.length - 1])) + "</td><td>" + num(cs[cs.length - 1].without_compaction) +
+        "</td><td>" + num(cs.reduce(function (s, c) { return s + c.cache_written; }, 0)) + "</td>";
       tbody.appendChild(tr);
     });
     var resizeTimer;

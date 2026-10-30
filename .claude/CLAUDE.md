@@ -31,7 +31,8 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
 ## Layout
 - `src/travel_agent/` — package (src layout). `config.py` holds all settings (pydantic-settings, `.env`).
 - `src/travel_agent/api/` — FastAPI app and OpenAI-compatible routes.
-- `src/travel_agent/agent/` — `build_agent()` (create_agent + middleware that injects skills and saved memories), prompts.
+- `src/travel_agent/agent/` — `build_agent()` (create_agent + middleware that injects skills and saved memories), prompts;
+  `compaction.py` = turn compaction (earlier turns sent without tool results; request-only).
 - `src/travel_agent/memory.py` — Postgres checkpointer + store on one connection pool.
 - `src/travel_agent/observability.py` — Langfuse callback + `run_config()`. Tracing is Langfuse only (no LangSmith).
 - `src/travel_agent/tools/` — agent tools; `guidebooks.py` = keyword search / page reads over extracted guidebooks.
@@ -79,6 +80,9 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
   `async def` and use `aput`/`asearch`/…; sync calls fail inside the event loop.
 - Identity: `user_id` = `X-OpenWebUI-User-Email` header (lowercased), passed as `UserContext` runtime
   context. Tools read it from `runtime.context.user_id`; never take user_id as an LLM-visible argument.
+- Context budget: never rewrite the saved thread to shrink context (`SummarizationMiddleware` does,
+  and breaks `thread_sync` rewind). Shrink only the request, in `wrap_model_call` middleware, and
+  keep the result deterministic per turn so the prompt prefix stays cacheable.
 - The checkpointer owns history. Before each run `api/thread_sync.plan_run` compares the UI
   transcript's user messages with the thread: append the newest message when they agree, seed an
   empty (forked) thread from the transcript, or rewind/replace on regenerate and edit. Clients must

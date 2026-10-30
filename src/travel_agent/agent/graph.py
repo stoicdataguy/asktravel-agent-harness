@@ -6,6 +6,7 @@ from langchain_core.language_models import BaseChatModel
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.store.base import BaseStore
 
+from travel_agent.agent.compaction import compact_earlier_turns
 from travel_agent.agent.prompts import SYSTEM_PROMPT
 from travel_agent.context import UserContext
 from travel_agent.llm import get_chat_model
@@ -54,7 +55,7 @@ def build_agent(
             *TRIP_TOOLS,
             present_itinerary,
         ],
-        middleware=[system_prompt],
+        middleware=[system_prompt, compact_earlier_turns],
         context_schema=UserContext,
         checkpointer=checkpointer,
         store=store,

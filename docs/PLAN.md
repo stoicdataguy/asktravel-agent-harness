@@ -38,7 +38,7 @@ Open WebUI (:3000) ── OpenAI-compatible HTTP + X-OpenWebUI-User-Email / -Cha
    ┌──────────────┬─────────────────┬──────────────┬────────────────┬───────────────────┼────────────────────────┐
  OpenRouter    Guidebook tools   Skills          Memory tools     present_itinerary     Planned
  (gpt-6-luna)  list / search /   load_skill      save_memory /    (Pydantic Itinerary   · flights, hotels, web (#7)
-               read pages        (7 playbooks)   delete_memory    → chat + store)       · guidebook subagent (#11)
+               read pages        (7 playbooks)   delete_memory    → chat + store)       · trusted KB index (#11)
                                                                                          · MCP tools (#12)
 
  Postgres (:5433)  checkpointer = chat history per thread · store = user facts + itineraries
@@ -85,7 +85,7 @@ Open WebUI (:3000) ── OpenAI-compatible HTTP + X-OpenWebUI-User-Email / -Cha
 | 8 | Long-term memory | ✅ Done ([PR #1](https://github.com/stoicdataguy/travel-agent-react/pull/1)) |
 | 9 | Structured output | ✅ Done ([PR #2](https://github.com/stoicdataguy/travel-agent-react/pull/2)) |
 | 10 | Skills + trigger eval | ✅ Done |
-| 11 | Knowledge-base subagent | ⬜ Planned |
+| 11 | Trusted knowledge base (pgvector / OpenSearch retrieval) | ⬜ Planned |
 | 12 | MCP tools | ⬜ Planned |
 | 13 | Streaming polish | ⬜ Planned |
 | 14 | AWS deployment | ⬜ Planned |
@@ -103,13 +103,16 @@ Open WebUI (:3000) ── OpenAI-compatible HTTP + X-OpenWebUI-User-Email / -Cha
 - Tests against recorded fixtures (saved HTML/JSON), never live sites. One-time setup:
   `uv run playwright install chromium`.
 
-#### #11 Knowledge-base subagent
-Design: [plans/kb-subagent.md](plans/kb-subagent.md) (subagent-as-tool pattern, K0–K3 roadmap).
-- Move the guidebook tools into their own `create_agent`, exposed to the main agent as a single
-  `ask_guidebook(question, destination)` tool that returns a cited summary.
-- Why: a single itinerary request made 13 guidebook calls on the main agent, and every page read
-  stays in the main conversation's context. A subagent keeps that out and returns only the answer.
-- Trace it as a child run so Langfuse shows the nesting.
+#### #11 Trusted knowledge base
+Design: [plans/trusted-knowledge-base.md](plans/trusted-knowledge-base.md) (K0–K4 roadmap).
+- Treat the guidebooks as the agent's trusted knowledge base: curated sources, provenance and
+  edition on every chunk, citations the eval can verify.
+- Improve retrieval behind the **same tools** (`search_guidebooks`, `read_guidebook_pages`):
+  measure first, then better keyword ranking, then hybrid keyword + vector search in Postgres
+  (pgvector), with OpenSearch only if the corpus outgrows it.
+- Not a subagent: measured, it would double model calls for little gain (the agent already
+  batches guidebook calls, and most re-read tokens are cached). The subagent pattern is kept for
+  untrusted web research (#33).
 
 #### #12 MCP tools
 - Load servers from an `mcp.json` file via `langchain-mcp-adapters` (`MultiServerMCPClient`) at
@@ -132,8 +135,8 @@ worth doing even before any deployment.
 - **#4 Guidebook ingestion:** one paragraph per line, PDF bookmarks as markdown headings, `[p. N]`
   page markers. Icon-font glyphs and soft hyphens are stripped.
 - **#6 Guidebook tools:** `list_guidebooks`, `search_guidebooks` (accent- and ʻokina-insensitive,
-  skips contents/index/map-key noise), `read_guidebook_pages`. Currently on the main agent;
-  moving to a subagent in #11.
+  skips contents/index/map-key noise), `read_guidebook_pages`. They stay on the main agent; #11
+  improves the retrieval behind them.
 - **#8 Long-term memory:** the planned `recall_memories` tool was dropped. All of a user's facts
   are injected into the prompt every model call instead, so recall is automatic. Store
   namespaces percent-encode dots in emails (`memory.user_namespace()`).
@@ -279,9 +282,8 @@ likely dominate: a tool-heavy itinerary run is 15+ model calls.
 
 - [User feedback → audit tables](plans/feedback-audit.md): capture every 👍/👎 in an append-only
   Postgres audit table, linked to the agent turn and its Langfuse trace.
-- [Guidebook research subagent](plans/kb-subagent.md): knowledge-base retrieval as a subagent the
-  travel agent calls like a tool; why (8 guidebook calls and ~6.6k tokens of pages per research
-  turn), pattern choice, design, risks, eval and the K0–K3 roadmap.
+- [Trusted knowledge base](plans/trusted-knowledge-base.md): the guidebooks as curated, cited
+  world knowledge; retrieval eval; keyword vs pgvector vs OpenSearch; why not a subagent; K0–K4.
 - [Memory architecture](plans/memory-architecture.md): procedural / semantic / episodic inventory,
   What-When-How, TTL policy, context-window budget, the memory eval baseline (M0, §8), and the
   M0–M7 roadmap (revised 2026-10-29:
@@ -309,5 +311,5 @@ likely dominate: a tool-heavy itinerary run is 15+ model calls.
 - **AWS:** which region, and a custom domain?
 - **LLM provider:** keep OpenRouter, or call providers directly (e.g. Bedrock) to keep traffic
   inside AWS?
-- **#11 subagent model:** same model as the main agent, or a cheaper one for guidebook research?
-  (Measured in K1, see [the plan](plans/kb-subagent.md#7-open-questions).)
+- **#11 embedding model:** a local model at ingest (no rate limit) or an API model through
+  OpenRouter? (See [the plan](plans/trusted-knowledge-base.md#9-open-questions).)

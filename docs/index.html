@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AskTravel Agent Harness</title>
+<link rel="icon" href="https://raw.githubusercontent.com/stoicdataguy/asktravel-agent-harness/main/branding/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Landing page for GitHub Pages (docs/). Same type and neutrals as the other docs pages. */
+:root {
+  --bg: #f5f7fa; --surface: #ffffff; --ink: #16202b; --muted: #586373; --line: #d6dce4; --accent: #1d5fc4;
+  --font-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #0e1319; --surface: #151c25; --ink: #e5e9ef; --muted: #9aa5b3; --line: #2a3542; --accent: #7aaeff; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --bg: #0e1319; --surface: #151c25; --ink: #e5e9ef; --muted: #9aa5b3; --line: #2a3542; --accent: #7aaeff; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 var(--font-body); }
+main { max-width: 880px; margin: 0 auto; padding: 56px 16px 64px; }
+h1 { font: 700 clamp(32px, 5vw, 46px)/1.1 var(--font-display); margin: 0 0 14px; text-wrap: balance; }
+.lead { color: var(--muted); font-size: 18px; max-width: 680px; margin: 0 0 32px; }
+.docs { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
+.docs a { display: block; text-decoration: none; color: inherit; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 18px; }
+.docs a:hover, .docs a:focus-visible { border-color: var(--accent); }
+.docs b { display: block; font-size: 17px; margin-bottom: 4px; color: var(--accent); }
+.docs span { color: var(--muted); font-size: 14.5px; }
+footer { margin-top: 32px; color: var(--muted); font-size: 14px; }
+footer a { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>AskTravel: a LangChain agent harness proof of concept</h1>
+  <p class="lead">This project tests the parts that surround the model: the agent loop, tools, memory, context control, skills, streaming, retries, tracing and evals. A travel planner is the test case.</p>
+  <div class="docs">
+    <a href="architecture.html"><b>Architecture</b><span>The components, how state persists in Postgres, the tools and skills, and how the context window changes in a real chat.</span></a>
+    <a href="memory-explainer.html"><b>Memory architecture</b><span>The four memory types, when the agent writes each type, and the eval results.</span></a>
+  </div>
+  <footer>Code, quick start and plans: <a href="https://github.com/stoicdataguy/asktravel-agent-harness">github.com/stoicdataguy/asktravel-agent-harness</a></footer>
+</main>
+</body>
+</html>

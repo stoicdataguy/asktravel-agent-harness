@@ -22,6 +22,8 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
   (Langfuse stack lives in `docker/langfuse.compose.yml`; local dev secrets only)
 - Run API: `uv run travel-agent` (or `uv run uvicorn travel_agent.api.app:app --reload`)
 - Guidebooks: `uv run travel-agent-ingest [--force]` converts `reference/*.pdf` → `data/guidebooks/*.md`
+  (PyMuPDF, AGPL, lives in the `ingest` dependency group: installed locally by default, left out of
+  production images with `uv sync --no-default-groups`; never import it outside `kb/ingest.py`)
 - Demo GIF: `uv run python scripts/record_demo.py` → `docs/demo.gif` (needs the full stack running)
 - Skill triggering eval (real LLM): `uv run python scripts/eval_skills.py` — run after editing any skill description
 - Memory eval (real LLM + Postgres, no API needed): `uv run python scripts/eval_memory.py [--quick] [--only <case>] [--json out.json]`

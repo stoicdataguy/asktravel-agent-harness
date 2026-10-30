@@ -81,9 +81,9 @@ Open WebUI (:3000) ── OpenAI-compatible HTTP + X-OpenWebUI-User-Email / -Cha
 | 4 | Guidebook ingestion | ✅ Done |
 | 5 | Observability: Langfuse | ✅ Done |
 | 6 | Guidebook tools + tool-call status lines in the stream | ✅ Done |
-| 7 | Flight, hotel and web tools | 🟨 Flights ([PR #8](https://github.com/stoicdataguy/travel-agent-react/pull/8)) and hotels ([PR #10](https://github.com/stoicdataguy/travel-agent-react/pull/10)) built; `fetch_page` still to do |
-| 8 | Long-term memory | ✅ Done ([PR #1](https://github.com/stoicdataguy/travel-agent-react/pull/1)) |
-| 9 | Structured output | ✅ Done ([PR #2](https://github.com/stoicdataguy/travel-agent-react/pull/2)) |
+| 7 | Flight, hotel and web tools | 🟨 Flights ([PR #8](https://github.com/stoicdataguy/asktravel-agent-harness/pull/8)) and hotels ([PR #10](https://github.com/stoicdataguy/asktravel-agent-harness/pull/10)) built; `fetch_page` still to do |
+| 8 | Long-term memory | ✅ Done ([PR #1](https://github.com/stoicdataguy/asktravel-agent-harness/pull/1)) |
+| 9 | Structured output | ✅ Done ([PR #2](https://github.com/stoicdataguy/asktravel-agent-harness/pull/2)) |
 | 10 | Skills + trigger eval | ✅ Done |
 | 11 | Trusted knowledge base (pgvector / OpenSearch retrieval) | ⬜ Planned |
 | 12 | MCP tools | ⬜ Planned |

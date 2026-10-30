@@ -3617,7 +3617,6 @@ dependencies = [
     { name = "playwright" },
     { name = "psycopg", extra = ["binary", "pool"] },
     { name = "pydantic-settings" },
-    { name = "pymupdf" },
     { name = "pyyaml" },
     { name = "uvicorn", extra = ["standard"] },
 ]
@@ -3633,6 +3632,9 @@ dev = [
     { name = "ruff" },
     { name = "sqlalchemy" },
 ]
+ingest = [
+    { name = "pymupdf" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -3647,7 +3649,6 @@ requires-dist = [
     { name = "playwright", specifier = ">=1.64.1" },
     { name = "psycopg", extras = ["binary", "pool"], specifier = ">=3.3.6" },
     { name = "pydantic-settings", specifier = ">=2.16.1" },
-    { name = "pymupdf", specifier = ">=2.0" },
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.54.0" },
 ]
@@ -3663,6 +3664,7 @@ dev = [
     { name = "ruff", specifier = ">=0.17.3" },
     { name = "sqlalchemy", specifier = ">=2.1.6" },
 ]
+ingest = [{ name = "pymupdf", specifier = ">=2.0" }]
 
 [[package]]
 name = "truststore"

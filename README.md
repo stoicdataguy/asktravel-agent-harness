@@ -1,46 +1,93 @@
-# AskTravel
+# AskTravel: a LangChain agent harness proof of concept
 
 <img src="branding/favicon.png" alt="AskTravel logo" width="64" align="right">
 
-A lightweight LangChain ReAct agent for organizing travel itineraries (repo and Python package: `travel-agent`). LLM calls go through OpenRouter,
-and the agent is served by FastAPI over an OpenAI-compatible API so Open WebUI (an Ollama-style chat UI)
-can be the frontend.
+This project is a proof of concept (POC). It tests an **agent harness** built with LangChain v1.
+The agent harness is all the parts that surround the model: the agent loop, tools, memory,
+context control, skills, streaming, retries, tracing and evaluations.
 
-![Demo: the agent searches Lonely Planet guidebooks with tool calls, then answers with a cited 3-day plan](docs/demo.gif)
+A travel planner is the test case. The agent plans trips from guidebooks, live flight prices and
+live hotel prices. The test case is not the product. The harness is what we test.
 
-*Open WebUI talking to the agent: the **Thinking…** block fills live with each tool call
-(`🔧 search_guidebooks(…) → ✓ 22 passages`), including a parallel batch of three searches, then the
-answer streams as a day-by-day plan citing guidebook pages. Playback of the wait is 2× speed.
-See [Agent progress](#agent-progress).*
+![Demo: the agent searches guidebooks with tool calls, then gives a 3-day plan with page citations](docs/demo.gif)
 
-**Architecture & state persistence:** [docs/architecture.html](docs/architecture.html) ([view rendered](https://raw.githack.com/stoicdataguy/travel-agent-react/main/docs/architecture.html)). Three tabs: the system architecture, a data-flow page on how short-term (checkpointer) and long-term (store) memory are kept in Postgres, and the tools and skills in the current MVP.
+*The chat UI is Open WebUI. The **Thinking…** block shows each tool call and its result. Three
+searches run in parallel. Then the answer streams as a day-by-day plan with page citations.
+The wait plays at 2× speed.*
 
-## Quickstart
+## Read the architecture first
 
-```bash
-cp .env.example .env          # add your OPENROUTER_API_KEY
-uv sync
-docker compose up -d          # Postgres (:5433), Open WebUI (:3000), Langfuse (:3001)
-uv run travel-agent-ingest    # one-time: reference/*.pdf -> data/guidebooks/*.md
-uv run travel-agent           # API on http://localhost:8000
+The architecture documents explain the design with diagrams and measured data.
+Start with these documents before you read the code.
+
+| Document | What it shows |
+|---|---|
+| [Architecture](docs/architecture.html) ([open rendered](https://stoicdataguy.github.io/asktravel-agent-harness/architecture.html)) | Four tabs: the system components, how state persists in Postgres, the tools and skills, and how the context window grows and shrinks in a real 15-turn chat |
+| [Memory architecture](docs/memory-explainer.html) ([open rendered](https://stoicdataguy.github.io/asktravel-agent-harness/memory-explainer.html)) | The four memory types (working, episodic, semantic, procedural), when the agent writes each type, and the eval results |
+| [Plan and roadmap](docs/PLAN.md) | The decisions, the status of each milestone, and the known limits |
+| [Detailed plans](docs/plans/) | One design document for each large feature: memory, streaming progress, knowledge base, feedback audit |
+
+## What the harness tests
+
+Each row is one part of the harness. Each part has a test or an eval that uses the real model.
+
+| Harness part | How this POC does it | Evidence |
+|---|---|---|
+| Agent loop | LangChain v1 `create_agent` (ReAct on LangGraph). The model can call several tools in one step, and they run in parallel. | [Architecture](docs/architecture.html) |
+| Tools | Guidebook search, flight search (Google Flights), hotel search (Playwright on Google Hotels), memory and trip tools. Each tool returns short text and never raises an error into the loop. | `scripts/e2e_flights.py`, `scripts/e2e_hotels.py` |
+| Structured output | The final plan is a Pydantic `Itinerary`, sent as the argument of the `present_itinerary` tool. | `tests/test_itinerary.py` |
+| Skills | Seven playbooks in markdown. The prompt holds only their names and descriptions. The agent loads a playbook when a request matches. | `scripts/eval_skills.py` (9/9) |
+| Short-term memory | A Postgres checkpointer keeps each chat. The API keeps the thread correct when the user edits, regenerates or branches a chat. | `scripts/e2e_branching.py` |
+| Long-term memory | A Postgres store keeps profile facts and trips for each user. Middleware adds them to the prompt on each model call. | `scripts/e2e_memory.py` |
+| Episodic recall | An index of past chats, and a tool that searches the user's other chats. | `scripts/eval_memory.py` |
+| Memory upkeep | A background job reviews saved facts when a user's chats are idle. It applies a change only if a quote from the user supports the change. | `scripts/eval_memory.py` |
+| Context control | Earlier turns go to the model without their tool results. In the longest chat, this sends 62% fewer tokens, and 87% of input tokens come from the prompt cache. | [Context window tab](docs/architecture.html) |
+| Streaming progress | Each tool call and its result stream into a block above the answer. Slow tools report their steps. | `scripts/e2e_progress.py` |
+| Reliability | The harness retries rate-limited model calls and shows each wait to the user. | `tests/test_retry.py` |
+| Tracing | Langfuse records each model call, tool call and middleware step, by user and by chat. | Langfuse UI |
+| User data | A user can see, export and delete all saved data. When a user deletes a chat in Open WebUI, the agent deletes its copy too. | `scripts/e2e_chat_deletion.py` |
+
+## How the parts connect
+
+```
+Open WebUI (chat UI, :3000)
+   │  OpenAI-compatible API: /v1/chat/completions, with the user's email in a header
+   ▼
+FastAPI (:8000) ── LangChain agent ── middleware: prompt + memories, compaction, retries
+   │                    │
+   │                    ├── tools ── guidebooks (local files), Google Flights, Google Hotels
+   │                    └── model ── OpenRouter
+   ▼
+Postgres (:5433) ── chat threads, long-term memory, Open WebUI tables
+Langfuse (:3001) ── traces
 ```
 
-Open http://localhost:3000 and sign up with any email (the password isn't checked by the agent).
-Each email is a separate user with its own long-term memory, so you can sign up several to
-simulate multiple users.
+## Quick start
 
-### Tracing
+You need Docker, [uv](https://docs.astral.sh/uv/) and an [OpenRouter](https://openrouter.ai) API key.
 
-With `LANGFUSE_TRACING=true` in `.env`, every agent run (LLM calls, tool calls, middleware steps)
-is traced to the self-hosted Langfuse at http://localhost:3001 (login `admin@travel.local` /
-`travel-agent-dev`). Traces carry the chat as **session** and the email as **user**, so Langfuse's
-Sessions and Users views show whole conversations per (dummy) user. Langfuse is about six containers
-(incl. ClickHouse); to skip it run `docker compose up -d postgres open-webui`.
+1. Copy the settings file: `cp .env.example .env`
+2. Add your `OPENROUTER_API_KEY` to `.env`.
+3. Install the dependencies: `uv sync`
+4. Install the browser for hotel search: `uv run playwright install chromium`
+5. Start Postgres, Open WebUI and Langfuse: `docker compose up -d`
+6. Put your guidebook PDFs in `reference/`. Then convert them: `uv run travel-agent-ingest`
+7. Start the agent API: `uv run travel-agent`
+8. Open http://localhost:3000 and sign up with an email.
 
-### Agent progress
+> **Note:** The guidebooks are copyrighted, so this repository does not include them. Use PDFs
+> that you have the right to use. Without guidebooks, the flight, hotel and memory tools still work.
 
-While the agent works, Open WebUI shows a **Thinking…** block above the answer with every tool
-call and what it found, as it happens:
+> **Note:** Each email is a different user with its own memory. Sign up with more emails to test
+> more users. The password is not checked by the agent.
+
+To run without Langfuse (it uses about six containers), start only two services:
+`docker compose up -d postgres open-webui`
+
+## Use the agent
+
+**See the progress live.** In Open WebUI, open Settings → Interface. Turn on "Always Expand
+Details". The block above the answer then shows each tool call as it runs:
 
 ```
 Starting…
@@ -50,73 +97,73 @@ Starting…
    ⋯ search_hotels: dates set to Dec 9 → Dec 12, loading prices
    ✓ search_hotels → 3 hotels, from $107/night · 9.2 s
 Reading the results…
-⏳ The model provider is busy (rate limit); retrying in 20 s (attempt 1 of 10)
 ```
 
-The block collapses to "Thought for N seconds" when the answer starts, and isn't sent back to the
-model on the next turn. **To watch the lines live, turn on Settings → Interface → "Always Expand
-Details"** in Open WebUI (otherwise you see a spinner and click to open the block). The demo
-account has it on. `PROGRESS_STYLE=inline` puts the lines in the answer instead, `off` hides
-them; `PROGRESS_LABELS=plain` shows phrases ("Checking fares JFK → FCO") instead of tool calls.
-Design: [docs/plans/streaming-progress.md](docs/plans/streaming-progress.md).
+The model does not see this block on the next turn. To put the lines in the answer, set
+`PROGRESS_STYLE=inline`. To hide them, set `PROGRESS_STYLE=off`.
 
-### Memory
+**Test the memory.** Tell the agent a lasting preference, for example "I am vegetarian". Start a
+new chat and ask for restaurants. The agent uses the preference. Ask "What do you remember
+about me?" to see the saved facts. Say "Forget my budget" to remove a fact.
 
-- **Within a chat:** the Postgres checkpointer keeps the conversation (thread = user email + chat id).
-- **Across chats:** when you mention lasting preferences ("I'm vegetarian", "I fly out of SFO"),
-  the agent calls `save_memory`; those facts are injected into its instructions in every later
-  conversation for that user. Ask "what do you remember about me?" or "forget my budget" to
-  inspect or remove them. Each signed-in email has its own memory.
-- **Inspecting the data:** Postgres is at `postgresql://travel:travel@localhost:5433/travel_agent`.
-  `uv run jupyter lab` and open [notebooks/inspect_state.ipynb](notebooks/inspect_state.ipynb) for
-  memories, itineraries, threads and decoded chat history.
-
-### Structured itineraries
-
-Finished day-by-day plans are produced as a validated Pydantic `Itinerary`
-([schemas.py](src/travel_agent/agent/schemas.py)) through the `present_itinerary` tool: the chat shows
-it as formatted markdown, and the JSON is stored per user and chat:
-
-```bash
-curl -s localhost:8000/api/itineraries -H "X-OpenWebUI-User-Email: you@example.com" | jq
-```
-
-To see, export or delete everything AskTravel remembers about a user (facts, trips, plans, chats):
+**Get the saved data.** The API gives one user's data as JSON:
 
 ```bash
 H="X-OpenWebUI-User-Email: you@example.com"
-curl -s localhost:8000/api/memory -H "$H" | jq                  # what it remembers
-curl -s localhost:8000/api/memory/export -H "$H" > me.json      # everything, incl. chat messages
+curl -s localhost:8000/api/itineraries -H "$H" | jq          # saved plans
+curl -s localhost:8000/api/memory -H "$H" | jq               # facts, trips, chats
+curl -s localhost:8000/api/memory/export -H "$H" > me.json   # all data, with messages
 curl -s -X DELETE "localhost:8000/api/memory?confirm=you@example.com" -H "$H"   # delete all
 ```
 
-### Skills
+**Look at the state.** Run `uv run jupyter lab` and open
+[notebooks/inspect_state.ipynb](notebooks/inspect_state.ipynb). It shows the memories, plans and
+decoded chat threads.
 
-The agent has seven playbooks in [src/travel_agent/skills/](src/travel_agent/skills/):
-trip-intake, itinerary-builder, budget-planner, packing-list, visa-and-entry, local-transport and
-food-and-culture. Only their names and descriptions sit in the system prompt; the agent calls
-`load_skill(name)` when a request matches (you'll see `🔧 load_skill(...)` in the progress block).
-To add one, drop a `<name>.md` with `name` / `description` frontmatter in that folder and add a
-case to `scripts/eval_skills.py`, which checks against the real model that each skill triggers:
+**Look at the traces.** Open http://localhost:3001 (user `admin@travel.local`, password
+`travel-agent-dev`). Each trace has the chat as its session and the email as its user.
 
-```bash
-uv run python scripts/eval_skills.py   # 9/9 cases passing
-```
+## Tests and evals
 
-### Branding
+| Command | What it checks | Uses the real model |
+|---|---|---|
+| `uv run pytest` | Unit tests, offline, with fake models | No |
+| `uv run ruff check . && uv run ruff format --check .` | Lint and format | No |
+| `uv run python scripts/eval_skills.py` | Each skill loads for the right requests | Yes |
+| `uv run python scripts/eval_memory.py --quick` | Memory cases: recall, updates, trips, token use | Yes |
+| `uv run python scripts/e2e_<feature>.py` | One feature end to end in a real browser | Yes |
 
-The chat UI is Open WebUI branded as **AskTravel** (shown as "AskTravel (Open WebUI)"): `WEBUI_NAME`
-in `docker-compose.yml`, and logo files in [branding/](branding/) mounted over Open WebUI's own.
-To change the logo, edit the mark or colours in `scripts/make_branding.py`, run
-`uv run python scripts/make_branding.py`, and `docker compose up -d open-webui`. Open WebUI's license
-allows replacing its logo for deployments of up to 50 users.
+The model provider allows about 20 requests each minute. Live evals are slow for this reason.
+Run only the cases that your change can affect.
 
-### Re-recording the demo
+## Status and limits
 
-With the stack running: `uv run python scripts/record_demo.py` (one-time:
-`uv run playwright install chromium`). It signs in a demo user, asks the prompt (`--prompt`),
-screenshots while the answer streams, and writes `docs/demo.gif`.
+This is a POC for learning and testing. It is not ready for public users.
 
-Tests and lint: `uv run pytest` · `uv run ruff check . && uv run ruff format --check .`
+- **Security:** The agent API trusts the user email in a request header. Do not expose port 8000
+  to a network (issue #27).
+- **Scraping:** Flight and hotel search read Google's pages. Google can change its pages or
+  block the requests.
+- **Branding:** The chat UI shows "AskTravel (Open WebUI)". The Open WebUI license allows a custom
+  logo for up to 50 users.
 
-See [docs/PLAN.md](docs/PLAN.md) for the architecture and roadmap.
+## Project layout
+
+| Path | Contents |
+|---|---|
+| `src/travel_agent/agent/` | Agent build, prompts, middleware (compaction, retries) |
+| `src/travel_agent/tools/` | Agent tools |
+| `src/travel_agent/skills/` | Skill playbooks |
+| `src/travel_agent/api/` | FastAPI app, OpenAI-compatible routes, streaming progress |
+| `scripts/` | Evals, end-to-end tests, demo recording |
+| `docs/` | Architecture documents and plans |
+
+The contributor rules and the full list of conventions are in
+[.claude/CLAUDE.md](.claude/CLAUDE.md).
+
+## License
+
+The code and the documents are available under the [MIT License](LICENSE).
+
+The license does not apply to the guidebooks, the Open WebUI image or the dependencies. Each
+of these has its own license.

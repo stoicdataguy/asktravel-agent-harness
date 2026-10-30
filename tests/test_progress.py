@@ -98,3 +98,62 @@ CHATS = 'Chat "a" (2026-10-29):\n…\n\nChat "b" (2026-10-28):'
 )
 def test_summaries_come_from_each_tools_result(name, result, expected):
     assert summarize(name, result) == expected
+
+
+def test_notes_from_inside_a_tool_go_under_its_call():
+    r = renderer()
+    text = r.calls([call("h", "search_hotels", location="Prati, Rome")])
+    text += r.note("h", "results page loaded, setting the dates")
+    text += r.note("h", "24 hotels read, applying filters")
+    text += r.result("h", "Hotels in Prati, Rome …\n1. A · $189/night\n2. B · $212/night")
+    assert text.splitlines() == [
+        '🔧 `search_hotels(location="Prati, Rome")`',
+        "   ⋯ search_hotels: results page loaded, setting the dates",
+        "   ⋯ search_hotels: 24 hotels read, applying filters",
+        "   ✓ search_hotels → 2 hotels, from $189/night · 0.5 s",
+        "Reading the results…",
+    ]
+
+
+async def test_stream_turns_custom_progress_into_reasoning_lines():
+    from langchain_core.messages import AIMessage, ToolMessage
+
+    from travel_agent.api.openai_compat import _stream
+
+    calls = [{"name": "search_hotels", "args": {"location": "Prati"}, "id": "h"}]
+
+    class FakeAgent:
+        async def astream(self, *args, **kwargs):
+            assert "custom" in kwargs["stream_mode"]
+            yield "updates", {"model": {"messages": [AIMessage("", tool_calls=calls)]}}
+            yield "custom", {"progress": {"tool_call_id": "h", "text": "dates set"}}
+            yield (
+                "updates",
+                {"tools": {"messages": [ToolMessage("No hotels in Prati", tool_call_id="h")]}},
+            )
+            yield "messages", (AIMessage("None under budget."), {"langgraph_node": "model"})
+
+    chunks = [c async for c in _stream(FakeAgent(), {}, {}, None, "travel-agent")]
+    deltas = [
+        __import__("json").loads(c[6:])["choices"][0]["delta"]
+        for c in chunks
+        if c.startswith("data: {")
+    ]
+    progress = "".join(d.get("reasoning_content", "") for d in deltas)
+    assert "   ⋯ search_hotels: dates set\n   ✗ search_hotels → no hotels found" in progress
+    assert "".join(d.get("content", "") for d in deltas) == "None under budget."
+
+
+async def test_report_is_a_no_op_outside_a_stream():
+    from travel_agent.tools.report import done, report
+
+    report(None, "nothing listens")  # no runtime, no writer: must not raise
+    seen = []
+
+    class Runtime:
+        tool_call_id = "x"
+        stream_writer = staticmethod(seen.append)
+
+    report(Runtime(), "dates set")
+    done(Runtime())
+    assert seen == [{"progress": {"tool_call_id": "x", "text": "dates set"}}]

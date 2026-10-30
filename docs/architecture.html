@@ -829,7 +829,7 @@ conversations. What you know so far:
       <li><span class="sev">Retention</span><b>Nothing expires.</b><span>Checkpoints are never pruned and memories have no TTL (the store already supports <code>ttl_minutes</code>; planned as M6). Users can delete everything themselves with <code>DELETE /api/memory</code>, and deleting a chat in Open WebUI now deletes its thread. Its saved itinerary stays with the trip on purpose.</span></li>
       <li><span class="sev">Knowledge</span><b>The knowledge base is keyword search over 2016 guidebooks.</b><span>Only 7 destinations, editions years out of date (the agent flags prices and hours), and no search by meaning: a question worded differently from the book can miss. Future state: a trusted, indexed knowledge base (above).</span></li>
       <li><span class="sev">Quality</span><b>Research answers aren't measured.</b><span>Memory has an eval suite (22/22) but guidebook answers don't: nothing checks that facts are right or that page citations point at the right page. Needed before changing retrieval.</span></li>
-      <li><span class="sev">Capacity</span><b>The model provider rate-limits at about 20 requests a minute.</b><span>Busy minutes trigger 429s, and retries add 30–50 s waits. Not yet known whether the limit is OpenRouter's or the upstream provider's (#51).</span></li>
+      <li><span class="sev">Capacity</span><b>The model provider rate-limits at about 20 requests a minute.</b><span>Busy minutes trigger 429s, and retries add 30–50 s waits. Users now see each wait in the progress block (⏳), and every retried failure is logged with its headers and body; reading those logs will show whether the limit is OpenRouter's or the upstream provider's (#51).</span></li>
       <li><span class="sev">Coupling</span><b>Chat deletion depends on Open WebUI's tables.</b><span>A trigger on <code>open_webui.chat</code> queues deletions. An Open WebUI upgrade that changes that table would silently stop it; rerun <code>e2e_chat_deletion.py</code> after upgrading.</span></li>
       <li><span class="sev">Scale</span><b>Memory is capped, not searched.</b><span>Up to 50 facts are injected every call. Past chats are found by keyword search. Beyond that, switch facts and chats to semantic search on the store.</span></li>
     </ul>
@@ -891,7 +891,8 @@ conversations. What you know so far:
         <tr><td class="l">76 batches where 2+ tools ran at the same moment (up to 10)</td><td>114 s</td><td>205 s</td></tr>
         <tr><td class="l">10 × <span class="mono">search_flights</span></td><td>1.2 s</td><td>9.0 s</td></tr>
         <tr><td class="l">3 × <span class="mono">search_guidebooks</span> + 2 × <span class="mono">search_flights</span></td><td>3.3 s</td><td>12.2 s</td></tr>
-        <tr><td class="l">2 × <span class="mono">search_hotels</span> (barely overlaps: likely serialised inside the browser tool)</td><td>51 s</td><td>61 s</td></tr>
+        <tr><td class="l">2 × <span class="mono">search_hotels</span>, one slow trace (Google slow to respond that time)</td><td>51 s</td><td>61 s</td></tr>
+        <tr><td class="l">2 × <span class="mono">search_hotels</span>, measured directly: every step overlaps</td><td>9.2 s</td><td>~18 s</td></tr>
       </tbody>
     </table></div>
     <p class="sub">To see it: ask for something that needs several searches ("compare fares to Rome from JFK and EWR"). Several <span class="mono">🔧</span> lines appear together in the progress block before any answer, and in Langfuse the tool spans overlap on the trace timeline.</p>

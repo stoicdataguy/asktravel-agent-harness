@@ -1,6 +1,7 @@
 """Shared helpers for scripts that drive Open WebUI in a browser (Playwright)."""
 
 import json
+import re
 import urllib.error
 import urllib.request
 
@@ -74,3 +75,29 @@ async def send(page: Page, text: str, timeout: float = 300) -> None:
 
 def chat_id(page: Page) -> str:
     return page.url.rstrip("/").rsplit("/c/", 1)[1]
+
+
+async def agent_tool_calls(email: str, chat: str, name: str) -> list[dict]:
+    """The agent's own calls to tool `name` in an Open WebUI chat, from its checkpointed thread.
+
+    More reliable than reading progress lines off the page: they sit in a collapsible block.
+    """
+    from langchain_core.messages import AIMessage
+
+    from travel_agent.config import get_settings
+    from travel_agent.memory import open_memory
+
+    async with open_memory(get_settings().database_url) as (checkpointer, _):
+        saved = await checkpointer.aget_tuple({"configurable": {"thread_id": f"{email}:{chat}"}})
+    messages = saved.checkpoint["channel_values"].get("messages", []) if saved else []
+    return [
+        c for m in messages if isinstance(m, AIMessage) for c in m.tool_calls if c["name"] == name
+    ]
+
+
+_PROGRESS = re.compile(r"🔧|^(Thought for|Thinking|Starting…|Reading the results…)")
+
+
+def answer_text(reply: str) -> str:
+    """A reply's visible text without the agent's progress block."""
+    return "\n".join(line for line in reply.splitlines() if not _PROGRESS.search(line.strip()))

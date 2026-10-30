@@ -118,9 +118,12 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
 - After changing flight or hotel search, run `uv run python scripts/e2e_flights.py` / `e2e_hotels.py`
   (both check quoted prices against a live Google lookup). If Google changes its markup, update
   the selectors in `tools/hotels.py` and the captured card texts in `tests/test_hotels.py`.
-- OpenRouter limits new accounts to 20 requests/min on gpt-6-luna. Model calls retry 429s with
-  backoff (`LLM_MAX_RETRIES`), so suites can run back to back; they just slow down near the limit.
-  Set `LLM_REQUESTS_PER_MINUTE` (e.g. 18) to pace calls instead of retrying.
+- The provider rate-limits at about 20 requests/min on gpt-6-luna. The agent's model calls are
+  retried by `agent/retry.py` (its client has `max_retries=0`): Retry-After or exponential backoff,
+  up to `LLM_MAX_RETRIES`, with a `⏳` progress line so the user sees the wait. Every retried
+  failure is logged at WARNING with its status, rate-limit headers and body: read the API log to
+  see whose limit it was (#51). Other model calls (consolidation, scripts) keep the client's own
+  retries. Set `LLM_REQUESTS_PER_MINUTE` (e.g. 18) to pace calls instead of retrying.
 - Errors inside an agent run must never break the SSE stream: `openai_compat` turns them into a
   readable message (`error_message`) followed by `[DONE]`.
 - After changing anything in the request path, run the browser test
@@ -135,6 +138,10 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
   as `reasoning_content` so Open WebUI shows it in a collapsible block above the answer and never
   resends it. Keep tool names and args human-readable. Progress never goes in `content` unless
   `PROGRESS_STYLE=inline`. A new tool needs a `summarize()` case (or it shows its first line).
+- A tool that takes more than a few seconds reports its steps with `tools/report.py`:
+  `report(runtime, "dates set…")` (add `runtime: ToolRuntime = None`, hidden from the model).
+  It shows as `⋯ tool: text` under the call, logs the step's timing, and does nothing outside a
+  stream.
 - Progress e2e: `uv run python scripts/e2e_progress.py` (browser; checks progress shows fast, the
   answer stays clean, every tool call has an outcome). Run it after changing the request path.
 - Deleting a chat in Open WebUI is followed through by a trigger on `open_webui.chat` (installed by

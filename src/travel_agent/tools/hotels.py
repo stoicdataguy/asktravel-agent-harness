@@ -8,13 +8,15 @@ Google's markup changes over time; failures come back as a message with a search
 
 import logging
 import re
+from collections.abc import Callable
 from datetime import date
 from urllib.parse import quote
 
-from langchain.tools import tool
+from langchain.tools import ToolRuntime, tool
 from playwright.async_api import async_playwright
 
 from travel_agent.agent.schemas import HotelOption
+from travel_agent.tools.report import done, report
 
 logger = logging.getLogger(__name__)
 
@@ -86,16 +88,24 @@ def parse_card(label: str, name: str, text: str) -> HotelOption | None:
 
 
 async def fetch_hotel_cards(
-    location: str, check_in: date, check_out: date
+    location: str,
+    check_in: date,
+    check_out: date,
+    on_step: Callable[[str], None] = lambda text: None,
 ) -> tuple[list[dict], str]:
-    """Open Google Hotels, set the dates, and return raw cards plus the page URL."""
+    """Open Google Hotels, set the dates, and return raw cards plus the page URL.
+
+    `on_step` hears about each step (for the user's progress view; it takes 20-30 s in all).
+    """
     async with async_playwright() as p:
+        on_step("opening Google Hotels")
         browser = await p.chromium.launch()
         try:
             page = await browser.new_page(locale="en-US", viewport={"width": 1280, "height": 1000})
             page.set_default_timeout(PAGE_TIMEOUT_MS)
             await page.goto(search_url(location), wait_until="domcontentloaded")
             await page.locator('a[aria-label^="Prices starting from"]').first.wait_for()
+            on_step("results page loaded, setting the dates")
             await page.locator('input[aria-label="Check-in"]').first.click()
             for day in (check_in, check_out):
                 await page.locator(f'[data-iso="{day.isoformat()}"]:visible').first.click()
@@ -108,6 +118,8 @@ async def fetch_hotel_cards(
                      .some(e => e.value === expected)""",
                 arg=expected,
             )
+            dates = f"{check_in:%b} {check_in.day} → {check_out:%b} {check_out.day}"
+            on_step(f"dates set to {dates}, loading prices")
             await page.wait_for_timeout(3500)  # results re-render after the date change
             cards = await page.evaluate(_CARDS_JS)
             return cards, page.url
@@ -142,6 +154,7 @@ async def search_hotels(
     location: str,
     check_in: date,
     check_out: date,
+    runtime: ToolRuntime = None,  # injected by the agent; None when called directly
     max_price_per_night: int | None = None,
     min_rating: float | None = None,
     include_vacation_rentals: bool = False,
@@ -178,13 +191,18 @@ async def search_hotels(
         return "Google Hotels only takes dates within about the next year; ask for nearer dates."
 
     try:
-        cards, url = await fetch_hotel_cards(location, check_in, check_out)
+        cards, url = await fetch_hotel_cards(
+            location, check_in, check_out, on_step=lambda text: report(runtime, text)
+        )
+        report(runtime, f"{len(cards)} hotels read, applying filters")
     except Exception as exc:  # timeouts, consent pages, Google layout changes
         logger.warning("hotel search failed for %s: %s", location, exc)
         return (
             f"Hotel search failed ({type(exc).__name__}). Suggest the user search "
             f"{search_url(location)} for {check_in} to {check_out}."
         )
+    finally:
+        done(runtime)
 
     hotels = [h for c in cards if (h := parse_card(c["label"], c["name"], c["text"]))]
     if not include_vacation_rentals:

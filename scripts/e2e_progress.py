@@ -2,12 +2,13 @@
 
 Drives the real stack in a browser (Open WebUI, the agent API on :8000, Postgres, the model) as
 a test user with "Always Expand Details" on. Sends a question that needs guidebook research and
-checks:
+checks, for a guidebook question and a hotel search:
 
 1. progress is visible soon after sending (the "Starting…" line);
 2. the stored answer has no progress lines in it;
 3. every tool call in the agent's thread is in the progress block, with a ✓/✗ outcome;
-4. the progress finished before the answer started (it ends with "Reading the results…").
+4. the progress finished before the answer started (it ends with "Reading the results…");
+5. for the hotel search, the tool's own progress lines (⋯) appear while it runs.
 
 Needs the full stack (docker compose up -d, uv run travel-agent) and a Playwright browser.
 
@@ -32,10 +33,21 @@ from travel_agent.memory import open_memory
 
 BASE_URL = "http://localhost:3000"
 EMAIL, PASSWORD = "e2e-progress@travel.local", "e2e-pass-123"
-QUESTION = (
-    "Using the Italy guidebook, name two sights within walking distance of the Colosseum. "
-    "Two short lines, with page citations."
-)
+# (name, question, a tool whose in-tool progress lines must show up)
+CASES = [
+    (
+        "guidebook research",
+        "Using the Italy guidebook, name two sights within walking distance of the Colosseum. "
+        "Two short lines, with page citations.",
+        None,
+    ),
+    (
+        "hotel search",
+        "Find hotels in Prati, Rome from 2026-12-09 to 2026-12-12 under $250 a night. "
+        "Just three names with their nightly price.",
+        "search_hotels",
+    ),
+]
 FIRST_PROGRESS_LIMIT = 3.0  # seconds; Open WebUI adds its own request handling on top of ours
 
 
@@ -55,10 +67,7 @@ def strings(value) -> list[str]:
     return []
 
 
-async def main(args) -> int:
-    results: list[bool] = []
-    token = get_token(BASE_URL, "e2e progress", EMAIL, PASSWORD)
-    expand_details(BASE_URL, token)
+async def run_case(args, token: str, results: list, question: str, note_tool: str | None) -> None:
     async with async_playwright() as p:
         browser = await p.chromium.launch()
         page = await browser.new_page(viewport={"width": 1200, "height": 900})
@@ -66,7 +75,7 @@ async def main(args) -> int:
         await page.goto(f"{BASE_URL}/?models={get_settings().agent_model_name}")
         await page.locator("#chat-input").wait_for(timeout=30_000)
         await page.locator("#chat-input").click()
-        await page.keyboard.type(QUESTION)
+        await page.keyboard.type(question)
         sent = time.monotonic()
         await page.keyboard.press("Enter")
         await page.get_by_text("Starting…").first.wait_for(timeout=30_000)
@@ -119,7 +128,9 @@ async def main(args) -> int:
         thread = saved.checkpoint["channel_values"]["messages"] if saved else []
         calls = [c for m in thread if isinstance(m, AIMessage) for c in m.tool_calls]
         lines = re.findall(r"^🔧 `([a-z_]+)\(", progress, re.M)
-        outcomes = re.findall(r"(?:→|^\s+[✓✗] [a-z_]+ →) ?([✓✗])", progress, re.M)
+        # Outcomes land on the call's own line (`… → ✓ …`) or, after a parallel batch or the
+        # tool's own ⋯ lines, on a line of their own (`   ✓ name → …`)
+        outcomes = re.findall(r"` → [✓✗] |^\s+[✓✗] [a-z_]+ → ", progress, re.M)
         names = sorted(c["name"] for c in calls)
         check(
             results,
@@ -133,13 +144,30 @@ async def main(args) -> int:
             len(outcomes) == len(calls),
             f"{len(outcomes)} outcomes",
         )
+        if note_tool:
+            notes = re.findall(rf"^\s+⋯ {note_tool}: (.+)$", progress, re.M)
+            check(
+                results,
+                f"{note_tool} reports progress while it runs",
+                len(notes) >= 2,
+                " | ".join(notes) or "no ⋯ lines",
+            )
         if not args.keep:
             delete_chat(BASE_URL, token, cid)
             await user_data.delete_all(store, checkpointer, EMAIL)
-
-    print(f"\n{sum(results)}/{len(results)} checks passed")
     if not all(results):
         print("\nprogress block:\n" + progress)
+
+
+async def main(args) -> int:
+    results: list[bool] = []
+    token = get_token(BASE_URL, "e2e progress", EMAIL, PASSWORD)
+    expand_details(BASE_URL, token)
+    for name, question, note_tool in CASES:
+        print(f"-- {name}")
+        await run_case(args, token, results, question, note_tool)
+
+    print(f"\n{sum(results)}/{len(results)} checks passed")
     return 0 if all(results) else 1
 
 

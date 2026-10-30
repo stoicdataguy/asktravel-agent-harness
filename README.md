@@ -8,9 +8,10 @@ can be the frontend.
 
 ![Demo: the agent searches Lonely Planet guidebooks with tool calls, then answers with a cited 3-day plan](docs/demo.gif)
 
-*Open WebUI talking to the agent: each `🔧` line is a tool call (guidebook search / page read)
-streamed live, followed by a day-by-day plan citing guidebook pages. Playback of the wait is 2× speed.
-(Recorded before progress moved into the collapsible block above the answer; see [Agent progress](#agent-progress).)*
+*Open WebUI talking to the agent: the **Thinking…** block fills live with each tool call
+(`🔧 search_guidebooks(…) → ✓ 22 passages`), including a parallel batch of three searches, then the
+answer streams as a day-by-day plan citing guidebook pages. Playback of the wait is 2× speed.
+See [Agent progress](#agent-progress).*
 
 **Architecture & state persistence:** [docs/architecture.html](docs/architecture.html) ([view rendered](https://raw.githack.com/stoicdataguy/travel-agent-react/main/docs/architecture.html)). Three tabs: the system architecture, a data-flow page on how short-term (checkpointer) and long-term (store) memory are kept in Postgres, and the tools and skills in the current MVP.
 
@@ -45,7 +46,11 @@ call and what it found, as it happens:
 Starting…
 🔧 `search_guidebooks(query="Rome one week itinerary", book="italy")` → ✓ 6 passages · 0.4 s
 🔧 `search_flights(origin="JFK", destination="FCO", …)` → ✓ 5 options, from $1,555 · 1.2 s
+🔧 `search_hotels(location="Prati, Rome", …)`
+   ⋯ search_hotels: dates set to Dec 9 → Dec 12, loading prices
+   ✓ search_hotels → 3 hotels, from $107/night · 9.2 s
 Reading the results…
+⏳ The model provider is busy (rate limit); retrying in 20 s (attempt 1 of 10)
 ```
 
 The block collapses to "Thought for N seconds" when the answer starts, and isn't sent back to the

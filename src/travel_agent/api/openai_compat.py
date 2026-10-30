@@ -117,12 +117,22 @@ async def _stream(agent, inputs, config, context, model: str) -> AsyncIterator[s
     if chunk := show(progress.start()):
         yield chunk
     # "messages" streams model tokens; "updates" delivers each finished model step (its tool
-    # calls, with full args) and each tool result (its outcome, and any artifact to display)
+    # calls, with full args) and each tool result (its outcome, and any artifact to display);
+    # "custom" carries progress that slow tools report while they run (tools/report.py)
     try:
         async for mode, payload in agent.astream(
-            inputs, config, context=context, stream_mode=["messages", "updates"]
+            inputs, config, context=context, stream_mode=["messages", "updates", "custom"]
         ):
-            if mode == "messages":
+            if mode == "custom":
+                if isinstance(payload, dict) and isinstance(payload.get("progress"), dict):
+                    note = payload["progress"]
+                    if note.get("kind") == "waiting":
+                        text = progress.waiting(note["text"])
+                    else:
+                        text = progress.note(note.get("tool_call_id", ""), note["text"])
+                    if chunk := show(text):
+                        yield chunk
+            elif mode == "messages":
                 message, metadata = payload
                 # Token chunks when the model streams; one whole AIMessage when it doesn't
                 if metadata.get("langgraph_node") == "model" and isinstance(message, AIMessage):

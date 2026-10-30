@@ -21,7 +21,7 @@ import re
 import sys
 
 from fast_flights import FlightQuery, Passengers, create_query, get_flights
-from owui import chat_id, delete_chat, get_token, send
+from owui import agent_tool_calls, answer_text, chat_id, delete_chat, get_token, send
 from playwright.async_api import async_playwright
 
 from travel_agent.config import get_settings
@@ -92,14 +92,17 @@ async def main(args) -> int:
             await send(page, ASK)
             chats.append(chat_id(page))
             reply = await page.locator(".chat-assistant").last.inner_text()
-            call = re.search(r"🔧 search_flights\((.*?)\)", reply)
+            calls = await agent_tool_calls(EMAIL, chats[-1], "search_flights")
             check(
                 results,
                 "calls search_flights SFO → KOA",
-                bool(call) and '"SFO"' in call.group(1) and '"KOA"' in call.group(1),
-                call.group(0)[:120] if call else "no search_flights call",
+                any(
+                    c["args"].get("origin") == "SFO" and c["args"].get("destination") == "KOA"
+                    for c in calls
+                ),
+                str([c["args"] for c in calls])[:150] or "no search_flights call",
             )
-            answer = "\n".join(line for line in reply.splitlines() if "🔧" not in line)
+            answer = answer_text(reply)
             quoted = dollars(answer)
             live, cheapest, airline = live_prices()
             matched = [p for p in quoted if p in live]

@@ -8,6 +8,7 @@ from langgraph.store.base import BaseStore
 
 from travel_agent.agent.compaction import compact_earlier_turns
 from travel_agent.agent.prompts import SYSTEM_PROMPT
+from travel_agent.agent.retry import retry_model_calls
 from travel_agent.context import UserContext
 from travel_agent.llm import get_chat_model
 from travel_agent.skills import load_skill, skills_index
@@ -46,7 +47,8 @@ def build_agent(
     model: BaseChatModel | None = None,
 ):
     return create_agent(
-        model or get_chat_model(),
+        # The retry middleware owns retries, so it can show the wait; the client doesn't retry
+        model or get_chat_model().model_copy(update={"max_retries": 0}),
         tools=[
             *GUIDEBOOK_TOOLS,
             search_flights,
@@ -57,7 +59,7 @@ def build_agent(
             present_itinerary,
             make_recall_tool(checkpointer),
         ],
-        middleware=[system_prompt, compact_earlier_turns, index_chat],
+        middleware=[system_prompt, compact_earlier_turns, retry_model_calls, index_chat],
         context_schema=UserContext,
         checkpointer=checkpointer,
         store=store,

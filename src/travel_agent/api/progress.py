@@ -161,6 +161,15 @@ class ProgressRenderer:
                 text += "\n"
         return text
 
+    def waiting(self, text: str) -> str:
+        """A model call waiting to be retried (`agent/retry.py`)."""
+        return self._close() + f"⏳ {text}\n"
+
+    def note(self, tool_call_id: str, text: str) -> str:
+        """Progress reported from inside a running tool (`tools/report.py`)."""
+        name = self.started.get(tool_call_id, ("tool", 0.0))[0]
+        return self._close() + f"   ⋯ {name}: {text}\n"
+
     def result(self, tool_call_id: str, content: str) -> str:
         now = self.now()
         name, began = self.started.pop(tool_call_id, ("tool", now))

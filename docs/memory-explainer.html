@@ -204,6 +204,7 @@ th.us { color: var(--work); }
 .pattern p { font-size: 13.5px; color: var(--muted); }
 .pattern .papers { font: 500 12px var(--font-mono); color: var(--muted); }
 .pattern ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; font-size: 13.5px; }
+.cache-rules { margin: 4px 0 0; padding-left: 18px; display: grid; gap: 6px; font-size: 13.5px; }
 .pattern li { position: relative; padding-left: 26px; }
 .pattern li::before { position: absolute; left: 0; top: 0; width: 20px; font-weight: 700; }
 .pattern li.y::before { content: "✓"; color: var(--ok); }
@@ -339,6 +340,31 @@ footer { color: var(--muted); font-size: 13px; padding-bottom: 40px; display: fl
       </div>
     </div>
     <p class="budget-key">Measured 2026-10-30 on the largest saved chat (15 user turns), as its last model call is sent today. Prompt and tool-schema sizes are the model provider's own counts; message sizes are tokenizer estimates. Each step of a turn still sends the whole window, but the saved thread is never shortened: compaction only changes what the model is sent. The colour of each row shows which memory type fills it.</p>
+  </div>
+
+  <div class="note">
+    <span class="eyebrow">Note · prompt caching</span>
+    <h3>The window is ordered so that each request extends the last one</h3>
+    <p>Every model call resends the whole window, so caching decides what it costs. Measured on OpenRouter (served by OpenAI), the provider reuses a cached request only when the new request <b>extends it exactly</b>. Any change before the end, even the last line of the system prompt, throws the cache away.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Request (~5k-token agent prompt with 13 tools)</th><th>Read from cache</th><th>Written to cache</th><th>Cost</th></tr></thead>
+        <tbody>
+          <tr><td>Identical to an earlier request</td><td><b>5,008</b></td><td>0</td><td>$0.000058</td></tr>
+          <tr><td>The same, with a new turn appended at the end</td><td><b>5,008</b></td><td>31</td><td>only the 31 new tokens at the write price</td></tr>
+          <tr><td>One line changed at the end of the system prompt</td><td>0</td><td>5,033</td><td>$0.000637</td></tr>
+          <tr><td>One line changed at the start</td><td>0</td><td>5,035</td><td>$0.000638 (11× the cached request)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Cache reads are billed about 90% below normal input and writes about 25% above, per OpenRouter's generation stats (<span class="mono">cache_discount</span>). So AskTravel builds the window to <b>grow only at the end</b>:</p>
+    <ul class="cache-rules">
+      <li><b>Stable parts first.</b> The system prompt opens with the rules and skills index, then this user's facts and trips; the tool schemas never change; the chat comes last.</li>
+      <li><b>Within a turn, append only.</b> Each step adds a tool call and its result; everything before is read from cache. Later calls in a turn: <b>76%</b> read, 24% written, which is the new tool results.</li>
+      <li><b>Compaction runs once, at the turn boundary.</b> The previous turn is rewritten as question, answer and a note, which is exactly how that turn's first request ended plus the answer. The new turn therefore extends a cached request: first calls of a turn are <b>92%</b> read.</li>
+      <li><b>Never rewrite the saved history to save tokens.</b> Summarising older turns would also change the window before its end on every turn.</li>
+    </ul>
+    <p class="ref">What still breaks the cache: the system prompt changes when the date rolls over (the date and trip countdowns are in it) and when a fact or trip is saved mid-turn. The next call then rewrites the whole window once. The fix (#55) is to freeze the system prompt for a chat and deliver changes as appended messages. Measured 2026-10-30: Langfuse over 840 calls in 338 turns (81% of all input tokens read from cache) and OpenRouter's <span class="mono">/api/v1/generation</span> stats for the four requests above.</p>
   </div>
 
   <div class="types">

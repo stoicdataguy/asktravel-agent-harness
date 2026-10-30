@@ -391,6 +391,44 @@ footer { color: var(--muted); font-size: 13px; padding-block: 0 40px; }
   section.view { animation: fade 0.25s ease-out; }
   @keyframes fade { from { opacity: 0.4; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 }
+
+/* ---------- Context window view ---------- */
+.cw {
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s7: #6250d6;
+  --band: color-mix(in srgb, var(--ink) 4%, transparent); --grid: var(--line);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .cw { --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s7: #9085e9; --band: color-mix(in srgb, var(--ink) 6%, transparent); }
+}
+:root[data-theme="dark"] .cw { --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s7: #9085e9; --band: color-mix(in srgb, var(--ink) 6%, transparent); }
+.cw .facts .n { color: var(--accent); }
+.cw-chart { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px 10px; display: flex; flex-direction: column; gap: 10px; position: relative; }
+.cw-chart h3 { font-size: 15px; }
+.cw-chart .sub { font-size: 13px; color: var(--muted); }
+.cw-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.5px; color: var(--muted); }
+.cw-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.cw-legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.cw-legend i.line { height: 0; border-top: 2px dashed var(--muted); border-radius: 0; width: 18px; }
+.cw-plot { width: 100%; }
+.cw-plot svg { display: block; width: 100%; height: auto; overflow: visible; }
+.cw-plot text { font: 500 11px var(--font-body); fill: var(--muted); }
+.cw-plot text.ann { fill: var(--ink); font-size: 11.5px; }
+.cw-tip { position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 4px 14px rgb(0 0 0 / 0.12); padding: 8px 10px; font-size: 12.5px; min-width: 210px; z-index: 5; display: none; }
+.cw-tip b { display: block; margin-bottom: 4px; }
+.cw-tip div { display: flex; justify-content: space-between; gap: 12px; }
+.cw-tip div span:first-child { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+.cw-tip i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+.cw-tip .tools { margin-top: 4px; color: var(--muted); font: 500 11.5px var(--font-mono); overflow-wrap: anywhere; }
+.cw-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.cw-cards div { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; font-size: 13.5px; }
+.cw-cards span { color: var(--muted); }
+.cw details summary { cursor: pointer; font-size: 13.5px; color: var(--accent); }
+.cw .table-scroll { overflow-x: auto; margin-top: 8px; }
+.cw table { border-collapse: collapse; width: 100%; font-size: 12.5px; min-width: 620px; font-variant-numeric: tabular-nums; }
+.cw th, .cw td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.cw th:first-child, .cw td:first-child, .cw td.l, .cw th.l { text-align: left; }
+.cw th { color: var(--muted); font-weight: 600; }
+@media (max-width: 760px) { .cw-cards { grid-template-columns: minmax(0, 1fr); } }
 body { margin: 0; }
 </style>
 </head>
@@ -403,6 +441,7 @@ body { margin: 0; }
       <button role="tab" id="tab-architecture" aria-controls="architecture" aria-selected="true" data-view="architecture">Architecture</button>
       <button role="tab" id="tab-data-flow" aria-controls="data-flow" aria-selected="false" data-view="data-flow">Data flow &amp; state</button>
       <button role="tab" id="tab-tools" aria-controls="tools" aria-selected="false" data-view="tools">Tools &amp; skills</button>
+      <button role="tab" id="tab-context-window" aria-controls="context-window" aria-selected="false" data-view="context-window">Context window</button>
     </nav>
   </div>
 </header>
@@ -787,6 +826,59 @@ conversations. What you know so far:
   </div>
 </section>
 
+<!-- ================= CONTEXT WINDOW ================= -->
+<section class="view cw" id="context-window" role="tabpanel" aria-labelledby="tab-context-window" hidden>
+  <div class="intro">
+    <span class="eyebrow">Replayed from the longest chat</span>
+    <h1>How the context window grows and updates</h1>
+    <p class="lead">Every model call sends the whole context window. This view replays the longest saved chat (15 user turns, 55 model calls) with today's code: what each call sends, how it grows while the agent researches, how it shrinks when a new turn starts, and how much of it the provider serves from its prompt cache.</p>
+    <div class="facts">
+      <div class="fact"><span class="n">55</span><p>model calls over 15 turns: one per agent step, each resending the window</p></div>
+      <div class="fact"><span class="n">73k → 21.4k</span><p>tokens in the last call, without and with turn compaction. Over the whole chat: 2.01M → 0.76M sent (−62%)</p></div>
+      <div class="fact"><span class="n">87%</span><p>of all input tokens read from the prompt cache; 99k written (the part paid in full)</p></div>
+    </div>
+  </div>
+
+  <div class="cw-chart" id="cw-window">
+    <h3>Tokens sent on each model call</h3>
+    <p class="sub">One bar per call, stacked by what fills the window; shaded bands are user turns. The dashed line is the same call without compaction.</p>
+    <div class="cw-legend" aria-hidden="true">
+      <span><i style="background:var(--s1)"></i>Rules, skills index, tool schemas</span>
+      <span><i style="background:var(--s2)"></i>User memory (facts, trips)</span>
+      <span><i style="background:var(--s3)"></i>Earlier turns, compacted</span>
+      <span><i style="background:var(--s4)"></i>This turn's messages</span>
+      <span><i style="background:var(--s5)"></i>This turn's tool results</span>
+      <span><i class="line"></i>Without compaction</span>
+    </div>
+    <div class="cw-plot" role="img" aria-label="Stacked bars of tokens per model call across 15 turns; details in the table below"></div>
+    <div class="cw-tip" role="tooltip"></div>
+  </div>
+
+  <div class="cw-chart" id="cw-cache">
+    <h3>Tokens written to the prompt cache on each call</h3>
+    <p class="sub">Everything else in the call was read from cache at about a tenth of the price. A request is served from cache only if it extends an earlier one exactly.</p>
+    <div class="cw-plot" role="img" aria-label="Bars of tokens written to the cache per model call"></div>
+    <div class="cw-tip" role="tooltip"></div>
+  </div>
+
+  <div class="cw-cards">
+    <div><b>Within a turn: append only</b><span>Each step adds the model's tool calls and their results to the end. The window grows (turn 5: 7k → 26k across 7 calls while the agent reads guidebook pages), but everything before the new results is read from cache.</span></div>
+    <div><b>At a new turn: compact once</b><span>The previous turn's tool results are dropped, leaving its question, answer and a one-line note. The window falls back (26k → 11k at turn 6) and the new request still extends one the cache holds.</span></div>
+    <div><b>When the cache misses</b><span>Turns 13–15 each present a new itinerary. Compaction keeps only the latest plan, so the earlier one leaves the middle of the window and ~7k tokens are rewritten. A new day or a mid-turn memory save does the same (#55).</span></div>
+  </div>
+
+  <details>
+    <summary>Show the data as a table (per turn)</summary>
+    <div class="table-scroll"><table id="cw-table">
+      <thead><tr><th>Turn</th><th>Calls</th><th class="l">Tools called</th><th>First call</th><th>Last call</th><th>Last call, no compaction</th><th>Written to cache</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </details>
+  <p class="sub" style="font-size:12.5px;color:var(--muted)">Replayed by <span class="mono">scripts/context_window_trace.py</span> on 2026-10-30, as if the whole chat ran today with today's compaction. Fixed prompt parts are the provider's own counts; message sizes are tokenizer estimates. Cache reads and writes are simulated with the measured rule (a request hits only when it extends an earlier one) and ignore date changes and cache expiry.</p>
+</section>
+
+<script type="application/json" id="cw-data">[{"turn":1,"step":1,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":0,"turn_messages":28,"turn_tool_results":0,"without_compaction":5017,"cache_read":0,"cache_written":5017,"tools":["load_skill"]},{"turn":1,"step":2,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":0,"turn_messages":42,"turn_tool_results":414,"without_compaction":5445,"cache_read":5017,"cache_written":428,"tools":["list_guidebooks"]},{"turn":1,"step":3,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":0,"turn_messages":49,"turn_tool_results":1098,"without_compaction":6136,"cache_read":5445,"cache_written":691,"tools":["save_trip_details"]},{"turn":1,"step":4,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":0,"turn_messages":102,"turn_tool_results":1158,"without_compaction":6249,"cache_read":6136,"cache_written":113,"tools":[]},{"turn":2,"step":1,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":659,"turn_messages":44,"turn_tool_results":0,"without_compaction":6440,"cache_read":5445,"cache_written":247,"tools":["save_trip_details"]},{"turn":2,"step":2,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":659,"turn_messages":155,"turn_tool_results":114,"without_compaction":6665,"cache_read":5692,"cache_written":225,"tools":[]},{"turn":3,"step":1,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":985,"turn_messages":33,"turn_tool_results":0,"without_compaction":6889,"cache_read":5692,"cache_written":315,"tools":["search_guidebooks","search_guidebooks","search_guidebooks","search_flights","search_flights"]},{"turn":3,"step":2,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":985,"turn_messages":235,"turn_tool_results":1758,"without_compaction":8849,"cache_read":6007,"cache_written":1960,"tools":["save_trip_details","search_flights","search_flights","search_guidebooks","search_guidebooks"]},{"turn":3,"step":3,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":985,"turn_messages":501,"turn_tool_results":2510,"without_compaction":9867,"cache_read":7967,"cache_written":1018,"tools":["search_flights","search_flights","search_flights","search_flights"]},{"turn":3,"step":4,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":985,"turn_messages":738,"turn_tool_results":2898,"without_compaction":10492,"cache_read":8985,"cache_written":625,"tools":["search_flights","search_flights","search_flights"]},{"turn":3,"step":5,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":985,"turn_messages":898,"turn_tool_results":3166,"without_compaction":10920,"cache_read":9610,"cache_written":428,"tools":["save_trip_details"]},{"turn":3,"step":6,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":985,"turn_messages":1006,"turn_tool_results":3345,"without_compaction":11207,"cache_read":10038,"cache_written":287,"tools":[]},{"turn":4,"step":1,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":1999,"turn_messages":12,"turn_tool_results":0,"without_compaction":11440,"cache_read":6007,"cache_written":993,"tools":["search_guidebooks","search_guidebooks","search_guidebooks","search_guidebooks"]},{"turn":4,"step":2,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":1999,"turn_messages":139,"turn_tool_results":2353,"without_compaction":13920,"cache_read":7000,"cache_written":2480,"tools":["search_guidebooks","search_guidebooks","search_guidebooks","search_guidebooks"]},{"turn":4,"step":3,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":1999,"turn_messages":276,"turn_tool_results":5068,"without_compaction":16772,"cache_read":9480,"cache_written":2852,"tools":[]},{"turn":5,"step":1,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":2445,"turn_messages":14,"turn_tool_results":0,"without_compaction":16976,"cache_read":7000,"cache_written":448,"tools":["load_skill"]},{"turn":5,"step":2,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":2445,"turn_messages":28,"turn_tool_results":796,"without_compaction":17786,"cache_read":7448,"cache_written":810,"tools":["search_guidebooks"]},{"turn":5,"step":3,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":2445,"turn_messages":64,"turn_tool_results":1507,"without_compaction":18533,"cache_read":8258,"cache_written":747,"tools":["read_guidebook_pages","search_guidebooks","search_guidebooks","search_guidebooks","search_guidebooks","search_guidebooks"]},{"turn":5,"step":4,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":2445,"turn_messages":280,"turn_tool_results":5558,"without_compaction":22800,"cache_read":9005,"cache_written":4267,"tools":["read_guidebook_pages"]},{"turn":5,"step":5,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":2445,"turn_messages":314,"turn_tool_results":6437,"without_compaction":23713,"cache_read":13272,"cache_written":913,"tools":["read_guidebook_pages","read_guidebook_pages","read_guidebook_pages","read_guidebook_pages","search_guidebooks","search_guidebooks"]},{"turn":5,"step":6,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":2445,"turn_messages":516,"turn_tool_results":16326,"without_compaction":33804,"cache_read":14185,"cache_written":10091,"tools":["present_itinerary"]},{"turn":5,"step":7,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":2445,"turn_messages":2541,"turn_tool_results":16399,"without_compaction":35902,"cache_read":24276,"cache_written":2098,"tools":[]},{"turn":6,"step":1,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":5860,"turn_messages":26,"turn_tool_results":0,"without_compaction":35976,"cache_read":8258,"cache_written":2617,"tools":["search_flights","search_flights","save_trip_details"]},{"turn":6,"step":2,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":5860,"turn_messages":228,"turn_tool_results":945,"without_compaction":37123,"cache_read":10875,"cache_written":1147,"tools":[]},{"turn":7,"step":1,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":6547,"turn_messages":27,"turn_tool_results":0,"without_compaction":37658,"cache_read":10875,"cache_written":688,"tools":[]},{"turn":8,"step":1,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":7282,"turn_messages":21,"turn_tool_results":0,"without_compaction":38387,"cache_read":11563,"cache_written":729,"tools":["save_trip_details"]},{"turn":8,"step":2,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":7282,"turn_messages":143,"turn_tool_results":309,"without_compaction":38818,"cache_read":12292,"cache_written":431,"tools":["search_flights"]},{"turn":8,"step":3,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":7282,"turn_messages":216,"turn_tool_results":541,"without_compaction":39123,"cache_read":12723,"cache_written":305,"tools":[]},{"turn":9,"step":1,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":7636,"turn_messages":24,"turn_tool_results":0,"without_compaction":39369,"cache_read":12292,"cache_written":357,"tools":["get_trip"]},{"turn":9,"step":2,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":7636,"turn_messages":43,"turn_tool_results":1869,"without_compaction":41257,"cache_read":12649,"cache_written":1888,"tools":["search_hotels"]},{"turn":9,"step":3,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":7636,"turn_messages":116,"turn_tool_results":2608,"without_compaction":42069,"cache_read":14537,"cache_written":812,"tools":["search_hotels"]},{"turn":9,"step":4,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":7636,"turn_messages":183,"turn_tool_results":3366,"without_compaction":42894,"cache_read":15349,"cache_written":825,"tools":["save_trip_details"]},{"turn":9,"step":5,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":7636,"turn_messages":252,"turn_tool_results":3712,"without_compaction":43309,"cache_read":16174,"cache_written":415,"tools":["search_hotels","search_hotels"]},{"turn":9,"step":6,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":7636,"turn_messages":379,"turn_tool_results":4341,"without_compaction":44065,"cache_read":16589,"cache_written":756,"tools":[]},{"turn":10,"step":1,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":8425,"turn_messages":20,"turn_tool_results":0,"without_compaction":44574,"cache_read":12649,"cache_written":785,"tools":["search_guidebooks","search_guidebooks","search_guidebooks","search_guidebooks","search_guidebooks"]},{"turn":10,"step":2,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":8425,"turn_messages":198,"turn_tool_results":2387,"without_compaction":47139,"cache_read":13434,"cache_written":2565,"tools":["search_hotels","search_hotels","save_trip_details"]},{"turn":10,"step":3,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":8425,"turn_messages":390,"turn_tool_results":3878,"without_compaction":48822,"cache_read":15999,"cache_written":1683,"tools":["read_guidebook_pages"]},{"turn":10,"step":4,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":8425,"turn_messages":424,"turn_tool_results":4807,"without_compaction":49785,"cache_read":17682,"cache_written":963,"tools":[]},{"turn":11,"step":1,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":9044,"turn_messages":13,"turn_tool_results":0,"without_compaction":50058,"cache_read":13434,"cache_written":612,"tools":["save_trip_details"]},{"turn":11,"step":2,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":9044,"turn_messages":98,"turn_tool_results":431,"without_compaction":50574,"cache_read":14046,"cache_written":516,"tools":[]},{"turn":12,"step":1,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":9169,"turn_messages":18,"turn_tool_results":0,"without_compaction":50655,"cache_read":14046,"cache_written":130,"tools":["load_skill"]},{"turn":12,"step":2,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":9169,"turn_messages":32,"turn_tool_results":796,"without_compaction":51465,"cache_read":14176,"cache_written":810,"tools":["get_trip"]},{"turn":12,"step":3,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":9169,"turn_messages":51,"turn_tool_results":2787,"without_compaction":53475,"cache_read":14986,"cache_written":2010,"tools":["search_guidebooks","search_guidebooks","search_guidebooks","search_guidebooks","search_guidebooks"]},{"turn":12,"step":4,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":9169,"turn_messages":251,"turn_tool_results":5059,"without_compaction":55947,"cache_read":16996,"cache_written":2472,"tools":["search_guidebooks","search_guidebooks","read_guidebook_pages","read_guidebook_pages","read_guidebook_pages"]},{"turn":12,"step":5,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":9169,"turn_messages":415,"turn_tool_results":9174,"without_compaction":60226,"cache_read":19468,"cache_written":4279,"tools":["search_guidebooks"]},{"turn":12,"step":6,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":9169,"turn_messages":452,"turn_tool_results":9646,"without_compaction":60735,"cache_read":23747,"cache_written":509,"tools":["present_itinerary"]},{"turn":12,"step":7,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":9169,"turn_messages":2544,"turn_tool_results":9714,"without_compaction":62895,"cache_read":24256,"cache_written":2160,"tools":[]},{"turn":13,"step":1,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":10515,"turn_messages":18,"turn_tool_results":0,"without_compaction":62990,"cache_read":8258,"cache_written":7264,"tools":["present_itinerary"]},{"turn":13,"step":2,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":10515,"turn_messages":2003,"turn_tool_results":66,"without_compaction":65041,"cache_read":15522,"cache_written":2051,"tools":[]},{"turn":14,"step":1,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":10461,"turn_messages":13,"turn_tool_results":0,"without_compaction":65087,"cache_read":8258,"cache_written":7205,"tools":["present_itinerary"]},{"turn":14,"step":2,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":10461,"turn_messages":2216,"turn_tool_results":66,"without_compaction":67356,"cache_read":15463,"cache_written":2269,"tools":[]},{"turn":15,"step":1,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":10769,"turn_messages":16,"turn_tool_results":0,"without_compaction":67432,"cache_read":8258,"cache_written":7516,"tools":["search_flights","get_trip"]},{"turn":15,"step":2,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":10769,"turn_messages":95,"turn_tool_results":2456,"without_compaction":69967,"cache_read":15774,"cache_written":2535,"tools":["save_trip_details"]},{"turn":15,"step":3,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":10769,"turn_messages":262,"turn_tool_results":2980,"without_compaction":70658,"cache_read":18309,"cache_written":691,"tools":["present_itinerary"]},{"turn":15,"step":4,"rules_skills_tools":4313,"user_memory":676,"earlier_turns":10769,"turn_messages":2624,"turn_tool_results":3045,"without_compaction":73085,"cache_read":19000,"cache_written":2427,"tools":[]}]</script>
+
 <!-- ================= TOOLS & SKILLS ================= -->
 <section class="view" id="tools" role="tabpanel" aria-labelledby="tab-tools" hidden>
   <div class="intro">
@@ -997,12 +1089,167 @@ conversations. What you know so far:
   });
   seq.appendChild(rows);
 
+  // Context window view: one stacked bar per model call, from the replay data embedded above
+  (function () {
+    var calls = JSON.parse(document.getElementById("cw-data").textContent);
+    var PARTS = [
+      ["rules_skills_tools", "--s1", "Rules, skills, tool schemas"],
+      ["user_memory", "--s2", "User memory"],
+      ["earlier_turns", "--s3", "Earlier turns, compacted"],
+      ["turn_messages", "--s4", "This turn's messages"],
+      ["turn_tool_results", "--s5", "This turn's tool results"]
+    ];
+    var NS = "http://www.w3.org/2000/svg";
+    function el(tag, attrs, parent, style) {
+      var e = document.createElementNS(NS, tag);
+      for (var k in attrs) e.setAttribute(k, attrs[k]);
+      if (style) for (var st in style) e.style[st] = style[st];
+      if (parent) parent.appendChild(e);
+      return e;
+    }
+    function total(c) { return PARTS.reduce(function (s, p) { return s + c[p[0]]; }, 0); }
+    function fmt(n) { return n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, "") + "k" : String(n); }
+    function num(n) { return n.toLocaleString("en-US"); }
+    function roundTop(x, y, w, h, r) {
+      r = Math.min(r, w / 2, h);
+      return "M" + x + "," + (y + h) + "V" + (y + r) + "Q" + x + "," + y + " " + (x + r) + "," + y +
+        "H" + (x + w - r) + "Q" + (x + w) + "," + y + " " + (x + w) + "," + (y + r) + "V" + (y + h) + "Z";
+    }
+
+    function draw(box, o) {
+      var plot = box.querySelector(".cw-plot"), tip = box.querySelector(".cw-tip");
+      plot.innerHTML = "";
+      var W = plot.clientWidth; if (!W) return;
+      var narrow = W < 600, H = o.height(narrow);
+      var m = { l: 40, r: 6, t: 20, b: 18 }, pw = W - m.l - m.r, ph = H - m.t - m.b;
+      var svg = el("svg", { viewBox: "0 0 " + W + " " + H, width: W, height: H }, plot);
+      var max = Math.ceil(o.max / o.step) * o.step, slot = pw / calls.length;
+      var gap = slot > 8 ? 2 : 1, bw = Math.max(1.5, slot - gap);
+      function x(i) { return m.l + i * slot + gap / 2; }
+      function y(v) { return m.t + ph - (v / max) * ph; }
+      // Turn bands, labelled when there's room
+      var start = 0;
+      calls.forEach(function (c, i) {
+        var next = calls[i + 1];
+        if (next && next.turn === c.turn) return;
+        if (c.turn % 2 === 0) el("rect", { x: m.l + start * slot, y: m.t, width: (i - start + 1) * slot, height: ph }, svg, { fill: "var(--band)" });
+        var bandW = (i - start + 1) * slot;
+        if (bandW >= 14 || c.turn % 3 === 1) {
+          var t = el("text", { x: m.l + (start + (i - start + 1) / 2) * slot, y: m.t - 6, "text-anchor": "middle" }, svg);
+          t.textContent = (start === 0 ? "turn " : "") + c.turn;
+        }
+        start = i + 1;
+      });
+      // Grid and y labels
+      for (var v = 0; v <= max; v += o.step) {
+        el("line", { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), "stroke-width": 1 }, svg, { stroke: "var(--grid)", strokeDasharray: v ? "2 3" : "" });
+        var lab = el("text", { x: m.l - 6, y: y(v) + 4, "text-anchor": "end" }, svg);
+        lab.textContent = v ? fmt(v) : "0";
+      }
+      // Bars
+      calls.forEach(function (c, i) {
+        var base = 0, segs = o.segments(c).filter(function (s) { return s[0] > 0; });
+        segs.forEach(function (s, k) {
+          var y0 = y(base), y1 = y(base + s[0]), h = Math.max(0.5, y0 - y1);
+          var style = { fill: "var(" + s[1] + ")", stroke: "var(--surface)", strokeWidth: "1px" };
+          if (k === segs.length - 1) el("path", { d: roundTop(x(i), y1, bw, h, narrow ? 1.5 : 3) }, svg, style);
+          else el("rect", { x: x(i), y: y1, width: bw, height: h }, svg, style);
+          base += s[0];
+        });
+      });
+      // Comparison line
+      if (o.line) {
+        var pts = calls.map(function (c, i) { return (x(i) + bw / 2) + "," + y(o.line(c)); }).join(" ");
+        el("polyline", { points: pts, fill: "none", "stroke-width": 2 }, svg, { stroke: "var(--muted)", strokeDasharray: "5 4" });
+      }
+      // A few direct labels
+      (o.notes || []).filter(function (n) { return !narrow || n.narrow; }).forEach(function (n) {
+        var i = n.at(calls), t = el("text", { x: Math.min(x(i) + bw / 2, W - m.r), y: y(n.value(calls[i])) - 7, "text-anchor": n.anchor || "middle", "class": "ann" }, svg);
+        t.textContent = n.text(calls[i]);
+      });
+      // Hover: highlight the call under the pointer and show its breakdown
+      var hl = el("rect", { y: m.t, height: ph, width: slot, visibility: "hidden" }, svg, { fill: "var(--ink)", opacity: 0.07, pointerEvents: "none" });
+      function at(evt) {
+        var r = svg.getBoundingClientRect(), px = (evt.touches ? evt.touches[0].clientX : evt.clientX) - r.left;
+        var i = Math.floor((px - m.l) / slot);
+        if (i < 0 || i >= calls.length) return hide();
+        var c = calls[i];
+        hl.setAttribute("x", m.l + i * slot); hl.setAttribute("visibility", "visible");
+        tip.innerHTML = o.tip(c);
+        tip.style.display = "block";
+        var bx = box.getBoundingClientRect(), left = r.left - bx.left + px + 14;
+        if (left + tip.offsetWidth > box.clientWidth - 4) left = r.left - bx.left + px - tip.offsetWidth - 14;
+        tip.style.left = Math.max(4, left) + "px";
+        tip.style.top = (r.top - bx.top + m.t) + "px";
+      }
+      function hide() { hl.setAttribute("visibility", "hidden"); tip.style.display = "none"; }
+      svg.addEventListener("mousemove", at);
+      svg.addEventListener("touchstart", at, { passive: true });
+      svg.addEventListener("mouseleave", hide);
+    }
+
+    function row(color, label, value) {
+      return "<div><span>" + (color ? "<i style=\"background:var(" + color + ")\"></i>" : "") + label + "</span><span>" + value + "</span></div>";
+    }
+    function head(c) { return "<b>Turn " + c.turn + " · call " + c.step + "</b>"; }
+    function toolsLine(c) { return "<p class=\"tools\">" + (c.tools.length ? "then calls: " + c.tools.join(", ") : "then answers the user") + "</p>"; }
+
+    var maxNow = Math.max.apply(null, calls.map(function (c) { return c.without_compaction; }));
+    var maxWritten = Math.max.apply(null, calls.map(function (c) { return c.cache_written; }));
+    window.drawContextWindow = function () {
+      if (document.getElementById("context-window").hidden) return;
+      draw(document.getElementById("cw-window"), {
+        height: function (narrow) { return narrow ? 260 : 330; }, max: maxNow, step: 20000,
+        segments: function (c) { return PARTS.map(function (p) { return [c[p[0]], p[1]]; }); },
+        line: function (c) { return c.without_compaction; },
+        notes: [
+          { at: function (cs) { var b = 0; cs.forEach(function (c, i) { if (total(c) > total(cs[b])) b = i; }); return b; }, value: total, text: function (c) { return "research peak " + fmt(total(c)); } },
+          { narrow: true, at: function (cs) { return cs.length - 1; }, value: function (c) { return c.without_compaction; }, anchor: "end", text: function (c) { return fmt(c.without_compaction) + " without compaction"; } },
+          { at: function (cs) { return cs.length - 1; }, value: total, anchor: "end", text: function (c) { return fmt(total(c)) + " sent"; } }
+        ],
+        tip: function (c) {
+          return head(c) + PARTS.slice().reverse().map(function (p) { return row(p[1], p[2], num(c[p[0]])); }).join("") +
+            row("", "<b>Sent</b>", "<b>" + num(total(c)) + "</b>") + row("", "Without compaction", num(c.without_compaction)) +
+            row("", "Read from cache", num(c.cache_read)) + toolsLine(c);
+        }
+      });
+      draw(document.getElementById("cw-cache"), {
+        height: function (narrow) { return narrow ? 150 : 170; }, max: maxWritten, step: 5000,
+        segments: function (c) { return [[c.cache_written, "--s7"]]; },
+        notes: [
+          { at: function () { return 0; }, value: function (c) { return c.cache_written; }, anchor: "start", text: function () { return "first call: all new"; } },
+          { at: function (cs) { var b = 0; cs.forEach(function (c, i) { if (c.turn >= 13 && c.step === 1 && !b) b = i; }); return b; }, value: function (c) { return c.cache_written; }, anchor: "end", text: function () { return "new itinerary: earlier plan rewritten"; } }
+        ],
+        tip: function (c) {
+          return head(c) + row("--s7", "Written to cache", num(c.cache_written)) + row("", "Read from cache", num(c.cache_read)) +
+            row("", "Sent", num(total(c))) + toolsLine(c);
+        }
+      });
+    };
+
+    // Per-turn table (the accessible view of both charts)
+    var tbody = document.querySelector("#cw-table tbody"), byTurn = {};
+    calls.forEach(function (c) { (byTurn[c.turn] = byTurn[c.turn] || []).push(c); });
+    Object.keys(byTurn).forEach(function (t) {
+      var cs = byTurn[t], counts = {};
+      cs.forEach(function (c) { c.tools.forEach(function (n) { counts[n] = (counts[n] || 0) + 1; }); });
+      var tools = Object.keys(counts).map(function (n) { return n + (counts[n] > 1 ? " ×" + counts[n] : ""); }).join(", ") || "—";
+      var tr = document.createElement("tr");
+      tr.innerHTML = "<td>" + t + "</td><td>" + cs.length + "</td><td class=\"l\">" + tools + "</td><td>" + num(total(cs[0])) + "</td><td>" + num(total(cs[cs.length - 1])) +
+        "</td><td>" + num(cs[cs.length - 1].without_compaction) + "</td><td>" + num(cs.reduce(function (s, c) { return s + c.cache_written; }, 0)) + "</td>";
+      tbody.appendChild(tr);
+    });
+    var resizeTimer;
+    window.addEventListener("resize", function () { clearTimeout(resizeTimer); resizeTimer = setTimeout(window.drawContextWindow, 120); });
+  })();
+
   // Tabs, with the view kept in the URL hash (#architecture / #data-flow)
   var tabs = document.querySelectorAll("nav.tabs button");
   function show(view) {
-    if (view !== "data-flow" && view !== "tools") view = "architecture";
+    if (["data-flow", "tools", "context-window"].indexOf(view) < 0) view = "architecture";
     document.querySelectorAll("section.view").forEach(function (s) { s.hidden = s.id !== view; });
     tabs.forEach(function (t) { t.setAttribute("aria-selected", String(t.dataset.view === view)); });
+    if (view === "context-window" && window.drawContextWindow) window.drawContextWindow();
   }
   tabs.forEach(function (t) {
     t.addEventListener("click", function () {

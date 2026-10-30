@@ -28,6 +28,9 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
   — pass rate per case (each run 3×) and input/cached tokens per model call; the memory plan's
   §8 cases. Full run ~15 min, `--quick` a few. Some cases fail until their phase lands; compare
   against the baseline in the plan's §8.
+- Context-window replay: `uv run python scripts/context_window_trace.py [--thread <id>]` → JSON (token counts and
+  tool names only) for the "Context window" tab of `docs/architecture.html`; regenerate it after changing
+  compaction or the prompt.
 - Inspect state (SQL + decoded threads): `uv run jupyter lab` → `notebooks/inspect_state.ipynb`.
   Commit notebooks without outputs (they contain user data).
 - Tests: `uv run pytest` · Lint/format: `uv run ruff check --fix . && uv run ruff format .`

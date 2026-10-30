@@ -42,7 +42,7 @@ Open WebUI (:3000) ── OpenAI-compatible HTTP + X-OpenWebUI-User-Email / -Cha
                                                                                          · MCP tools (#12)
 
  Postgres (:5433)  checkpointer = chat history per thread · store = user facts + itineraries
- Langfuse (:3001)  traces: session = chat, user = email
+ LangSmith (cloud) traces: thread = chat, user_id = email
 ```
 
 - **Threads:** `thread_id = "<email>:<chat id>"`. The checkpointer owns the history; the API
@@ -62,7 +62,7 @@ Open WebUI (:3000) ── OpenAI-compatible HTTP + X-OpenWebUI-User-Email / -Cha
 | Long-term memory | `AsyncPostgresStore` with two kinds: profile facts keyed by topic, and **trips** (destination, dates, lodging, travellers, linked itinerary). Both are injected into the prompt every model call. | Built |
 | Structured output | Pydantic schema as the argument of a `present_itinerary` tool, not `response_format` (which forces a tool call on every turn). | Built |
 | Skills | Markdown playbooks with name/description frontmatter, loaded on demand via `load_skill`. | Built |
-| Observability | Self-hosted Langfuse v4 in compose. LangSmith removed. | Built |
+| Observability | LangSmith (cloud, free Developer plan), traced in the app through LangChain's tracer; evals untraced by default. Replaced self-hosted Langfuse ([#87](https://github.com/stoicdataguy/asktravel-agent-harness/issues/87)). | Built |
 | Guidebooks | PDFs in `reference/` → `travel-agent-ingest` → `data/guidebooks/<slug>.md`, keyword search (no embeddings). Both gitignored. | Built |
 | Flights | `search_flights` via `fast-flights` (reads Google Flights; no API key). Prices are totals for all travellers; results come with a Google Flights booking link. | Built |
 | Hotels | `search_hotels`: Playwright drives Google Hotels (picks dates in its calendar, reads result cards). Nightly prices as Google shows them, stay totals, star class, rating, deals, amenities, booking link. | Built |
@@ -79,7 +79,7 @@ Open WebUI (:3000) ── OpenAI-compatible HTTP + X-OpenWebUI-User-Email / -Cha
 | 2 | Chat round-trip: `/v1/chat/completions` (stream + non-stream) → `create_agent` | ✅ Done |
 | 3 | Short-term memory: Postgres checkpointer | ✅ Done |
 | 4 | Guidebook ingestion | ✅ Done |
-| 5 | Observability: Langfuse | ✅ Done |
+| 5 | Observability: Langfuse, then LangSmith (#87) | ✅ Done |
 | 6 | Guidebook tools + tool-call status lines in the stream | ✅ Done |
 | 7 | Flight, hotel and web tools | 🟨 Flights ([PR #8](https://github.com/stoicdataguy/asktravel-agent-harness/pull/8)) and hotels ([PR #10](https://github.com/stoicdataguy/asktravel-agent-harness/pull/10)) built; `fetch_page` still to do |
 | 8 | Long-term memory | ✅ Done ([PR #1](https://github.com/stoicdataguy/asktravel-agent-harness/pull/1)) |
@@ -219,7 +219,7 @@ ECS Fargate, two services behind one public load balancer:
               └─────────────┬─────────────┘
                             │ Service Connect (private) + bearer token
               ┌─────────────▼─────────────┐      HTTPS out ──▶ OpenRouter (LLM)
-              │ ECS service: agent API    │ ──────────────▶ Langfuse (traces)
+              │ ECS service: agent API    │ ──────────────▶ LangSmith (traces)
               │ (FastAPI, this repo)      │
               └──────┬───────────────┬────┘
                      │               │
@@ -229,7 +229,7 @@ ECS Fargate, two services behind one public load balancer:
       │   + store        │   │ • Open WebUI uploads     │
       │ • open_webui DB  │   └──────────────────────────┘
       └──────────────────┘
- Secrets Manager: OpenRouter key, agent API token, DB creds, Langfuse keys
+ Secrets Manager: OpenRouter key, agent API token, DB creds, LangSmith key
  CloudWatch Logs: both services · ECR: agent image
 ```
 
@@ -238,7 +238,7 @@ ECS Fargate, two services behind one public load balancer:
 | `uv run travel-agent` | ECS Fargate service, image in ECR | 1 vCPU / 2 GB to start; scale on CPU or request count |
 | Open WebUI container | ECS Fargate service (official image) | `DATABASE_URL` → RDS instead of the SQLite volume; uploads to S3 (`STORAGE_PROVIDER=s3`); Redis for websockets if >1 task |
 | `postgres` | RDS PostgreSQL (db.t4g.micro → small) | Separate databases for agent and Open WebUI; `sslmode=require`; automated backups |
-| Langfuse stack (6 containers) | **Langfuse Cloud** (recommended), or self-host | Self-hosting means ClickHouse + Redis + S3 + Postgres; only worth it for data-residency needs |
+| Tracing | **LangSmith** (cloud, already) | Nothing to host; the API key goes in the secrets |
 | `data/guidebooks/*.md` | Private S3 bucket, synced at container start | Keep out of the image and the public repo (copyrighted); ~10 MB |
 | `.env` | Secrets Manager + ECS task-definition env | Settings already come from env via pydantic-settings |
 | Dummy email signup | Cognito user pool via Open WebUI OIDC (`ENABLE_OAUTH_SIGNUP`, `OPENID_PROVIDER_URL`), password signup off | The email from the OIDC token still becomes `user_id` |
@@ -255,7 +255,7 @@ ECS Fargate, two services behind one public load balancer:
 3. **Guidebook loading from S3:** at startup, sync `s3://<bucket>/guidebooks/` to
    `GUIDEBOOKS_DIR` (entrypoint script or a small startup hook). `travel-agent-ingest` stays a
    local/offline step.
-4. **Production settings:** `DATABASE_URL` from Secrets Manager; Langfuse host and keys for Cloud;
+4. **Production settings:** `DATABASE_URL` from Secrets Manager; the LangSmith API key;
    Open WebUI with `WEBUI_SECRET_KEY` set (so sessions survive restarts), `ENABLE_SIGNUP=false`,
    and a pinned image tag instead of `:main`.
 5. **Graceful shutdown:** ECS sends SIGTERM; the lifespan already flushes traces and closes the
@@ -283,8 +283,8 @@ Alternatively, use private subnets with VPC endpoints for ECR, S3, Secrets Manag
 
 | Phase | What | When to use | Rough cost / month (us-east-1) |
 |---|---|---|---|
-| 0. Demo box | One EC2 instance (t3.large, or t3.xlarge if Langfuse is self-hosted on it) running today's `docker compose`, Caddy for HTTPS, data on EBS, nightly snapshots | Fastest path to a shareable URL; single point of failure | ~$60–120 |
-| 1. Managed | ECS Fargate + RDS + ALB + Cognito + Langfuse Cloud, as above | Real users, backups, rolling deploys | ~$110–150 (2 tasks ~$72, ALB ~$20, RDS ~$15, misc) |
+| 0. Demo box | One EC2 instance (t3.large) running today's `docker compose`, Caddy for HTTPS, data on EBS, nightly snapshots | Fastest path to a shareable URL; single point of failure | ~$60–120 |
+| 1. Managed | ECS Fargate + RDS + ALB + Cognito + LangSmith, as above | Real users, backups, rolling deploys | ~$110–150 (2 tasks ~$72, ALB ~$20, RDS ~$15, misc) |
 | 2. Scale | Multiple agent tasks (already stateless: state is in Postgres), Open WebUI with Redis (ElastiCache) for websockets, RDS Multi-AZ | More users / uptime needs | Depends on load |
 
 These are rough estimates; check the AWS Pricing Calculator. They exclude LLM usage, which will
@@ -293,7 +293,7 @@ likely dominate: a tool-heavy itinerary run is 15+ model calls.
 ## Detailed plans
 
 - [User feedback → audit tables](plans/feedback-audit.md): capture every 👍/👎 in an append-only
-  Postgres audit table, linked to the agent turn and its Langfuse trace.
+  Postgres audit table, linked to the agent turn and its LangSmith trace.
 - [Streaming agent progress](plans/streaming-progress.md): progress in Open WebUI's reasoning
   blocks; event model, labels, in-tool progress, visible retry waits; e2e checks; P0–P4.
 - [Trusted knowledge base](plans/trusted-knowledge-base.md): the guidebooks as curated, cited
@@ -319,7 +319,6 @@ likely dominate: a tool-heavy itinerary run is 15+ model calls.
 
 ## Open questions
 
-- **Langfuse:** Cloud or self-hosted (data residency, budget)?
 - **Users in production:** invite-only Cognito pool, or an existing identity provider (Google
   Workspace, Okta)?
 - **AWS:** which region, and a custom domain?

@@ -43,6 +43,7 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
 - `src/travel_agent/tools/hotels.py` — `search_hotels` (Playwright on Google Hotels; `parse_card` is pure and unit-tested).
 - `src/travel_agent/tools/trips.py` — trip memory (`Trip`, `save_trip_details`, `get_trip`, `delete_trip`,
   `match_trip`, `trip_status`, startup id migration + backfill).
+- `src/travel_agent/user_data.py` — view / export / delete-all of one user's data (`/api/memory`).
 - `src/travel_agent/tools/memory.py` — long-term memory tools (`save_memory`, `delete_memory`) + loaders.
 - `src/travel_agent/tools/conversations.py` — episodic recall: chat index (`index_chat` middleware,
   startup backfill) + `recall_conversations` keyword search over the user's other threads.
@@ -69,6 +70,9 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
   upcoming trips only, no merge when ambiguous). Old ids live on in `Trip.aliases`; look trips up
   with `find_trip`, not `store.aget`. Time-relative facts (`trip_status`) are computed when the
   prompt is built, never stored.
+- Any new per-user data must live in a store namespace from `memory.user_namespace(user_id, kind)`
+  or a thread keyed `<email>:…`: `user_data` finds both generically, so view, export and
+  delete-all cover it without changes. Anything stored elsewhere needs its own deletion path.
 - Long-term memory has two kinds: profile facts (`save_memory`, lasting preferences) and trips
   (`save_trip_details`, per-trip details). Both are injected into the prompt by the middleware;
   `present_itinerary` always files the plan under a trip. Store values must be JSON-safe

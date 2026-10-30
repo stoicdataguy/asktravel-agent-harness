@@ -116,7 +116,9 @@ async def add_items(key: str, value: str, runtime: ToolRuntime[UserContext]) -> 
 
 
 @tool
-async def save_memory(key: str, value: str, runtime: ToolRuntime[UserContext]) -> str:
+async def save_memory(
+    key: str, value: str, runtime: ToolRuntime[UserContext], sensitive: bool = False
+) -> str:
     """Remember a lasting fact or preference about the user for future conversations.
 
     Most keys hold one value, and saving an existing key replaces it (the result shows what it
@@ -129,6 +131,8 @@ async def save_memory(key: str, value: str, runtime: ToolRuntime[UserContext]) -
             existing key to update it.
         value: Concise fact in plain words, e.g. "SFO (San Francisco)" or "vegetarian, no seafood".
             For likes, dislikes and interests: just the new item, e.g. "astronomy".
+        sensitive: True for health or mobility details, nationality, and personal details about
+            travel companions. Only save these when the user stated them explicitly.
     """
     key = normalize_key(key)
     value = value.strip()
@@ -141,10 +145,13 @@ async def save_memory(key: str, value: str, runtime: ToolRuntime[UserContext]) -
     ns = namespace(runtime.context.user_id)
     previous = await runtime.store.aget(ns, key)
     old = previous.value.get("value") if previous else None
+    sensitive = sensitive or bool(previous and previous.value.get("sensitive"))
     if old is not None and old.casefold() == value.casefold():
-        await runtime.store.aput(ns, key, fact(old, runtime, previous.value, changed=False))
+        saved = fact(old, runtime, previous.value, changed=False, sensitive=sensitive)
+        await runtime.store.aput(ns, key, saved)
         return f"No change: {key} is already {old}"
-    await runtime.store.aput(ns, key, fact(value, runtime, previous and previous.value, True))
+    saved = fact(value, runtime, previous and previous.value, True, sensitive=sensitive)
+    await runtime.store.aput(ns, key, saved)
     if old is None:
         return f"Saved {key}: {value}"
     return f"Updated {key} (was: {old}): {value}"

@@ -1,8 +1,9 @@
 import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 
+from travel_agent import user_data
 from travel_agent.agent.graph import build_agent
 from travel_agent.api.openai_compat import resolve_user
 from travel_agent.api.openai_compat import router as openai_router
@@ -24,6 +25,7 @@ async def lifespan(app: FastAPI):
         await backfill_trips(store)
         await backfill_chat_index(checkpointer, store)
         app.state.store = store
+        app.state.checkpointer = checkpointer
         app.state.agent = build_agent(checkpointer, store)
         yield
     flush_traces()
@@ -62,3 +64,36 @@ async def itineraries(request: Request) -> dict:
     The user comes from the same X-OpenWebUI-User-Email header as chat requests (dev-only trust).
     """
     return {"data": await list_itineraries(request.app.state.store, resolve_user(request.headers))}
+
+
+@app.get("/api/memory")
+async def memory_view(request: Request) -> dict:
+    """What AskTravel remembers about the calling user: facts, trips, saved plans and chats.
+
+    Like /api/itineraries, the user comes from the X-OpenWebUI-User-Email header (dev-only trust
+    until the API is authenticated, #27).
+    """
+    state = request.app.state
+    return await user_data.remembered(
+        state.store, state.checkpointer, resolve_user(request.headers)
+    )
+
+
+@app.get("/api/memory/export")
+async def memory_export(request: Request) -> dict:
+    """Everything stored for the calling user, including every chat's messages, as JSON."""
+    state = request.app.state
+    return await user_data.export(state.store, state.checkpointer, resolve_user(request.headers))
+
+
+@app.delete("/api/memory")
+async def memory_delete(request: Request, confirm: str = "") -> dict:
+    """Delete everything AskTravel keeps about the calling user.
+
+    `confirm` must repeat the user's email, so a stray request can't wipe someone's memory.
+    """
+    user_id = resolve_user(request.headers)
+    if confirm.lower() != user_id:
+        raise HTTPException(400, detail="Pass ?confirm=<your email> to delete all your data.")
+    state = request.app.state
+    return {"deleted": await user_data.delete_all(state.store, state.checkpointer, user_id)}

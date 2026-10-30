@@ -331,6 +331,7 @@ table.tools tr.planned td.sig { color: var(--muted); }
 }
 .badge.long { color: var(--long); background: var(--long-bg); border-color: color-mix(in srgb, var(--long) 40%, transparent); }
 .badge.files { color: var(--ink); }
+.badge.short { color: var(--short); background: var(--short-bg); border-color: color-mix(in srgb, var(--short) 40%, transparent); }
 .badge.chat { color: var(--accent); background: var(--accent-bg); border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
 .badge.planned { border-style: dashed; background: transparent; color: var(--muted); }
 .skills-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
@@ -612,6 +613,7 @@ body { margin: 0; }
           <tr class="short"><td>Checkpointer</td><td class="mono">email:chat_id</td><td>Every agent step</td><td>Start of each turn</td><td>Yes: the conversation it continues</td></tr>
           <tr class="long"><td>Store · memories</td><td class="mono">(email, "memories") / key</td><td>save_memory / delete_memory</td><td>Every model call</td><td>Yes: facts in the system prompt</td></tr>
           <tr class="long"><td>Store · trips</td><td class="mono">(email, "trips") / trip_id (opaque, e.g. trip-7k2p9q)</td><td>save_trip_details, present_itinerary, startup backfill + id migration</td><td>Every model call; get_trip</td><td>Yes: one line per trip in the system prompt, with its status relative to today</td></tr>
+          <tr class="long"><td>Store · chats</td><td class="mono">(email, "chats") / thread_id</td><td>After every agent run (title + time); startup backfill</td><td>recall_conversations, which then loads the chats' messages from the checkpointer</td><td>No: searched on demand</td></tr>
           <tr class="long"><td>Store · itineraries</td><td class="mono">(email, "itineraries") / thread_id</td><td>present_itinerary (latest replaces)</td><td>GET /api/itineraries</td><td>No: kept for the API; the plan is also in the thread</td></tr>
           <tr><td>Open WebUI database</td><td class="mono">Open WebUI chat id</td><td>Every message, by Open WebUI</td><td>When the chat is displayed</td><td>Only to resync the thread when the chat branches (fork, regenerate, edit)</td></tr>
           <tr class="ext"><td>Langfuse</td><td class="mono">session = thread_id, user = email</td><td>Every turn (when tracing is on)</td><td>When you inspect traces</td><td>No: observability only</td></tr>
@@ -797,6 +799,7 @@ conversations. What you know so far:
           <tr><td>Delete memory</td><td class="sig">delete_memory(key, item?)</td><td>Forgets a saved fact when the user asks or it's wrong, or one item of a list key.</td><td><span class="badge long">store · (email, memories)</span></td></tr>
           <tr><td>Save trip details</td><td class="sig">save_trip_details(destination, trip_id?, start_date?, end_date?, travellers?, lodging?, transport?, budget?, note?)</td><td>Creates or updates a trip. Without a known id, reuses the one upcoming trip with matching destination words and dates. Scalars overwrite; lodging, transport and notes accumulate.</td><td><span class="badge long">store · (email, trips)</span></td></tr>
           <tr><td>Get trip</td><td class="sig">get_trip(trip_id)</td><td>Everything saved about a trip, plus its full day-by-day itinerary, for use in a new chat.</td><td><span class="badge long">store · trips + itineraries</span></td></tr>
+          <tr><td>Recall conversations</td><td class="sig">recall_conversations(query)</td><td>Keyword-searches the user's other chats (each turn's question and final answer) and returns the best-matching exchanges from up to 3 of them. Used when the user refers back to an earlier chat.</td><td><span class="badge long">store · (email, chats)</span> <span class="badge short">checkpoints</span></td></tr>
           <tr><td>Delete trip</td><td class="sig">delete_trip(trip_id)</td><td>Forgets a trip when it's cancelled or the user asks.</td><td><span class="badge long">store · (email, trips)</span></td></tr>
           <tr class="group"><td colspan="4">Structured output</td></tr>
           <tr><td>Present itinerary</td><td class="sig">present_itinerary(itinerary)</td><td>Takes a Pydantic <code>Itinerary</code> (days → activities, stays, bookings, caveats). Validation errors go back to the model; valid plans render as formatted markdown in the chat and are filed under a trip (created if new).</td><td><span class="badge long">store · (email, itineraries)</span><span class="badge chat">chat output</span></td></tr>

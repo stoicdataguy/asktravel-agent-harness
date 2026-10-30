@@ -45,6 +45,8 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
   `match_trip`, `trip_status`, startup id migration + backfill).
 - `src/travel_agent/user_data.py` — view / export / delete-all of one user's data (`/api/memory`).
 - `src/travel_agent/tools/memory.py` — long-term memory tools (`save_memory`, `delete_memory`) + loaders.
+- `src/travel_agent/tools/conversations.py` — episodic recall: chat index (`index_chat` middleware,
+  startup backfill) + `recall_conversations` keyword search over the user's other threads.
 - `src/travel_agent/skills/` — skill playbooks (`<name>.md` with name/description frontmatter) + `load_skill` tool.
 - `src/travel_agent/kb/` — guidebook ingestion (PDF → markdown with `[p. N]` markers + TOC headings).
 - See `docs/PLAN.md` for the target architecture and milestones, and `docs/architecture.html` for the

@@ -57,6 +57,7 @@ async def test_delete_all_removes_one_user_only():
     store, saver = await seed()
     deleted = await user_data.delete_all(store, saver, ANA)
     assert deleted["chats"] == 1 and deleted["store_items"] >= 3
+    assert "chats" in (await user_data.store_items(store, BO))  # the chat index is per-user data
     assert await user_data.store_items(store, ANA) == {}
     assert await user_data.thread_ids(saver, ANA) == []
     # Bo is untouched

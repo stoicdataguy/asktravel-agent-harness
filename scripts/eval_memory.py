@@ -32,7 +32,7 @@ from travel_agent.memory import open_memory, user_namespace
 from travel_agent.observability import flush_traces, run_config
 from travel_agent.tools.trips import upsert_trip
 
-KINDS = ("memories", "trips", "itineraries")
+KINDS = ("memories", "trips", "itineraries", "chats")
 # The §6 target for input tokens per model call
 CALL_BUDGET = 25_000
 # Same pattern as e2e_memory.py: the agent asking for something it should already know

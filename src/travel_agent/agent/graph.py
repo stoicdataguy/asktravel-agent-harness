@@ -11,6 +11,7 @@ from travel_agent.agent.prompts import SYSTEM_PROMPT
 from travel_agent.context import UserContext
 from travel_agent.llm import get_chat_model
 from travel_agent.skills import load_skill, skills_index
+from travel_agent.tools.conversations import index_chat, make_recall_tool
 from travel_agent.tools.flights import search_flights
 from travel_agent.tools.guidebooks import GUIDEBOOK_TOOLS
 from travel_agent.tools.hotels import search_hotels
@@ -54,8 +55,9 @@ def build_agent(
             *MEMORY_TOOLS,
             *TRIP_TOOLS,
             present_itinerary,
+            make_recall_tool(checkpointer),
         ],
-        middleware=[system_prompt, compact_earlier_turns],
+        middleware=[system_prompt, compact_earlier_turns, index_chat],
         context_schema=UserContext,
         checkpointer=checkpointer,
         store=store,

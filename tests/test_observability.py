@@ -1,5 +1,7 @@
 import logging
+from types import SimpleNamespace
 
+import pytest
 from langchain_core.tracers import LangChainTracer
 
 from travel_agent import observability
@@ -40,6 +42,22 @@ def test_evals_untraced_unless_asked(monkeypatch):
     monkeypatch.setenv("LANGSMITH_TRACE_EVALS", "true")
     observability.get_settings.cache_clear()
     assert "callbacks" in observability.eval_run_config("u", "u:c")
+
+
+@pytest.mark.parametrize(
+    ("status", "warns"), [(422, False), (200, False), (401, True), (403, True)]
+)
+def test_key_check_probes_write_path(monkeypatch, caplog, status, warns):
+    """Tracing keys can't read projects, so the check accepts any answer but 401/403."""
+    monkeypatch.setenv("LANGSMITH_TRACING", "true")
+    monkeypatch.setenv("LANGSMITH_API_KEY", "lsv2_test")
+    client = observability.get_langsmith()
+    monkeypatch.setattr(
+        client.session, "post", lambda *a, **kw: SimpleNamespace(status_code=status)
+    )
+    with caplog.at_level(logging.WARNING):
+        observability.check_tracing_config()
+    assert ("rejected LANGSMITH_API_KEY" in caplog.text) is warns
 
 
 def test_unreachable_langsmith_warns_instead_of_failing(monkeypatch, caplog):

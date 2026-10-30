@@ -28,15 +28,24 @@ def check_tracing_config() -> None:
     if not (client := get_langsmith()):
         return
     settings = get_settings()
+    # Probe the write path with an empty batch: tracing keys can't read projects, so a read would
+    # reject a good key. Nothing is recorded; a valid key gets 422 (empty batch), a bad one 401/403.
     try:
-        # Any authenticated read checks the key; listing one project is the cheapest
-        next(iter(client.list_projects(limit=1)), None)
-    except Exception as exc:  # network and auth errors surface as various exception types
+        response = client.session.post(
+            f"{client.api_url}/runs/batch",
+            headers={"x-api-key": settings.langsmith_api_key.get_secret_value()},
+            json={"post": [], "patch": []},
+            timeout=5,
+        )
+        problem = f"HTTP {response.status_code}" if response.status_code in (401, 403) else None
+    except Exception as exc:  # network errors surface as various exception types
+        problem = type(exc).__name__
+    if problem:
         logger.warning(
             "LANGSMITH_TRACING is on but %s is unreachable or rejected LANGSMITH_API_KEY; traces "
             "will be dropped (%s)",
             settings.langsmith_endpoint,
-            type(exc).__name__,
+            problem,
         )
 
 

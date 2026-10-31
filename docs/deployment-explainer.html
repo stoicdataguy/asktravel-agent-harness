@@ -192,11 +192,11 @@ footer { padding: 40px 0 60px; color: var(--muted); font-size: 13px; }
 <header class="wrap" style="padding-top:40px">
   <div class="eyebrow">AskTravel · deployment explainer</div>
   <h1>Putting AskTravel in the cloud, explained</h1>
-  <p class="lead">A companion to <span class="mono">docs/plans/deployment.md</span>. The plan says what to do; this page explains the words in it and why each choice was made. It's written for someone who knows the fundamentals but hasn't run anything in production.</p>
+  <p class="lead">A companion to <span class="mono">docs/plans/deployment.md</span>. The plan says what to do; this page explains the words in it and why each choice was made. It's written for someone who knows the fundamentals but hasn't run anything in production. Revised for EC2 with AWS-native services (#98), so the beta also teaches real AWS.</p>
   <div class="facts">
-    <div class="fact"><span class="n">1 server</span><p>An AWS Lightsail instance running the same Docker Compose stack you run on your laptop</p></div>
-    <div class="fact"><span class="n">~$13 / month</span><p>Hosting: $12 server + domain + cents for backups. $25 if it needs 4 GB. LLM usage is separate</p></div>
-    <div class="fact"><span class="n">1 open door</span><p>Only HTTPS (443, plus 80 to redirect) is reachable from the internet. The API, database and SSH aren't</p></div>
+    <div class="fact"><span class="n">1 server</span><p>An EC2 t4g.small (2 GB, arm64) in a VPC, running the same Docker Compose stack you run on your laptop</p></div>
+    <div class="fact"><span class="n">~$21 / month</span><p>Hosting: $12.26 server + $3.65 public IP + disk, DNS, snapshots. ~$33 if it needs 4 GB. LLM usage is separate</p></div>
+    <div class="fact"><span class="n">0 SSH, 0 keys</span><p>The security group opens only 80 and 443. No SSH port, no key pair, and no AWS access keys anywhere: IAM roles and SSM instead</p></div>
     <div class="fact"><span class="n">1 click</span><p>To ship: merge a PR, approve the deploy, and the pipeline does the rest, rolling back if a health check fails</p></div>
   </div>
 </header>
@@ -214,7 +214,7 @@ footer { padding: 40px 0 60px; color: var(--muted); font-size: 13px; }
   <div class="diagram-row">
     <div class="diagram">
       <svg viewBox="0 0 960 590" role="img" aria-labelledby="dg-title">
-        <title id="dg-title">Users reach Caddy over HTTPS on a Lightsail server; Caddy forwards to Open WebUI, which calls the agent API with a token; the API uses Postgres and calls OpenRouter, LangSmith and Google. GitHub builds images and deploys over Tailscale.</title>
+        <title id="dg-title">Users find the server through Route 53 and reach Caddy over HTTPS on an EC2 instance in a VPC; Caddy forwards to Open WebUI, which calls the agent API with a token; the API uses Postgres and calls OpenRouter, LangSmith and Google. GitHub logs in to AWS with OIDC, pushes the image to ECR and deploys through SSM Run Command. The server sends logs and metrics to CloudWatch and reads secrets from Parameter Store.</title>
         <defs>
           <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
             <path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/>
@@ -223,7 +223,7 @@ footer { padding: 40px 0 60px; color: var(--muted); font-size: 13px; }
 
         <!-- server and docker network outlines -->
         <rect x="200" y="20" width="530" height="440" rx="10" fill="none" stroke="var(--line)" stroke-width="2"/>
-        <text x="216" y="44" class="zone-lbl" style="fill:var(--muted)">LIGHTSAIL INSTANCE · UBUNTU · 2 GB · US-EAST-1</text>
+        <text x="216" y="44" class="zone-lbl" style="fill:var(--muted)">EC2 T4G.SMALL · ARM64 · 2 GB · VPC · SECURITY GROUP 80/443</text>
         <rect x="228" y="64" width="474" height="376" rx="8" fill="none" stroke="var(--priv)" stroke-width="1.5" stroke-dasharray="6 5"/>
         <text x="244" y="86" class="zone-lbl" style="fill:var(--priv)">DOCKER NETWORK (PRIVATE)</text>
 
@@ -248,12 +248,14 @@ footer { padding: 40px 0 60px; color: var(--muted); font-size: 13px; }
         <path class="edge" d="M470 530 H518" marker-end="url(#arr)"/>
         <path class="edge" d="M605 500 V462" marker-end="url(#arr)"/>
         <text x="613" y="486" class="edge-lbl">docker pull</text>
+        <path class="edge dash" d="M702 440 C730 470 780 470 820 498" marker-end="url(#arr)"/>
+        <text x="758" y="462" class="edge-lbl">logs · secrets</text>
         <path class="edge dash" d="M350 500 V462" marker-end="url(#arr)"/>
-        <text x="358" y="486" class="edge-lbl">deploy · SSH over Tailscale</text>
+        <text x="358" y="486" class="edge-lbl">deploy · SSM Run Command</text>
 
         <!-- nodes -->
         <g class="node pub" data-key="users" tabindex="0" role="button"><rect x="20" y="40" width="140" height="56" rx="6"/><text x="34" y="64" class="lbl">Beta users</text><text x="34" y="82" class="sm">a browser, anywhere</text></g>
-        <g class="node pub" data-key="dns" tabindex="0" role="button"><rect x="20" y="150" width="140" height="56" rx="6"/><text x="34" y="174" class="lbl">DNS</text><text x="34" y="192" class="sm">name → static IP</text></g>
+        <g class="node pub" data-key="dns" tabindex="0" role="button"><rect x="20" y="150" width="140" height="56" rx="6"/><text x="34" y="174" class="lbl">Route 53</text><text x="34" y="192" class="sm">name → Elastic IP</text></g>
         <g class="node pub" data-key="caddy" tabindex="0" role="button"><rect x="250" y="100" width="180" height="60" rx="6"/><text x="264" y="126" class="lbl">Caddy</text><text x="264" y="145" class="sm">HTTPS · reverse proxy</text></g>
         <g class="node priv" data-key="owui" tabindex="0" role="button"><rect x="480" y="100" width="190" height="60" rx="6"/><text x="494" y="126" class="lbl">Open WebUI</text><text x="494" y="145" class="sm">chat UI · accounts</text></g>
         <g class="node priv" data-key="api" tabindex="0" role="button"><rect x="480" y="210" width="190" height="60" rx="6"/><text x="494" y="236" class="lbl">Agent API</text><text x="494" y="255" class="sm">FastAPI · agent · Chromium</text></g>
@@ -266,7 +268,8 @@ footer { padding: 40px 0 60px; color: var(--muted); font-size: 13px; }
         <g class="node ext" data-key="s3" tabindex="0" role="button"><rect x="760" y="346" width="180" height="56" rx="6"/><text x="774" y="370" class="lbl">S3 bucket</text><text x="774" y="388" class="sm">backups, 35 days</text></g>
         <g class="node ci" data-key="laptop" tabindex="0" role="button"><rect x="20" y="500" width="140" height="60" rx="6"/><text x="34" y="526" class="lbl">Your laptop</text><text x="34" y="545" class="sm">dev · branches</text></g>
         <g class="node ci" data-key="github" tabindex="0" role="button"><rect x="230" y="500" width="240" height="60" rx="6"/><text x="244" y="526" class="lbl">GitHub Actions</text><text x="244" y="545" class="sm">PR → CI → approve → deploy</text></g>
-        <g class="node ci" data-key="ghcr" tabindex="0" role="button"><rect x="520" y="500" width="170" height="60" rx="6"/><text x="534" y="526" class="lbl">GHCR</text><text x="534" y="545" class="sm">image registry</text></g>
+        <g class="node ci" data-key="ecr" tabindex="0" role="button"><rect x="520" y="500" width="170" height="60" rx="6"/><text x="534" y="526" class="lbl">ECR</text><text x="534" y="545" class="sm">private image registry</text></g>
+        <g class="node ext" data-key="awsops" tabindex="0" role="button"><rect x="740" y="500" width="200" height="60" rx="6"/><text x="754" y="526" class="lbl">AWS operations</text><text x="754" y="545" class="sm">CloudWatch · SSM · DLM</text></g>
       </svg>
     </div>
     <aside class="card panel" id="panel" aria-live="polite"></aside>
@@ -278,8 +281,8 @@ footer { padding: 40px 0 60px; color: var(--muted); font-size: 13px; }
   <h2>Follow one chat message</h2>
   <p class="lead">What happens between a beta user pressing Enter and the answer streaming back. Each step names the concept it relies on.</p>
   <ol class="journey">
-    <li style="--c:var(--pub)"><div><b>The browser looks up <span class="mono">asktravel.&lt;domain&gt;</span></b><span>DNS answers with the server's static IP (an <span class="term">A record</span>). It's cached for a while (the record's <span class="term">TTL</span>), which is why DNS changes take minutes to show.</span></div></li>
-    <li style="--c:var(--pub)"><div><b>It opens an encrypted connection on port 443</b><span>The <span class="term">firewall</span> lets 443 through. Caddy presents a <span class="term">TLS certificate</span> from Let's Encrypt proving it really is your domain, so the password and chat can't be read on the way.</span></div></li>
+    <li style="--c:var(--pub)"><div><b>The browser looks up <span class="mono">asktravel.&lt;domain&gt;</span></b><span>Route 53 answers with the server's Elastic IP (an <span class="term">A record</span>). It's cached for a while (the record's <span class="term">TTL</span>), which is why DNS changes take minutes to show.</span></div></li>
+    <li style="--c:var(--pub)"><div><b>It opens an encrypted connection on port 443</b><span>The <span class="term">security group</span> lets 443 through. Caddy presents a <span class="term">TLS certificate</span> from Let's Encrypt proving it really is your domain, so the password and chat can't be read on the way.</span></div></li>
     <li style="--c:var(--priv)"><div><b>Caddy forwards the request to Open WebUI</b><span>Caddy is a <span class="term">reverse proxy</span>: the only thing listening publicly. It hands the request to the <span class="mono">open-webui</span> container by name, over the private Docker network.</span></div></li>
     <li style="--c:var(--priv)"><div><b>Open WebUI checks who you are</b><span>Your session cookie (signed with <span class="mono">WEBUI_SECRET_KEY</span>) identifies your account. It then calls the agent API like any OpenAI-compatible model, adding your email as a header and the shared <span class="term">bearer token</span>.</span></div></li>
     <li style="--c:var(--priv)"><div><b>The agent API runs a turn</b><span>It rejects calls without the token (#27), loads the thread and your memories from Postgres, and runs the agent loop. It calls OpenRouter for each model step and Google for flights and hotels, all <span class="term">outbound</span> HTTPS.</span></div></li>
@@ -296,9 +299,9 @@ footer { padding: 40px 0 60px; color: var(--muted); font-size: 13px; }
     <div><b>1 · Branch</b>Commit on <span class="mono">feat/…</span> on your laptop, push it</div>
     <div><b>2 · Pull request</b>CI runs ruff and pytest on a fresh GitHub machine (a <i>runner</i>)</div>
     <div><b>3 · Merge</b>Only if CI is green (a <i>required check</i>). <span class="mono">main</span> moves</div>
-    <div><b>4 · Build</b>Tests again, then a Docker image tagged with the commit SHA → GHCR</div>
+    <div><b>4 · Build</b>Tests again, then an arm64 Docker image tagged with the commit SHA → ECR</div>
     <div class="gate"><b>5 · Approve</b>The job waits in the <i>production environment</i> until you click</div>
-    <div><b>6 · Connect</b>The runner joins your tailnet for a few minutes, then SSHes in</div>
+    <div><b>6 · Connect</b>The job trades a GitHub OIDC token for a short-lived AWS role, then asks SSM Run Command to run the deploy. No SSH</div>
     <div class="box"><b>7 · Deploy</b><span class="mono">deploy.sh &lt;sha&gt;</span>: backup, pull, restart, health check</div>
     <div class="box"><b>8 · Live or rolled back</b>Healthy → done. Unhealthy → previous image restored, run turns red</div>
   </div>
@@ -331,11 +334,11 @@ footer { padding: 40px 0 60px; color: var(--muted); font-size: 13px; }
       </div>
     </details>
     <details class="dec">
-      <summary><span class="id">D-2</span><span class="q">Which kind of server, from whom?</span><span class="a">Lightsail 2 GB, us-east-1</span></summary>
+      <summary><span class="id">D-2</span><span class="q">Which kind of server, from whom?</span><span class="a">EC2 t4g.small (arm64), us-east-1</span></summary>
       <div class="body">
-        <div><h4>Why</h4><p>It's AWS, it has a fixed price (no surprise bills), and it's the simplest AWS compute product. A US region keeps Google's results and consent pages as they are on your laptop. Resizing is a snapshot plus moving the static IP.</p></div>
-        <div><h4>Given up</h4><p>Memory headroom: 2 GB needs hotel searches run one at a time and swap as a safety net. Lightsail also teaches few AWS-specific concepts. EC2 teaches more (VPC, IAM roles) for ~$5 more.</p></div>
-        <div><h4>Revisit when</h4><p>D0's measurement shows memory pressure (go to 4 GB), or after a month, as the next lesson (EC2 with infrastructure as code). If $10 is a hard cap, Hetzner's 4 GB plan is cheaper, with EU-location caveats.</p></div>
+        <div><h4>Why</h4><p>It teaches the AWS concepts everything else builds on: VPC, subnets, security groups, EBS, Elastic IPs and IAM roles. With a role, the server needs no AWS keys. arm64 (Graviton) is ~20% cheaper than x86. A US region keeps Google's results as they are on your laptop.</p></div>
+        <div><h4>Given up</h4><p>~$8 a month more than Lightsail (whose price includes the IP and disk), more setup, and more ways to make a costly mistake: NAT gateways, idle IPs, unlimited CPU credits. Images must be built for arm64. Memory is still tight at 2 GB.</p></div>
+        <div><h4>Revisit when</h4><p>D0 shows memory pressure (t4g.medium, 4 GB) or an arm64 problem (t3.small). After a month: capture it as infrastructure as code. If cost matters more than learning AWS, Lightsail 2 GB ($12) is the simpler fallback.</p></div>
       </div>
     </details>
     <details class="dec">
@@ -347,19 +350,19 @@ footer { padding: 40px 0 60px; color: var(--muted); font-size: 13px; }
       </div>
     </details>
     <details class="dec">
-      <summary><span class="id">D-4</span><span class="q">Where do builds run and images live?</span><span class="a">GitHub Actions + GHCR</span></summary>
+      <summary><span class="id">D-4</span><span class="q">Where do builds run and images live?</span><span class="a">GitHub Actions (arm64 runner) + ECR</span></summary>
       <div class="body">
-        <div><h4>Why</h4><p>The repo is public, so both are free. The workflow already has a token that can push images; the server pulls public images with no credentials.</p></div>
-        <div><h4>Given up</h4><p>The image is public. That's fine, because it contains only code that's already public, never secrets or guidebooks. Keep it that way with <span class="mono">.dockerignore</span>.</p></div>
-        <div><h4>Revisit when</h4><p>The repo goes private (GHCR storage then counts against a quota), or you move to EC2, where ECR plus an instance role is natural.</p></div>
+        <div><h4>Why</h4><p>Actions and its arm64 runners are free for public repos and build the image natively. ECR is private and uses IAM: the workflow pushes through its OIDC role and the server pulls through its instance role, so no registry password exists anywhere.</p></div>
+        <div><h4>Given up</h4><p>A few cents a month of storage (a lifecycle policy keeps the last 15 images), and some IAM setup that GHCR wouldn't need.</p></div>
+        <div><h4>Revisit when</h4><p>Rarely. ECR is also what ECS uses, so it carries over when you outgrow one server.</p></div>
       </div>
     </details>
     <details class="dec">
-      <summary><span class="id">D-5</span><span class="q">How does CI reach the server?</span><span class="a">Push over SSH via Tailscale, after your approval</span></summary>
+      <summary><span class="id">D-5</span><span class="q">How does CI reach the server?</span><span class="a">OIDC role + SSM Run Command, after your approval</span></summary>
       <div class="body">
-        <div><h4>Why</h4><p>SSH stays closed to the internet: the runner joins your private network (tailnet) only while it deploys. Each deploy is visible in GitHub and needs one click. Rollback is a re-run.</p></div>
-        <div><h4>Given up</h4><p>One more service to set up (Tailscale's free plan), and an SSH key in GitHub's secrets.</p></div>
-        <div><h4>Not chosen</h4><p>SSH open to the world (GitHub's runner IPs keep changing, so you can't allow-list them). An auto-updater on the server (no approval, no visibility).</p></div>
+        <div><h4>Why</h4><p>No SSH at all: the SSM agent on the server connects out to AWS and runs the deploy command it's given. GitHub gets temporary AWS credentials through OIDC, so it stores no keys. CloudTrail records every deploy. Rollback is a re-run.</p></div>
+        <div><h4>Given up</h4><p>More IAM to understand up front: an identity provider, a role with a trust policy, and permissions scoped to one instance tag.</p></div>
+        <div><h4>Not chosen</h4><p>Tailscale + SSH (the earlier plan: simpler, less AWS). SSH open to the world. An auto-updater on the server (no approval, no visibility). CodeDeploy (more services for one server).</p></div>
       </div>
     </details>
     <details class="dec">
@@ -367,7 +370,7 @@ footer { padding: 40px 0 60px; color: var(--muted); font-size: 13px; }
       <div class="body">
         <div><h4>Why</h4><p>Automatic Let's Encrypt certificates and renewals from a tiny config file, streaming without buffering, about 30 MB of memory.</p></div>
         <div><h4>Given up</h4><p>One more container to keep updated (pinned, like the others).</p></div>
-        <div><h4>Not chosen</h4><p>Nginx + certbot (more to learn at once). A Lightsail load balancer with a certificate ($18 a month).</p></div>
+        <div><h4>Not chosen</h4><p>Nginx + certbot (more to learn at once). An Application Load Balancer with a free ACM certificate (~$16–20 a month, more than the server). It's the first thing to add with a second server.</p></div>
       </div>
     </details>
     <details class="dec">
@@ -375,15 +378,15 @@ footer { padding: 40px 0 60px; color: var(--muted); font-size: 13px; }
       <div class="body">
         <div><h4>Why</h4><p>A second server doubles the cost. Running the production compose file on your laptop (D3) catches packaging problems, and the approval step is a last look.</p></div>
         <div><h4>Given up</h4><p>Testing on a real cloud server before users see a change. Problems specific to the server (memory, Google blocking) show up in prod.</p></div>
-        <div><h4>Revisit when</h4><p>More users or more contributors: a smaller second instance and a <span class="mono">staging</span> environment in the same workflow.</p></div>
+        <div><h4>Revisit when</h4><p>More users or more contributors: with infrastructure as code, a t4g.micro staging instance and a <span class="mono">staging</span> environment in the same workflow.</p></div>
       </div>
     </details>
     <details class="dec">
-      <summary><span class="id">D-8</span><span class="q">Where do secrets live?</span><span class="a"><span class="mono">.env</span> on the server, chmod 600</span></summary>
+      <summary><span class="id">D-8</span><span class="q">Where do secrets live?</span><span class="a">SSM Parameter Store (SecureString)</span></summary>
       <div class="body">
-        <div><h4>Why</h4><p>The app already reads settings from the environment. Lightsail can't attach an IAM role, so AWS's secret stores would need a stored AWS key anyway.</p></div>
-        <div><h4>Given up</h4><p>No audit trail or automatic rotation. Anyone with server access can read the file.</p></div>
-        <div><h4>Revisit when</h4><p>On EC2: an instance role reads SSM Parameter Store with no stored keys.</p></div>
+        <div><h4>Why</h4><p>Encrypted with KMS, free on the standard tier, and readable only by the instance role and your admin login. deploy.sh writes them into <span class="mono">.env</span> just before starting the containers. Rotating a secret is "change the parameter, redeploy".</p></div>
+        <div><h4>Given up</h4><p>No automatic rotation, and the values still sit in a file on the server while it runs.</p></div>
+        <div><h4>Not chosen</h4><p>Secrets Manager ($0.40 per secret a month; its rotation is for databases like RDS). A hand-copied <span class="mono">.env</span> (the earlier plan: no audit trail).</p></div>
       </div>
     </details>
   </div>
@@ -392,14 +395,15 @@ footer { padding: 40px 0 60px; color: var(--muted); font-size: 13px; }
 <!-- ================= COST ================= -->
 <section id="cost" class="wrap">
   <h2>What it costs</h2>
-  <p class="lead">Prices from the Lightsail and LangSmith pricing pages, checked 2026-10-30. The model (OpenRouter) is billed by usage and will likely cost more than hosting: set a credit limit on the production key.</p>
+  <p class="lead">us-east-1 prices from the AWS and LangSmith pricing pages, checked 2026-10-30. "Server part" is the instance plus its public IPv4 address ($3.65) and a 20 GB disk ($1.60). The model (OpenRouter) is billed by usage and will likely cost more than hosting: set a credit limit on the production key.</p>
   <div class="table-scroll"><table>
     <thead><tr><th>Server option</th><th class="num">Per month</th><th>Memory</th><th>Fits AskTravel?</th></tr></thead>
     <tbody>
-      <tr><td>Lightsail 1 GB</td><td class="num">$7</td><td>1 GB</td><td>No: Open WebUI alone uses ~0.7 GB</td></tr>
-      <tr class="pick"><td><b>Lightsail 2 GB (plan)</b></td><td class="num"><b>$12</b></td><td>2 GB</td><td>Yes, with hotel searches one at a time and swap</td></tr>
-      <tr><td>Lightsail 4 GB</td><td class="num">$24</td><td>4 GB</td><td>Comfortably; the fallback</td></tr>
-      <tr><td>EC2 t4g.small + IPv4 + disk</td><td class="num">~$17.50</td><td>2 GB</td><td>Same as Lightsail 2 GB, with more to learn</td></tr>
+      <tr><td>EC2 t4g.micro</td><td class="num">~$11.40</td><td>1 GB</td><td>No: Open WebUI alone uses ~0.7 GB</td></tr>
+      <tr class="pick"><td><b>EC2 t4g.small (plan)</b></td><td class="num"><b>~$17.50</b></td><td>2 GB</td><td>Yes, with hotel searches one at a time and swap</td></tr>
+      <tr><td>EC2 t4g.medium</td><td class="num">~$29.80</td><td>4 GB</td><td>Comfortably; the fallback</td></tr>
+      <tr><td>EC2 t3.small (x86)</td><td class="num">~$20.40</td><td>2 GB</td><td>Yes; the fallback if something won't run on arm64</td></tr>
+      <tr><td>Lightsail 2 GB</td><td class="num">$12</td><td>2 GB</td><td>Yes; cheaper and simpler, but teaches little AWS</td></tr>
       <tr><td>Hetzner CX23 / CAX11 (EU)</td><td class="num">~€6–7</td><td>4 GB</td><td>Yes, but EU location affects Google scraping</td></tr>
       <tr><td>ECS Fargate + RDS + load balancer</td><td class="num">~$110–150</td><td>n/a</td><td>Yes: the "real" AWS design, for later</td></tr>
     </tbody>
@@ -407,14 +411,16 @@ footer { padding: 40px 0 60px; color: var(--muted); font-size: 13px; }
   <div class="table-scroll"><table>
     <thead><tr><th>Everything else</th><th class="num">Per month</th><th>Notes</th></tr></thead>
     <tbody>
-      <tr><td>Static IP</td><td class="num">$0</td><td>Free while attached to a running instance</td></tr>
-      <tr><td>Domain name</td><td class="num">~$1</td><td>~$10–15 a year</td></tr>
-      <tr><td>DNS zone (Lightsail)</td><td class="num">$0</td><td></td></tr>
+      <tr><td>EBS snapshots</td><td class="num">~$0.50</td><td>7 daily, incremental (DLM)</td></tr>
+      <tr><td>Route 53 hosted zone</td><td class="num">$0.50</td><td>Per zone</td></tr>
+      <tr><td>Domain name</td><td class="num">~$1.15</td><td>~$14 a year for .com</td></tr>
+      <tr><td>ECR</td><td class="num">~$0.20</td><td>~2 GB of images, last 15 kept</td></tr>
       <tr><td>S3 backups</td><td class="num">&lt; $0.25</td><td>35 nightly dumps, deleted automatically after that</td></tr>
-      <tr><td>GitHub Actions + GHCR</td><td class="num">$0</td><td>Free for public repos</td></tr>
-      <tr><td>Tailscale, UptimeRobot, Healthchecks.io</td><td class="num">$0</td><td>Free personal plans</td></tr>
+      <tr><td>CloudWatch</td><td class="num">~$0.60</td><td>2 agent metrics (memory, disk); alarms and logs within the free tier</td></tr>
+      <tr><td>SSM, Parameter Store, IAM, OIDC, DLM, Budgets</td><td class="num">$0</td><td>No charge at this use</td></tr>
+      <tr><td>GitHub Actions (incl. arm64), UptimeRobot, Healthchecks.io</td><td class="num">$0</td><td>Free for public repos / free plans</td></tr>
       <tr><td>LangSmith Developer</td><td class="num">$0</td><td>5k traces a month</td></tr>
-      <tr><td><b>Hosting total</b></td><td class="num"><b>~$13</b></td><td>~$25 on the 4 GB server</td></tr>
+      <tr><td><b>Hosting total</b></td><td class="num"><b>~$21</b></td><td>~$33 on the 4 GB server. New accounts get up to $200 in credits for 6 months; don't plan around them</td></tr>
     </tbody>
   </table></div>
 </section>
@@ -436,13 +442,13 @@ footer { padding: 40px 0 60px; color: var(--muted); font-size: 13px; }
   <h2>The phases</h2>
   <p class="lead">Each one is a PR (or a few), with checks you can run. Doing the first deploy by hand (D4) before automating it (D5) is on purpose: you learn what the pipeline does for you.</p>
   <div class="phases">
-    <div class="phase"><div class="pid">D0</div><h3>Decide and spike</h3><div class="iss">#90</div><ul><li>Blockers decided</li><li>AWS account: MFA, budget alerts</li><li>Throwaway server: memory and Google measured</li></ul></div>
+    <div class="phase"><div class="pid">D0</div><h3>Decide and spike</h3><div class="iss">#90</div><ul><li>Blockers decided</li><li>AWS account: MFA, budget alerts</li><li>Throwaway t4g.small: arm64, memory and Google checked</li></ul></div>
     <div class="phase"><div class="pid">D1</div><h3>Lock the API, invite-only signup</h3><div class="iss">#27</div><ul><li>No token → 401</li><li>New sign-ups wait for approval</li></ul></div>
     <div class="phase"><div class="pid">D2</div><h3>CI on every PR</h3><div class="iss">#29</div><ul><li>Failing test blocks merge</li></ul></div>
     <div class="phase"><div class="pid">D3</div><h3>Containerise, run prod locally</h3><div class="iss">#28</div><ul><li>Dockerfile, prod compose, Caddy</li><li>e2e suites pass against it</li><li>One browser at a time</li></ul></div>
-    <div class="phase"><div class="pid">D4</div><h3>First deploy, by hand</h3><div class="iss">#30</div><ul><li>HTTPS works</li><li>8000, 5432, 22 closed from outside</li><li>Flights and hotels e2e pass on the server</li></ul></div>
-    <div class="phase"><div class="pid">D5</div><h3>Continuous deployment</h3><div class="iss">#91</div><ul><li>Merge + approve = live</li><li>Broken image rolls back by itself</li></ul></div>
-    <div class="phase"><div class="pid">D6</div><h3>Backups, monitoring, limits</h3><div class="iss">#31 · #32</div><ul><li>Restore drill done and timed</li><li>Downtime alert within 5 min</li><li>Daily turn limit per user</li></ul></div>
+    <div class="phase"><div class="pid">D4</div><h3>AWS setup, first deploy by hand</h3><div class="iss">#30</div><ul><li>VPC, security group, IAM roles, ECR, Route 53</li><li>HTTPS works; 22 closed; shell via Session Manager</li><li>Flights and hotels e2e pass on the server</li></ul></div>
+    <div class="phase"><div class="pid">D5</div><h3>Continuous deployment</h3><div class="iss">#91</div><ul><li>Merge + approve = live</li><li>OIDC + SSM: no AWS secrets in GitHub</li><li>Broken image rolls back by itself</li></ul></div>
+    <div class="phase"><div class="pid">D6</div><h3>Backups, monitoring, limits</h3><div class="iss">#31 · #32</div><ul><li>S3 dumps + EBS snapshots; restore drill timed</li><li>CloudWatch alarms reach your email</li><li>Downtime alert within 5 min</li><li>Daily turn limit per user</li></ul></div>
     <div class="phase"><div class="pid">D7</div><h3>Beta launch</h3><div class="iss">#92</div><ul><li>Waves: 5 → 25 → 50 → 100</li><li>Privacy note in the invite</li><li>Weekly 15-minute review</li></ul></div>
   </div>
 </section>
@@ -451,13 +457,16 @@ footer { padding: 40px 0 60px; color: var(--muted); font-size: 13px; }
 <section id="gotchas" class="wrap">
   <h2>Things that surprise people the first time</h2>
   <div class="gotchas">
-    <div><b>A stopped Lightsail server still costs money</b>You pay for the reservation until you delete it. The same goes for snapshots and unattached static IPs.</div>
+    <div><b>A stopped EC2 instance still costs money</b>The instance stops billing, but its disk, snapshots and public IP don't. An Elastic IP that isn't attached to anything bills too.</div>
+    <div><b>Every public IPv4 address costs $3.65 a month</b>Since 2024, including Elastic IPs. Keep exactly one, and release spike IPs the same day.</div>
+    <div><b>t4g "unlimited" CPU bills extra</b>t4g instances launch in unlimited credit mode, which charges for sustained bursts. Choose standard: a busy hour then slows down instead of costing more.</div>
+    <div><b>The free plan closes the account</b>A free-plan account is closed after 6 months or when its credits run out. Upgrade to the paid plan before the beta.</div>
     <div><b>Untested backups aren't backups</b>The restore drill (D6) is the only proof. Time it: that's how long a disaster takes to recover from.</div>
     <div><b>Logs fill disks</b>Docker keeps container logs forever by default. The prod compose caps them at 3 × 10 MB per service.</div>
     <div><b>"latest" isn't a version</b>Pin Open WebUI and Postgres to exact versions. Upgrades are deliberate PRs, because Open WebUI's upgrades can change the tables our deletion trigger watches.</div>
     <div><b>Secrets leak through images and git</b>Anything copied into an image is readable by anyone who pulls it. Keep <span class="mono">.env</span>, <span class="mono">data/</span> and <span class="mono">reference/</span> in <span class="mono">.dockerignore</span>.</div>
-    <div><b>Port 22 open = constant attacks</b>Bots try SSH passwords on every public IP within minutes. Closing it (Tailscale) beats defending it.</div>
-    <div><b>The docker group is root</b>Anyone who can run <span class="mono">docker</span> on the server controls it. Only the <span class="mono">deploy</span> user is in it.</div>
+    <div><b>Port 22 open = constant attacks</b>Bots try SSH passwords on every public IP within minutes. Not opening it at all (no key pair, Session Manager) beats defending it.</div>
+    <div><b>Access keys leak; roles don't</b>A key in a file or a GitHub secret works for anyone who copies it, forever. Roles hand out credentials that expire within hours, so this plan has none to leak.</div>
     <div><b>NAT gateways and load balancers bill by the hour</b>The classic surprise AWS bill. This plan uses neither, and the budget alert catches anything you add by mistake.</div>
   </div>
 </section>
@@ -472,20 +481,21 @@ footer { padding: 40px 0 60px; color: var(--muted); font-size: 13px; }
   };
   var NODES = {
     users: ["pub", "Beta users", "People using AskTravel in a normal browser. They only ever talk to one address: https://asktravel.<domain>.", "They sign up, wait for your approval (pending role), then chat. Their email becomes their identity in the agent's memory.", "They can reach Caddy on 80/443, nothing else."],
-    dns: ["pub", "DNS", "The internet's phone book: turns a name into an IP address. You add records in a DNS zone; an A record maps a name to an IPv4 address.", "One A record: asktravel → the Lightsail static IP, in a free Lightsail DNS zone or where you bought the domain.", "Public by design: anyone can look a name up."],
-    caddy: ["pub", "Caddy (reverse proxy + HTTPS)", "A web server that sits in front of your apps. It accepts connections from the internet, handles HTTPS, and forwards each request to the right container.", "Gets a free Let's Encrypt certificate for your domain and renews it. Sends / to Open WebUI and /agent-health to the API's /health, and nothing else to the API.", "The only container with published ports (80, 443)."],
+    dns: ["pub", "Route 53 (DNS)", "AWS's DNS service and domain registrar. A hosted zone holds a domain's records; an A record maps a name to an IPv4 address.", "One A record: asktravel → the Elastic IP, in a hosted zone ($0.50 a month). The domain can be registered in Route 53 too.", "Public by design: anyone can look a name up."],
+    caddy: ["pub", "Caddy (reverse proxy + HTTPS)", "A web server that sits in front of your apps. It accepts connections from the internet, handles HTTPS, and forwards each request to the right container.", "Gets a free Let's Encrypt certificate for your domain and renews it. Sends / to Open WebUI and /agent-health to the API's /health, and nothing else to the API.", "The only container with published ports (80, 443), and the security group only lets those two in."],
     owui: ["priv", "Open WebUI", "The off-the-shelf chat app AskTravel uses as its front end. It handles accounts, logins, chat history and the UI.", "Pinned to a release. Stores its tables in our Postgres (schema open_webui). Calls the agent API at http://api:8000/v1 with the shared token and the user's email header.", "Not published; reached only through Caddy."],
     api: ["priv", "Agent API (this repo)", "The FastAPI app with the LangChain agent: an OpenAI-compatible endpoint Open WebUI treats as a model.", "Runs from the image CI built (tagged by commit SHA). Starts Chromium for hotel searches, one at a time on 2 GB. Runs the chat-deletion and consolidation loops in the background.", "Private, and requires the bearer token (#27): it trusts the email header, so it must never be public."],
-    books: ["priv", "Guidebooks", "The extracted guidebook markdown the agent searches. Copyrighted, so never in git or in an image.", "Copied to the server once with scp and mounted into the API container read-only. Turn off with a setting if the beta can't use them.", "On the server's disk only."],
-    pg: ["priv", "Postgres", "The database. One instance holds the agent's threads (checkpointer), long-term memory (store) and Open WebUI's accounts and chats.", "Same container image as local, with a real password and no published port. Its data lives in a Docker volume on the server's disk.", "Private: only the API, Open WebUI and the backup job can reach it."],
-    backup: ["priv", "Backup job", "A scheduled task (a systemd timer) that dumps the database to a file and copies it off the server.", "Nightly pg_dump to S3, then a ping to Healthchecks.io, so a missed night alerts you. deploy.sh also takes a dump just before every deploy.", "Runs on the server; can only write to the bucket."],
+    books: ["priv", "Guidebooks", "The extracted guidebook markdown the agent searches. Copyrighted, so never in git or in an image.", "Copied to the server once through S3 and mounted into the API container read-only. Turn off with a setting if the beta can't use them.", "On the server's disk only."],
+    pg: ["priv", "Postgres", "The database. One instance holds the agent's threads (checkpointer), long-term memory (store) and Open WebUI's accounts and chats.", "Same container image as local, with a real password and no published port. Its data lives in a Docker volume on the server's EBS disk, which DLM snapshots daily.", "Private: only the API, Open WebUI and the backup job can reach it."],
+    backup: ["priv", "Backup job", "A scheduled task (a systemd timer) that dumps the database to a file and copies it off the server.", "Nightly pg_dump to S3, then a ping to Healthchecks.io, so a missed night alerts you. deploy.sh also takes a dump just before every deploy.", "Runs on the server with the instance role, which may only add files to the bucket."],
     openrouter: ["ext", "OpenRouter", "An API that routes LLM calls to model providers. Your agent's brain, billed per token.", "A separate production key with a credit limit, so bugs or abuse can't drain the account. Its ~20 calls/minute limit caps the whole beta (#51).", "We call it; it never calls us."],
     langsmith: ["ext", "LangSmith", "LangChain's hosted tracing service: one trace per agent turn, with every model call, tool call and middleware step nested in it, plus timings and tokens.", "Free Developer plan (5k traces/month, 14 days). The server uses a write-only tracing key. Traces contain user messages: mention it in the invite.", "We send to it; it never calls us."],
     google: ["ext", "Google (Flights, Hotels)", "The pages search_flights and search_hotels read. Not an API: scraping.", "D0 checks that Google answers requests from an AWS IP instead of showing captchas. If not, the tools return errors and the agent goes on without live prices.", "We call it; it may block cloud IPs."],
-    s3: ["ext", "S3 bucket", "AWS object storage: files (objects) in a bucket, private by default, very durable.", "Holds nightly database dumps for 35 days (lifecycle rule). The server's IAM user may only add files, not read or delete them: least privilege.", "Private (Block Public Access on)."],
-    laptop: ["ci", "Your laptop", "Where you develop, exactly as today: branches, tests, local stack.", "Also your staging: run docker-compose.prod.yml locally before merging packaging changes. On your tailnet, so you can SSH to the server.", "Not reachable from the internet."],
-    github: ["ci", "GitHub Actions", "GitHub's CI/CD: workflows (YAML files) run jobs on fresh machines (runners) when something happens in the repo.", "ci.yml checks every PR (ruff, pytest). deploy.yml runs on merge to main: build the image, wait for your approval, then deploy over Tailscale and check health.", "Reaches the server only through Tailscale, only while deploying."],
-    ghcr: ["ci", "GHCR (container registry)", "GitHub's registry: a place to store Docker images so other machines can pull them.", "Holds ghcr.io/stoicdataguy/asktravel-api:<commit sha>. Public and free; contains code only.", "The server pulls from it."]
+    s3: ["ext", "S3 bucket", "AWS object storage: files (objects) in a bucket, private by default, very durable.", "Holds nightly database dumps for 35 days (lifecycle rule). The server's IAM role may only add files, not read or delete them: least privilege, with no keys to leak.", "Private (Block Public Access on)."],
+    laptop: ["ci", "Your laptop", "Where you develop, exactly as today: branches, tests, local stack.", "Also your staging: run docker-compose.prod.yml locally before merging packaging changes. Opens shells on the server with aws ssm start-session (after aws sso login).", "Not reachable from the internet."],
+    github: ["ci", "GitHub Actions", "GitHub's CI/CD: workflows (YAML files) run jobs on fresh machines (runners) when something happens in the repo.", "ci.yml checks every PR (ruff, pytest). deploy.yml runs on merge to main: wait for your approval, get a short-lived AWS role through OIDC, build the arm64 image into ECR, run deploy.sh through SSM, check health.", "Never connects to the server directly: it asks SSM, which the server's agent polls."],
+    ecr: ["ci", "ECR (container registry)", "AWS's private registry for Docker images. Access is controlled by IAM, like any other AWS resource.", "Holds asktravel-api:<commit sha>, scanned on push, last 15 kept. The deploy role pushes; the instance role pulls.", "Private: only those two roles and your admin login."],
+    awsops: ["ext", "AWS operations services", "The managed services that run the server for you: SSM (shell, commands, secrets), CloudWatch (metrics, alarms, logs), SNS (email), DLM (snapshots), CloudTrail (audit), Budgets.", "Session Manager replaces SSH. Run Command runs deploys. Parameter Store holds secrets. CloudWatch gets container logs and alarms on memory, disk, CPU credits and failed status checks.", "Reached by the server's SSM and CloudWatch agents, outbound only."]
   };
   var panel = document.getElementById("panel");
   var nodes = document.querySelectorAll("svg .node");
@@ -509,30 +519,41 @@ footer { padding: 40px 0 60px; color: var(--muted); font-size: 13px; }
   var TERMS = [
     ["Basics", "Region", "A geographic location with its own data centres (us-east-1 is northern Virginia). Data and servers live in one region unless you copy them.", "us-east-1, close to US users and to the Google results you test with."],
     ["Basics", "Availability Zone (AZ)", "An isolated data centre (or group) inside a region. Spreading across AZs survives one failing.", "We use one: a single server is a single point of failure, accepted for the beta."],
-    ["Basics", "Instance / VM", "A virtual machine: a slice of a physical server that behaves like your own computer with an OS.", "One Lightsail instance, Ubuntu 24.04, 2 GB RAM."],
-    ["Basics", "VPS", "Virtual private server: a VM sold at a fixed monthly price with disk and bandwidth included. Lightsail is AWS's VPS product.", "Why Lightsail's bill is predictable, unlike raw EC2."],
+    ["Basics", "Instance / VM / instance type", "A virtual machine: a slice of a physical server that behaves like your own computer with an OS. The instance type sets its CPU and memory.", "One EC2 t4g.small: 2 vCPU, 2 GB, Ubuntu 24.04."],
+    ["Basics", "AMI", "Amazon Machine Image: the disk template an instance starts from (OS plus preinstalled software).", "Ubuntu 24.04 LTS for arm64, which already includes the SSM agent."],
+    ["Basics", "Graviton / arm64", "AWS's own ARM processors. Cheaper per GB than x86, but software must be built for arm64.", "t4g = Graviton. The image is built on GitHub's arm64 runner; your Apple-silicon Mac is arm64 too."],
+    ["Basics", "User data", "A script EC2 runs on an instance's first boot.", "deploy/bootstrap.sh: installs Docker, the AWS CLI and the ECR helper, adds swap, clones the repo."],
+    ["Basics", "EBS volume", "A network disk attached to an instance. It outlives the instance if you say so, and can be snapshotted.", "20 GB gp3, encrypted, kept on termination."],
     ["Basics", "Managed service", "The provider runs the software (patches, backups, failover) and you just use it, e.g. RDS for Postgres.", "We self-manage Postgres to save ~$15/month; tracing is managed (LangSmith)."],
-    ["Basics", "Burstable CPU", "Cheap instances get a baseline share of CPU and bank credits to burst above it. Run out and they slow down.", "Chromium page loads burst. Watch Lightsail's burst-capacity graph in the weekly review."],
-    ["Basics", "Vertical vs horizontal scaling", "Vertical: a bigger machine. Horizontal: more machines behind a load balancer.", "Our scaling path is vertical first: 2 GB → 4 GB via snapshot."],
-    ["Basics", "Free tier", "Allowances or credits a provider gives new accounts. Easy to exceed without noticing.", "Nice if it applies; the plan's numbers don't assume it."],
-    ["Networking", "IP address / static IP", "A machine's address on the internet. A static IP stays the same across restarts and can move to another instance.", "DNS points at the static IP, so resizing the server doesn't change DNS."],
-    ["Networking", "DNS, A record, TTL", "DNS turns names into IPs. An A record maps a name to an IPv4 address; the TTL says how long resolvers may cache the answer.", "asktravel.<domain> → static IP. A short TTL (300 s) while setting up."],
+    ["Basics", "Burstable CPU", "Cheap instances get a baseline share of CPU and bank credits to burst above it. Run out and they slow down.", "Chromium page loads burst. Credit mode standard (no surprise charges), and a CloudWatch alarm when CPUCreditBalance drops below 30."],
+    ["Basics", "Vertical vs horizontal scaling", "Vertical: a bigger machine. Horizontal: more machines behind a load balancer.", "Our scaling path is vertical first: stop, change type to t4g.medium, start."],
+    ["Basics", "Free tier / free plan", "Allowances or credits a provider gives new accounts. AWS's free plan gives up to $200 in credits but closes the account after 6 months unless you upgrade.", "Nice while it lasts; upgrade before the beta, and the plan's numbers don't assume it."],
+    ["Networking", "IP address / Elastic IP", "A machine's address on the internet. An Elastic IP is a fixed public IPv4 you own and can move between instances. Every public IPv4 costs $3.65 a month.", "Route 53 points at the Elastic IP, so resizing or replacing the server doesn't change DNS."],
+    ["Networking", "VPC", "Virtual Private Cloud: your own isolated network inside AWS, with its own address range.", "The default VPC that every account has. No new VPC needed for one server."],
+    ["Networking", "Subnet, route table, internet gateway", "A subnet is a slice of the VPC in one AZ. Its route table says where traffic goes; a route to an internet gateway makes it a public subnet.", "The server sits in a default public subnet, so it reaches the internet without a NAT gateway."],
+    ["Networking", "DNS, A record, TTL", "DNS turns names into IPs. An A record maps a name to an IPv4 address; the TTL says how long resolvers may cache the answer.", "asktravel.<domain> → Elastic IP, in a Route 53 hosted zone. A short TTL (300 s) while setting up."],
     ["Networking", "Port", "A numbered door on a machine: 443 for HTTPS, 80 for HTTP, 22 for SSH, 5432 for Postgres.", "Only 80 and 443 are open from the internet."],
-    ["Networking", "Firewall / security group", "Rules for which ports accept traffic from where. Lightsail calls it the instance firewall; EC2 calls it a security group.", "Allow 80, 443. SSH removed once Tailscale works."],
+    ["Networking", "Firewall / security group", "Rules for which ports accept traffic from where. On EC2 it's a security group, attached to the instance; it remembers outgoing connections so replies get back in.", "asktravel-web: 80 and 443 in. No 22."],
     ["Networking", "Reverse proxy", "A server that receives public requests and forwards them to internal services, often doing HTTPS too.", "Caddy, in front of Open WebUI."],
     ["Networking", "Load balancer", "A managed reverse proxy that spreads traffic over several servers and removes unhealthy ones.", "Not used (~$16–20/month). Needed once you run two servers."],
-    ["Networking", "Ingress / egress", "Traffic into / out of your server. Clouds often charge for egress.", "Lightsail includes 3 TB of transfer; we use a tiny fraction."],
+    ["Networking", "Ingress / egress", "Traffic into / out of your server. Clouds often charge for egress.", "AWS gives 100 GB of egress a month free; the beta uses a small fraction."],
     ["Networking", "NAT gateway", "Lets servers without public IPs reach the internet. On AWS it costs ~$32+/month per AZ.", "The classic surprise bill. Not used."],
-    ["Networking", "VPN / tailnet", "A private network over the internet. Tailscale builds one (a tailnet) between your devices.", "Your laptop and the CI runner reach the server's SSH through it."],
+    ["Networking", "SSM Session Manager", "A shell on an instance through AWS, with no SSH port, no key pair and every session logged. The SSM agent connects out to AWS.", "aws ssm start-session --target <instance>, also for port forwarding to Postgres."],
     ["Security", "TLS / HTTPS / certificate", "TLS encrypts traffic; HTTPS is HTTP over TLS. A certificate proves the server owns the domain, signed by a trusted authority.", "Caddy gets free certificates from Let's Encrypt and renews them."],
-    ["Security", "IAM", "AWS's Identity and Access Management: users, roles and policies that say who may do what to which resource.", "One IAM user that may only add backup files to one bucket path."],
-    ["Security", "Least privilege", "Give each identity only the permissions it needs, so a leak does limited damage.", "The backup key can't read or delete backups; the CI device can only reach port 22."],
+    ["Security", "IAM", "AWS's Identity and Access Management: users, roles and policies that say who may do what to which resource.", "Two roles: asktravel-ec2 for the server and asktravel-github-deploy for CI. No IAM users with keys."],
+    ["Security", "Least privilege", "Give each identity only the permissions it needs, so a leak does limited damage.", "The server may only add backup files, pull one image repo and read /asktravel/prod/*. The deploy role may only push that repo and run commands on instances tagged app=asktravel."],
     ["Security", "Root user / MFA", "The AWS root user can do anything, including closing the account. MFA adds a second factor to a login.", "Root gets MFA and is then never used; you log in as an admin user."],
-    ["Security", "Secret", "A value that grants access: API keys, passwords, tokens. Never in git, images or logs.", "In /opt/asktravel/.env (chmod 600) and GitHub Actions secrets."],
+    ["Security", "Secret", "A value that grants access: API keys, passwords, tokens. Never in git, images or logs.", "In SSM Parameter Store as SecureStrings; deploy.sh writes .env from them. GitHub stores none."],
+    ["Security", "IAM role / instance profile", "An identity with permissions but no password or key. Whoever assumes it gets credentials that expire. An instance profile attaches a role to an EC2 instance.", "asktravel-ec2 is attached to the server; the AWS CLI and Docker pick up its credentials automatically."],
+    ["Security", "Trust policy", "The part of a role that says who may assume it.", "asktravel-github-deploy trusts only GitHub OIDC tokens for this repo's production environment."],
+    ["Security", "OIDC federation", "Logging in to AWS with an identity token from another system (here GitHub), in exchange for temporary role credentials.", "The deploy workflow has id-token: write and assumes the deploy role. No AWS keys in GitHub."],
+    ["Security", "IMDSv2", "The instance metadata service hands out the role's credentials. Version 2 requires a session token, which blocks a common theft trick.", "Required on the instance (hop limit 2 so containers can reach it)."],
+    ["Security", "KMS", "AWS's key service. It encrypts data such as SecureString parameters and EBS volumes.", "The AWS-managed keys, free; nothing to set up."],
+    ["Security", "CloudTrail", "A log of every AWS API call: who did what, when.", "Shows each deploy's SendCommand and each Session Manager login (90 days, free)."],
     ["Security", "Bearer token", "A secret sent in the Authorization header. Whoever has it is allowed in.", "Open WebUI → API (#27). Without it the API returns 401."],
     ["Security", "Attack surface", "Everything an attacker could reach. Smaller is safer.", "One public port; API, Postgres and SSH unreachable."],
     ["Containers", "Image vs container", "An image is a read-only package of an app and its dependencies; a container is a running instance of an image.", "The API image is built once per commit and run on the server."],
-    ["Containers", "Registry", "A server that stores images for others to pull.", "GHCR (ghcr.io/stoicdataguy/asktravel-api)."],
+    ["Containers", "Registry", "A server that stores images for others to pull.", "ECR, private repository asktravel-api; Open WebUI, Caddy and Postgres still come from public registries."],
     ["Containers", "Tag vs digest", "A tag is a movable name (main, v0.12.4); a digest is the image's content hash and never changes.", "We tag by commit SHA, so a tag means exactly one build."],
     ["Containers", "Docker Compose", "A YAML file describing several containers, their networks and volumes, started with one command.", "docker-compose.prod.yml: caddy, open-webui, api, postgres."],
     ["Containers", "Volume", "Storage that outlives a container. Delete the container and the data stays.", "Postgres data, Caddy certificates, Open WebUI files."],
@@ -544,16 +565,19 @@ footer { padding: 40px 0 60px; color: var(--muted); font-size: 13px; }
     ["CI/CD", "Workflow, job, step, runner", "A workflow (YAML) has jobs; jobs have steps; each job runs on a fresh machine called a runner.", "deploy.yml: test → build → deploy jobs."],
     ["CI/CD", "Required status check", "A branch rule that blocks merging until a check is green.", "CI becomes required in the 'Protect main' ruleset (#29)."],
     ["CI/CD", "Environment + approval", "A GitHub deployment target with its own secrets and rules, such as required reviewers.", "production: the deploy waits for your click."],
+    ["CI/CD", "SSM Run Command", "Runs a command on instances through the SSM agent, chosen by tag, with the output kept in AWS.", "How the deploy job runs deploy.sh <sha> on the server."],
     ["CI/CD", "Rollback", "Returning to the last version that worked.", "Automatic on a failed health check, or manual: rerun deploy with an older SHA."],
     ["CI/CD", "Staging", "A copy of production for testing before users see a change.", "Not yet: your laptop runs the prod compose instead."],
-    ["CI/CD", "Infrastructure as code", "Servers and cloud resources described in files (Terraform, CDK, scripts), so they can be rebuilt exactly.", "bootstrap.sh for now; Terraform or CDK when you move to EC2."],
+    ["CI/CD", "Infrastructure as code", "Servers and cloud resources described in files (Terraform, CDK, scripts), so they can be rebuilt exactly.", "bootstrap.sh as user data for now; Terraform or CDK after a month of beta."],
     ["Operations", "Backup, RPO, RTO", "RPO: how much data you can lose (time since the last backup). RTO: how long recovery takes.", "Nightly dumps: RPO ≤ 24 h (less around deploys). RTO measured in the restore drill."],
-    ["Operations", "Snapshot", "A point-in-time copy of a whole disk or instance.", "Taken before risky changes and to resize the server; deleted after."],
-    ["Operations", "Uptime monitoring", "An outside service that requests your site every few minutes and alerts you if it fails.", "UptimeRobot on /agent-health."],
+    ["Operations", "Snapshot / DLM", "A point-in-time copy of a whole disk, stored incrementally. Data Lifecycle Manager takes and deletes them on a schedule.", "A daily EBS snapshot, 7 kept. Restoring one is part of the D6 drill."],
+    ["Operations", "CloudWatch", "AWS's monitoring: metrics, alarms on them, and log storage with a query language (Logs Insights). Alarms notify through SNS.", "Alarms on status checks (with auto-recover), CPU credits, memory and disk; container logs via the awslogs driver."],
+    ["Operations", "Parameter Store", "Part of SSM: a key-value store for settings and encrypted secrets, read with IAM permissions.", "/asktravel/prod/* holds every production secret."],
+    ["Operations", "Uptime monitoring", "An outside service that requests your site every few minutes and alerts you if it fails.", "UptimeRobot on /agent-health; it sees what users see, from outside AWS."],
     ["Operations", "Heartbeat monitoring", "A job pings a URL when it finishes; silence means it didn't run.", "Healthchecks.io for the nightly backup."],
     ["Operations", "Runbook", "Step-by-step instructions for routine and emergency tasks, written before you need them.", "deploy/runbook.md: deploy, roll back, restore, rotate, resize."],
     ["Operations", "Rate limit", "A cap on requests per time window, by a provider or by you.", "OpenRouter's ~20 calls/min caps the beta; our per-user daily turn limit protects spend."],
-    ["Operations", "Budget alert", "An email when cloud spend crosses a threshold, actual or forecast.", "AWS Budget at $15, alerting at 50/80/100%."]
+    ["Operations", "Budget alert", "An email when cloud spend crosses a threshold, actual or forecast.", "AWS Budget at $25, alerting at 50/80/100%, plus Cost Anomaly Detection."]
   ];
   var groups = ["All"].concat(TERMS.map(function (t) { return t[0]; }).filter(function (g, i, a) { return a.indexOf(g) === i; }));
   var gloss = document.getElementById("gloss"), chips = document.getElementById("gchips"), q = document.getElementById("gq"), empty = document.getElementById("gempty");

@@ -28,6 +28,10 @@ class Settings(BaseSettings):
 
     # Checkpointer (thread memory) and store (long-term memory) both live here
     database_url: str = "postgresql://travel:travel@localhost:5433/travel_agent"
+    # When API runs save a checkpoint: "exit" = once when the run ends (also on error or a
+    # cancelled stream); "async"/"sync" = after every graph step, so 6–30+ checkpoints per turn.
+    # thread_sync only rewinds to finished turns, so the in-between ones aren't needed (#94).
+    checkpoint_durability: Literal["exit", "async", "sync"] = "exit"
 
     # LangSmith tracing (cloud, https://smith.langchain.com). Off by default; evals stay untraced
     # unless langsmith_trace_evals, so they don't use up the free plan's monthly traces.

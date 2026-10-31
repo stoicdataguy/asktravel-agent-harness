@@ -121,7 +121,11 @@ async def _stream(agent, inputs, config, context, model: str) -> AsyncIterator[s
     # "custom" carries progress that slow tools report while they run (tools/report.py)
     try:
         async for mode, payload in agent.astream(
-            inputs, config, context=context, stream_mode=["messages", "updates", "custom"]
+            inputs,
+            config,
+            context=context,
+            stream_mode=["messages", "updates", "custom"],
+            durability=settings.checkpoint_durability,
         ):
             if mode == "custom":
                 if isinstance(payload, dict) and isinstance(payload.get("progress"), dict):
@@ -187,7 +191,9 @@ async def chat_completions(body: ChatCompletionRequest, request: Request):
         )
 
     try:
-        result = await agent.ainvoke(inputs, config, context=context)
+        result = await agent.ainvoke(
+            inputs, config, context=context, durability=get_settings().checkpoint_durability
+        )
     except Exception as exc:
         logger.exception("agent run failed")
         content = error_message(exc)

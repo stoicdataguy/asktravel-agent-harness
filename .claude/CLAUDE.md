@@ -103,6 +103,9 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
 - Context budget: never rewrite the saved thread to shrink context (`SummarizationMiddleware` does,
   and breaks `thread_sync` rewind). Shrink only the request, in `wrap_model_call` middleware, and
   keep the result deterministic per turn so the prompt prefix stays cacheable.
+- Checkpoints: API runs pass `durability=settings.checkpoint_durability` (default `exit`: one checkpoint
+  per turn, also saved on error or a stopped stream). `thread_sync` rewinds only to finished turns, so
+  nothing may depend on mid-turn checkpoints. A new agent call site in the API passes it too (#94).
 - The checkpointer owns history. Before each run `api/thread_sync.plan_run` compares the UI
   transcript's user messages with the thread: append the newest message when they agree, seed an
   empty (forked) thread from the transcript, or rewind/replace on regenerate and edit. Clients must

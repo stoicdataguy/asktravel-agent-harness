@@ -612,7 +612,7 @@ body { margin: 0; }
       <li><div><b>The API resolves who and where.</b><span><code>user_id</code> = email, <code>thread_id</code> = email:chat_id. If the transcript matches the saved thread, only the newest message goes on; if the chat was forked, regenerated or edited, the thread is seeded or rewound to match first.</span></div></li>
       <li><div><b>The agent loads the thread.</b><span>The checkpointer restores this chat's message history from Postgres.</span></div></li>
       <li><div><b>The middleware builds the prompt.</b><span>Base instructions, the skills list and the user's saved facts from the store. Earlier turns are sent compacted: question, answer and a note of the tools used.</span></div></li>
-      <li><div><b>The model works through tools.</b><span>It may load a skill, search the guidebooks, save a fact or present an itinerary. Each step is checkpointed.</span></div></li>
+      <li><div><b>The model works through tools.</b><span>It may load a skill, search the guidebooks, save a fact or present an itinerary. The thread is checkpointed once, when the turn ends.</span></div></li>
       <li><div><b>The API streams back.</b><span>Answer tokens and any rendered itinerary as <code>content</code>; progress (each tool call with its outcome) as <code>reasoning_content</code>, which Open WebUI shows in a collapsible block above the answer and doesn't resend. OpenAI-style SSE chunks.</span></div></li>
       <li><div><b>Everything is traced.</b><span>LangSmith records the turn in the chat's thread, with the user's email as <span class="mono">user_id</span>.</span></div></li>
     </ol>
@@ -627,7 +627,7 @@ body { margin: 0; }
           <tr><td>Chat UI</td><td>Open WebUI</td><td class="mono">docker-compose.yml</td><td>Login, chat display, forwards user and chat headers</td></tr>
           <tr><td>Agent API</td><td>FastAPI, uvicorn</td><td class="mono">api/app.py · api/openai_compat.py</td><td>OpenAI-compatible endpoint, streaming, itinerary JSON</td></tr>
           <tr><td>Agent</td><td>LangChain v1 create_agent</td><td class="mono">agent/graph.py · agent/prompts.py · agent/compaction.py</td><td>ReAct loop, dynamic prompt middleware, turn compaction middleware</td></tr>
-          <tr class="short"><td>Short-term memory</td><td>AsyncPostgresSaver</td><td class="mono">memory.py</td><td>Per-chat message history, checkpointed each step</td></tr>
+          <tr class="short"><td>Short-term memory</td><td>AsyncPostgresSaver</td><td class="mono">memory.py</td><td>Per-chat message history, one checkpoint per turn</td></tr>
           <tr class="long"><td>Long-term memory</td><td>AsyncPostgresStore</td><td class="mono">tools/memory.py · tools/itinerary.py</td><td>Per-user facts and itineraries across chats</td></tr>
           <tr><td>Guidebooks</td><td>PyMuPDF + keyword search</td><td class="mono">kb/ingest.py · tools/guidebooks.py</td><td>Cited research from 7 Lonely Planet guides</td></tr>
           <tr><td>Skills</td><td>Markdown + YAML frontmatter</td><td class="mono">skills/*.md</td><td>Task playbooks loaded on demand</td></tr>
@@ -657,7 +657,7 @@ body { margin: 0; }
         <dt>Component</dt><dd>LangGraph checkpointer (<span class="mono">AsyncPostgresSaver</span>)</dd>
         <dt>Keyed by</dt><dd><span class="mono">thread_id = "ana@example.com:&lt;chat id&gt;"</span></dd>
         <dt>Holds</dt><dd>Every message in the chat: user, assistant, tool calls and tool results, plus loop state</dd>
-        <dt>Written</dt><dd>Automatically after every step of the agent loop</dd>
+        <dt>Written</dt><dd>Once per agent run, when it ends (also on an error or a stopped stream): <span class="mono">CHECKPOINT_DURABILITY=exit</span>, #94</dd>
         <dt>Read</dt><dd>At the start of each turn, to resume the chat</dd>
         <dt>Tables</dt><dd><span class="mono">checkpoints, checkpoint_blobs, checkpoint_writes</span></dd>
         <dt>Cleared</dt><dd>Never automatically; deleting a chat in Open WebUI leaves it in place</dd>
@@ -704,7 +704,7 @@ body { margin: 0; }
     <div class="seq-wrap" tabindex="0" aria-label="Sequence diagram, scrolls horizontally">
       <div class="seq" id="seq"></div>
     </div>
-    <p class="seq-caption">The memory list is re-read before every model call, so a fact saved in step 7 is re-read in step 9 and already in the prompt for step 10. Checkpoints are written after each step, not only at the end of the turn.</p>
+    <p class="seq-caption">The memory list is re-read before every model call, so a fact saved in step 7 is re-read in step 8 and already in the prompt for step 9. The thread is checkpointed once, at the end of the turn (#94); before that, LangGraph wrote one after every step.</p>
   </div>
 
   <div class="block">
@@ -815,11 +815,11 @@ conversations. What you know so far:
   <div class="block">
     <h2>Checkpoint volume</h2>
     <div class="facts">
-      <div class="fact"><span class="n">3</span><p>checkpoints for a plain turn (input, then each loop step)</p></div>
-      <div class="fact"><span class="n">5</span><p>checkpoints for a turn with one tool call</p></div>
-      <div class="fact"><span class="n">22</span><p>checkpoints in the busiest demo chat so far, a single long research turn</p></div>
+      <div class="fact"><span class="n">1</span><p>checkpoint per turn, however many model and tool calls it makes (<span class="mono">durability="exit"</span>, #94)</p></div>
+      <div class="fact"><span class="n">6</span><p>checkpoints a turn with one tool call wrote before #94: input, then one per loop step</p></div>
+      <div class="fact"><span class="n">22</span><p>checkpoints the busiest demo chat wrote for a single long research turn before #94</p></div>
     </div>
-    <p>Every checkpoint is a full restorable snapshot, which is what makes resuming, and later forking a thread for edits, possible. Old checkpoints are never pruned today.</p>
+    <p>Every checkpoint is a full restorable snapshot. Forking a thread for a regenerate or an edit only needs the snapshot at the end of each turn, so API runs save only that one. It is also saved when a run fails or the user stops it. A crash in the middle of a turn loses that turn; the next message rebuilds the thread from the transcript. Old checkpoints are never pruned today (M6).</p>
   </div>
 
   <div class="block">
@@ -1076,11 +1076,10 @@ conversations. What you know so far:
     [3, 5, "model call: prompt + facts + history", "req"],
     [5, 3, "tool call: save_memory(diet, vegetarian)", "req", true],
     [3, 4, "write (email, memories) / diet", "long"],
-    [3, 2, "checkpoint after each step", "short"],
     [3, 4, "middleware: re-read memories", "long"],
     [3, 5, "model call with updated facts", "req"],
     [5, 3, "final answer tokens", "req", true],
-    [3, 2, "final checkpoint", "short"],
+    [3, 2, "checkpoint: one per turn", "short"],
     [1, 0, "SSE: progress block + answer", "req", true],
     [0, 0, "Open WebUI saves its own copy", ""]
   ];

@@ -175,7 +175,7 @@ footer { margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--line);
     <h3>A cloud server is a computer you rent by the hour</h3>
     <p>"The cloud" is somebody else's computer that never sleeps. You choose its size (memory and CPU) and the <b>region</b>, which is the city where the building is.</p>
     <div class="like"><b>Like</b>Renting a flat instead of buying a house. You pay monthly, and the landlord fixes the plumbing.</div>
-    <p class="here"><b>In AskTravel:</b> one <b>EC2</b> server, type <code>t4g.small</code> (2 GB, Amazon's own arm64 chips), in <code>us-east-1</code> (Virginia), ~$12 a month. It lives in a <b>VPC</b>, your own private network inside AWS. An <b>Elastic IP</b> keeps its address the same across restarts ($3.65 a month: every public IPv4 address costs money).</p>
+    <p class="here"><b>In AskTravel:</b> one <b>EC2</b> server, type <code>t4g.small</code> (2 GB, Amazon's own arm64 chips), in <code>us-east-2</code> (Ohio), ~$12 a month. It lives in a <b>VPC</b>, your own private network inside AWS. An <b>Elastic IP</b> keeps its address the same across restarts ($3.65 a month: every public IPv4 address costs money).</p>
   </section>
 
   <section class="concept z-pub">
@@ -246,7 +246,7 @@ footer { margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--line);
     <h3>Badges that expire, each opening as few doors as possible</h3>
     <p><b>IAM</b> is AWS's system of identities and permissions. An <b>IAM role</b> is an identity with no password or key: whoever is allowed to use it gets credentials that expire within hours. <b>Least privilege</b> means each role can do only its one job, so a mistake or a leak does little harm. <b>Secrets</b> (API keys, passwords) never go in git; here they live in <b>Parameter Store</b>, encrypted.</p>
     <div class="like"><b>Like</b>A visitor badge that opens two rooms and stops working tonight, instead of a copied master key.</div>
-    <p class="here"><b>In AskTravel:</b> the server has a role that can add backups to one S3 bucket, pull one image and read its secrets, nothing more. GitHub gets a role through <b>OIDC</b> (a trusted sign-in from GitHub), so no AWS keys are stored anywhere. The <b>root</b> account gets two-factor login and is put away.</p>
+    <p class="here"><b>In AskTravel:</b> the server has a role that can add backups to one S3 bucket, pull one image and read its secrets, nothing more. GitHub gets a role through <b>OIDC</b> (a trusted sign-in from GitHub), so no AWS keys are stored anywhere. Your own sign-in (an AWS Builder ID) gets two-factor login on two devices.</p>
   </section>
 
   <section class="concept z-ext">

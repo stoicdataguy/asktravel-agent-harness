@@ -15,7 +15,7 @@ simpler option.*
 **The short version**
 
 - **One small server running the stack you already run locally:** an EC2 `t4g.small` (2 GB,
-  arm64) in the default VPC of us-east-1, running Docker Compose. Caddy serves HTTPS in front of
+  arm64) in the default VPC of us-east-2 (Ohio), running Docker Compose. Caddy serves HTTPS in front of
   Open WebUI. The security group opens 80 and 443 only. The agent API and Postgres are not
   reachable from the internet.
 - **No SSH and no stored AWS keys anywhere:**
@@ -76,7 +76,7 @@ Other properties of the app that shape the design:
                                │ ssm send-command "deploy.sh <sha>"
                                ▼
  users ──HTTPS──▶ Route 53: asktravel.<domain> ──▶ Elastic IP
-  ┌─ AWS us-east-1 · default VPC · public subnet ──────────────────────────────────┐
+  ┌─ AWS us-east-2 · default VPC · public subnet ──────────────────────────────────┐
   │                                   │ security group: 80, 443 in (no 22)          │
   │  ┌────────────────────────────────▼──────────────────────────────────────────┐ │
   │  │ EC2 t4g.small (Ubuntu 24.04 arm64, 2 GB) · 20 GB EBS gp3 · IMDSv2          │ │
@@ -326,7 +326,7 @@ Differences from the dev file:
 - **Pinned versions:**
   - Open WebUI is pinned to a release (e.g. `ghcr.io/open-webui/open-webui:v0.12.4`), not
     `:main`. Upgrades are their own PR, followed by `e2e_chat_deletion.py`.
-  - `api` uses `<account>.dkr.ecr.us-east-1.amazonaws.com/asktravel-api:${IMAGE_TAG}`.
+  - `api` uses `<account>.dkr.ecr.us-east-2.amazonaws.com/asktravel-api:${IMAGE_TAG}`.
 - **Published ports:** only Caddy's 80/443; nothing else is published.
 - **Services:**
   - **`api`** mounts `./guidebooks:/app/data/guidebooks:ro`, has `stop_grace_period: 60s` (lets
@@ -380,15 +380,24 @@ Differences from the dev file:
 Do it in the console first, so you see each piece. §3 D-2's graduation path captures it as
 code later.
 
-1. **Account hygiene** (30 min, before anything else):
-   - **Root user:** MFA on, never used again.
-   - **Your everyday login:** an admin user through IAM Identity Center, with MFA. Use the AWS CLI
-     with `aws sso login`, not access keys.
+1. **Account hygiene** (30 min, before anything else). The account was created with "Sign up
+   for AWS (new)" ([AWS docs](https://docs.aws.amazon.com/accounts/latest/reference/sign-up-for-aws.html)),
+   which changes three things:
+   - **No root user, no IAM Identity Center.** Your AWS Builder ID owns the account and AWS
+     manages your admin access (the `AccountFullAccessRole` and the other AWS-created roles: never
+     delete them). IAM users and roles you create are for programmatic access only.
+   - **MFA in AWS Settings:** settings.aws.com → Manage security and sign-in → Security →
+     Register device. Register **two** devices (authenticator app + passkey or security key):
+     losing all of them means losing the account.
+   - **Fixed region:** the project's region follows the contact address: **us-east-2 (Ohio)** for
+     the US. Confirm it in settings.aws.com → Project → Additional info before creating anything.
+     Another region needs "activate advanced features".
+   - **AWS CLI:** sign in without access keys (the login method is part of D0).
    - **Budgets:** an AWS Budget of $25/month with email alerts at 50%, 80% and 100% (actual) and at
      100% (forecast). Turn on Cost Anomaly Detection (free).
    - **Free plan:** if the account is on the 6-month free plan, upgrade it to the paid plan before
      the beta. When a free-plan account reaches 6 months or uses up its credits, AWS closes it.
-2. **Network (default VPC, us-east-1):**
+2. **Network (default VPC, us-east-2):**
    - Use the default VPC and one of its public subnets. Look at its route table: `0.0.0.0/0` →
      internet gateway is what makes the subnet "public".
    - **Security group `asktravel-web`:** inbound TCP 80 and 443 from `0.0.0.0/0` and `::/0`.
@@ -481,7 +490,7 @@ DOMAIN=asktravel.<domain>
 | **Hosting total** | **~$21** (4 GB: ~$33) |
 | OpenRouter (LLM) | **Usage-based; likely more than hosting.** Read your real cost per chat from OpenRouter's activity page or LangSmith, multiply by expected chats, and set the prod key's credit limit to that plus a margin |
 
-Prices are for us-east-1 from the AWS and LangSmith pricing pages, checked 2026-10-30; recheck
+Prices are for us-east-2 (the same as us-east-1 for these services) from the AWS and LangSmith pricing pages, checked 2026-10-30; recheck
 them in the AWS Pricing Calculator before D4. Data transfer out is free up to 100 GB a month,
 far more than the beta needs.
 
@@ -500,7 +509,7 @@ PR → approval → merge.
 1. **Decide the blockers in §4.** Guidebooks: on, off or replaced. Beta size or branding.
 2. **Set up the account (§6.1)**, including budgets.
 3. **Measure the real server.**
-   - Launch a throwaway `t4g.small` (Ubuntu 24.04 arm64) in us-east-1 with an SSM-enabled role
+   - Launch a throwaway `t4g.small` (Ubuntu 24.04 arm64) in us-east-2 with an SSM-enabled role
      and no key pair. Connect with Session Manager.
    - Build the API image for arm64 on it, or on your Mac. Install Playwright's Chromium.
    - Run `fetch_hotel_cards` twice in parallel and once alone, plus a `search_flights` call.
@@ -633,7 +642,7 @@ beta.
   gateways, security groups, AMIs, instance types and CPU credits, EBS volumes and snapshots,
   Elastic IPs, user data, IMDSv2.
 - **AWS identity:** IAM users vs roles, instance profiles, least-privilege policies, trust
-  policies, OIDC federation from GitHub, IAM Identity Center, CloudTrail.
+  policies, OIDC federation from GitHub, MFA on a Builder ID, CloudTrail.
 - **AWS operations:** SSM Session Manager, Run Command and Parameter Store; ECR; Route 53;
   CloudWatch metrics, alarms, agent and Logs Insights; SNS; Data Lifecycle Manager; Budgets and
   Cost Explorer.

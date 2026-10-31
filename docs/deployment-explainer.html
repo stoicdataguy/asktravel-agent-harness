@@ -334,7 +334,7 @@ footer { padding: 40px 0 60px; color: var(--muted); font-size: 13px; }
       </div>
     </details>
     <details class="dec">
-      <summary><span class="id">D-2</span><span class="q">Which kind of server, from whom?</span><span class="a">EC2 t4g.small (arm64), us-east-1</span></summary>
+      <summary><span class="id">D-2</span><span class="q">Which kind of server, from whom?</span><span class="a">EC2 t4g.small (arm64), us-east-2</span></summary>
       <div class="body">
         <div><h4>Why</h4><p>It teaches the AWS concepts everything else builds on: VPC, subnets, security groups, EBS, Elastic IPs and IAM roles. With a role, the server needs no AWS keys. arm64 (Graviton) is ~20% cheaper than x86. A US region keeps Google's results as they are on your laptop.</p></div>
         <div><h4>Given up</h4><p>~$8 a month more than Lightsail (whose price includes the IP and disk), more setup, and more ways to make a costly mistake: NAT gateways, idle IPs, unlimited CPU credits. Images must be built for arm64. Memory is still tight at 2 GB.</p></div>
@@ -395,7 +395,7 @@ footer { padding: 40px 0 60px; color: var(--muted); font-size: 13px; }
 <!-- ================= COST ================= -->
 <section id="cost" class="wrap">
   <h2>What it costs</h2>
-  <p class="lead">us-east-1 prices from the AWS and LangSmith pricing pages, checked 2026-10-30. "Server part" is the instance plus its public IPv4 address ($3.65) and a 20 GB disk ($1.60). The model (OpenRouter) is billed by usage and will likely cost more than hosting: set a credit limit on the production key.</p>
+  <p class="lead">us-east-2 (Ohio) prices from the AWS and LangSmith pricing pages, checked 2026-10-30. "Server part" is the instance plus its public IPv4 address ($3.65) and a 20 GB disk ($1.60). The model (OpenRouter) is billed by usage and will likely cost more than hosting: set a credit limit on the production key.</p>
   <div class="table-scroll"><table>
     <thead><tr><th>Server option</th><th class="num">Per month</th><th>Memory</th><th>Fits AskTravel?</th></tr></thead>
     <tbody>
@@ -492,7 +492,7 @@ footer { padding: 40px 0 60px; color: var(--muted); font-size: 13px; }
     langsmith: ["ext", "LangSmith", "LangChain's hosted tracing service: one trace per agent turn, with every model call, tool call and middleware step nested in it, plus timings and tokens.", "Free Developer plan (5k traces/month, 14 days). The server uses a write-only tracing key. Traces contain user messages: mention it in the invite.", "We send to it; it never calls us."],
     google: ["ext", "Google (Flights, Hotels)", "The pages search_flights and search_hotels read. Not an API: scraping.", "D0 checks that Google answers requests from an AWS IP instead of showing captchas. If not, the tools return errors and the agent goes on without live prices.", "We call it; it may block cloud IPs."],
     s3: ["ext", "S3 bucket", "AWS object storage: files (objects) in a bucket, private by default, very durable.", "Holds nightly database dumps for 35 days (lifecycle rule). The server's IAM role may only add files, not read or delete them: least privilege, with no keys to leak.", "Private (Block Public Access on)."],
-    laptop: ["ci", "Your laptop", "Where you develop, exactly as today: branches, tests, local stack.", "Also your staging: run docker-compose.prod.yml locally before merging packaging changes. Opens shells on the server with aws ssm start-session (after aws sso login).", "Not reachable from the internet."],
+    laptop: ["ci", "Your laptop", "Where you develop, exactly as today: branches, tests, local stack.", "Also your staging: run docker-compose.prod.yml locally before merging packaging changes. Opens shells on the server with aws ssm start-session (after signing in to the AWS CLI).", "Not reachable from the internet."],
     github: ["ci", "GitHub Actions", "GitHub's CI/CD: workflows (YAML files) run jobs on fresh machines (runners) when something happens in the repo.", "ci.yml checks every PR (ruff, pytest). deploy.yml runs on merge to main: wait for your approval, get a short-lived AWS role through OIDC, build the arm64 image into ECR, run deploy.sh through SSM, check health.", "Never connects to the server directly: it asks SSM, which the server's agent polls."],
     ecr: ["ci", "ECR (container registry)", "AWS's private registry for Docker images. Access is controlled by IAM, like any other AWS resource.", "Holds asktravel-api:<commit sha>, scanned on push, last 15 kept. The deploy role pushes; the instance role pulls.", "Private: only those two roles and your admin login."],
     awsops: ["ext", "AWS operations services", "The managed services that run the server for you: SSM (shell, commands, secrets), CloudWatch (metrics, alarms, logs), SNS (email), DLM (snapshots), CloudTrail (audit), Budgets.", "Session Manager replaces SSH. Run Command runs deploys. Parameter Store holds secrets. CloudWatch gets container logs and alarms on memory, disk, CPU credits and failed status checks.", "Reached by the server's SSM and CloudWatch agents, outbound only."]
@@ -517,7 +517,7 @@ footer { padding: 40px 0 60px; color: var(--muted); font-size: 13px; }
 
   // ---- Glossary ----
   var TERMS = [
-    ["Basics", "Region", "A geographic location with its own data centres (us-east-1 is northern Virginia). Data and servers live in one region unless you copy them.", "us-east-1, close to US users and to the Google results you test with."],
+    ["Basics", "Region", "A geographic location with its own data centres (us-east-2 is Ohio). Data and servers live in one region unless you copy them.", "us-east-2, fixed by the new AWS sign-up for a US address. Close to US users and to the Google results you test with."],
     ["Basics", "Availability Zone (AZ)", "An isolated data centre (or group) inside a region. Spreading across AZs survives one failing.", "We use one: a single server is a single point of failure, accepted for the beta."],
     ["Basics", "Instance / VM / instance type", "A virtual machine: a slice of a physical server that behaves like your own computer with an OS. The instance type sets its CPU and memory.", "One EC2 t4g.small: 2 vCPU, 2 GB, Ubuntu 24.04."],
     ["Basics", "AMI", "Amazon Machine Image: the disk template an instance starts from (OS plus preinstalled software).", "Ubuntu 24.04 LTS for arm64, which already includes the SSM agent."],
@@ -542,7 +542,7 @@ footer { padding: 40px 0 60px; color: var(--muted); font-size: 13px; }
     ["Security", "TLS / HTTPS / certificate", "TLS encrypts traffic; HTTPS is HTTP over TLS. A certificate proves the server owns the domain, signed by a trusted authority.", "Caddy gets free certificates from Let's Encrypt and renews them."],
     ["Security", "IAM", "AWS's Identity and Access Management: users, roles and policies that say who may do what to which resource.", "Two roles: asktravel-ec2 for the server and asktravel-github-deploy for CI. No IAM users with keys."],
     ["Security", "Least privilege", "Give each identity only the permissions it needs, so a leak does limited damage.", "The server may only add backup files, pull one image repo and read /asktravel/prod/*. The deploy role may only push that repo and run commands on instances tagged app=asktravel."],
-    ["Security", "Root user / MFA", "The AWS root user can do anything, including closing the account. MFA adds a second factor to a login.", "Root gets MFA and is then never used; you log in as an admin user."],
+    ["Security", "Builder ID / MFA", "On the new AWS sign-up there is no root user: your AWS Builder ID owns the account. MFA adds a second factor to that login.", "Two MFA devices registered in AWS Settings; losing all of them means losing the account."],
     ["Security", "Secret", "A value that grants access: API keys, passwords, tokens. Never in git, images or logs.", "In SSM Parameter Store as SecureStrings; deploy.sh writes .env from them. GitHub stores none."],
     ["Security", "IAM role / instance profile", "An identity with permissions but no password or key. Whoever assumes it gets credentials that expire. An instance profile attaches a role to an EC2 instance.", "asktravel-ec2 is attached to the server; the AWS CLI and Docker pick up its credentials automatically."],
     ["Security", "Trust policy", "The part of a role that says who may assume it.", "asktravel-github-deploy trusts only GitHub OIDC tokens for this repo's production environment."],

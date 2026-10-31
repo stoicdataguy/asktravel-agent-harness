@@ -1,0 +1,591 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AskTravel Cloud Deployment</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Companion to docs/plans/deployment.md. Same type and neutrals as architecture.html and
+   memory-explainer.html. One hue per trust zone, used everywhere on the page:
+   public (internet-facing) = amber, private (inside the server) = teal,
+   external services = violet, delivery (git, CI/CD) = blue. */
+:root {
+  --bg: #f5f7fa; --surface: #ffffff; --surface-2: #eef1f5;
+  --ink: #16202b; --muted: #586373; --line: #d6dce4;
+  --pub: #a45a0b; --pub-bg: #fdf1e1;
+  --priv: #0f766e; --priv-bg: #e2f4f1;
+  --ext: #6a33c9; --ext-bg: #f1eafd;
+  --ci: #1d5fc4; --ci-bg: #e7effc;
+  --warn: #b42318; --warn-bg: #fdecea;
+  --font-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --radius: 6px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1319; --surface: #151c25; --surface-2: #1b2430; --ink: #e5e9ef; --muted: #9aa5b3; --line: #2a3542;
+    --pub: #f2a65a; --pub-bg: #2a1d0e; --priv: #4fd1c5; --priv-bg: #0f2a28; --ext: #b99cff; --ext-bg: #221a37;
+    --ci: #7aaeff; --ci-bg: #172741; --warn: #ff8a80; --warn-bg: #3a1714;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1319; --surface: #151c25; --surface-2: #1b2430; --ink: #e5e9ef; --muted: #9aa5b3; --line: #2a3542;
+  --pub: #f2a65a; --pub-bg: #2a1d0e; --priv: #4fd1c5; --priv-bg: #0f2a28; --ext: #b99cff; --ext-bg: #221a37;
+  --ci: #7aaeff; --ci-bg: #172741; --warn: #ff8a80; --warn-bg: #3a1714;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 64px; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.6 var(--font-body); -webkit-font-smoothing: antialiased; }
+.wrap { max-width: 1120px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1, h2, h3 { font-family: var(--font-display); line-height: 1.15; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(30px, 4.4vw, 44px); letter-spacing: -0.01em; }
+h2 { font-size: clamp(24px, 3vw, 30px); letter-spacing: -0.005em; }
+h3 { font-size: 17px; }
+p { margin: 0 0 12px; }
+a { color: var(--ci); }
+code, .mono { font-family: var(--font-mono); font-size: 0.88em; }
+code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+
+nav.top { position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+nav.top .wrap { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; padding-top: 8px; padding-bottom: 8px; }
+nav.top a { flex: none; text-decoration: none; color: var(--muted); font-weight: 500; font-size: 13.5px; padding: 6px 10px; border-radius: var(--radius); }
+nav.top a:hover { color: var(--ink); background: var(--surface-2); }
+
+section { padding: 48px 0 8px; }
+.lead { font-size: 17px; color: var(--muted); max-width: 760px; margin-top: 12px; }
+.sub { color: var(--muted); font-size: 14px; }
+.eyebrow { font: 600 12px/1 var(--font-body); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 24px; }
+.fact { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
+.fact .n { font: 700 28px/1.1 var(--font-display); display: block; margin-bottom: 6px; }
+.fact p { margin: 0; color: var(--muted); font-size: 14px; }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; }
+
+/* Diagram */
+.zones { display: flex; flex-wrap: wrap; gap: 14px; margin: 18px 0 10px; font-size: 13px; color: var(--muted); }
+.zones span { display: inline-flex; align-items: center; gap: 6px; }
+.zones i { width: 12px; height: 12px; border-radius: 3px; border: 1.5px solid; }
+.diagram-row { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; align-items: start; }
+@media (max-width: 900px) { .diagram-row { grid-template-columns: 1fr; } }
+.diagram { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px; overflow-x: auto; }
+.diagram svg { display: block; width: 100%; min-width: 680px; height: auto; }
+svg text { font-family: var(--font-body); fill: var(--ink); }
+svg .lbl { font-size: 14px; font-weight: 600; }
+svg .sm { font-size: 11.5px; fill: var(--muted); }
+svg .zone-lbl { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; }
+svg .edge { stroke: var(--muted); stroke-width: 1.5; fill: none; }
+svg .edge.dash { stroke-dasharray: 5 4; }
+svg .edge-lbl { font-size: 11px; fill: var(--muted); paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+svg .node rect { stroke-width: 1.5; }
+svg .node { cursor: pointer; outline: none; }
+svg .node:hover rect, svg .node:focus-visible rect, svg .node.on rect { stroke-width: 3; }
+svg .pub rect { fill: var(--pub-bg); stroke: var(--pub); }
+svg .priv rect { fill: var(--priv-bg); stroke: var(--priv); }
+svg .ext rect { fill: var(--ext-bg); stroke: var(--ext); }
+svg .ci rect { fill: var(--ci-bg); stroke: var(--ci); }
+.panel { position: sticky; top: 64px; }
+.panel .tag { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 99px; margin-bottom: 8px; }
+.panel h3 { margin-bottom: 8px; }
+.panel dl { margin: 0; }
+.panel dt { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); margin-top: 12px; }
+.panel dd { margin: 2px 0 0; }
+.t-pub { background: var(--pub-bg); color: var(--pub); }
+.t-priv { background: var(--priv-bg); color: var(--priv); }
+.t-ext { background: var(--ext-bg); color: var(--ext); }
+.t-ci { background: var(--ci-bg); color: var(--ci); }
+
+/* Journeys */
+.journey { list-style: none; padding: 0; margin: 18px 0 0; counter-reset: s; display: grid; gap: 10px; }
+.journey li { counter-increment: s; display: grid; grid-template-columns: 34px 1fr; gap: 12px; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--c, var(--line)); border-radius: var(--radius); padding: 12px 14px; }
+.journey li::before { content: counter(s); font: 700 18px/34px var(--font-display); text-align: center; width: 34px; height: 34px; border-radius: 50%; background: var(--surface-2); }
+.journey b { display: block; }
+.journey span { color: var(--muted); font-size: 14px; }
+.journey .term { color: var(--ink); font-weight: 600; font-size: 13px; }
+.pipeline { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-top: 18px; }
+.pipeline div { background: var(--ci-bg); border: 1px solid var(--ci); border-radius: var(--radius); padding: 10px 12px; font-size: 13.5px; }
+.pipeline div b { display: block; font-size: 14px; }
+.pipeline div.gate { background: var(--pub-bg); border-color: var(--pub); }
+.pipeline div.box { background: var(--priv-bg); border-color: var(--priv); }
+
+/* Glossary */
+.gloss-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 18px 0 14px; }
+.gloss-tools input { flex: 1 1 220px; font: inherit; padding: 9px 12px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+.chip { font: 500 13px var(--font-body); padding: 6px 12px; border-radius: 99px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.gloss { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
+.gloss article { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; }
+.gloss h3 { font-size: 16px; margin-bottom: 2px; }
+.gloss .grp { font-size: 11.5px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); }
+.gloss p { margin: 8px 0 0; font-size: 14px; }
+.gloss .here { color: var(--muted); }
+.gloss .here b { color: var(--priv); font-weight: 600; }
+.empty { color: var(--muted); display: none; }
+
+/* Decisions */
+.decisions { display: grid; gap: 12px; margin-top: 18px; }
+details.dec { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+details.dec summary { cursor: pointer; list-style: none; padding: 14px 16px; display: grid; grid-template-columns: 52px 1fr auto; gap: 12px; align-items: baseline; }
+details.dec summary::-webkit-details-marker { display: none; }
+details.dec summary .id { font: 600 13px var(--font-mono); color: var(--muted); }
+details.dec summary .q { font-weight: 600; }
+details.dec summary .a { color: var(--priv); font-weight: 600; font-size: 14px; text-align: right; }
+details.dec summary::after { content: "+"; grid-column: 3; display: none; }
+details.dec .body { padding: 0 16px 16px 80px; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+@media (max-width: 640px) { details.dec .body { padding-left: 16px; } details.dec summary { grid-template-columns: 44px 1fr; } details.dec summary .a { grid-column: 2; text-align: left; } }
+details.dec h4 { margin: 0 0 4px; font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); }
+details.dec .body p { font-size: 14px; margin: 0; }
+
+/* Tables */
+.table-scroll { overflow-x: auto; margin-top: 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); font-weight: 600; background: var(--surface-2); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+tr.pick td { background: var(--priv-bg); }
+tr:last-child td { border-bottom: 0; }
+
+/* Phases */
+.phases { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin-top: 18px; }
+.phase { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; }
+.phase .pid { font: 700 22px var(--font-display); color: var(--ci); }
+.phase h3 { font-size: 15.5px; margin: 2px 0 6px; }
+.phase .iss { font-size: 12.5px; color: var(--muted); font-family: var(--font-mono); }
+.phase ul { margin: 8px 0 0; padding-left: 18px; font-size: 13.5px; color: var(--muted); }
+
+/* Gotchas */
+.gotchas { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 10px; margin-top: 18px; }
+.gotchas div { background: var(--warn-bg); border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent); border-radius: var(--radius); padding: 14px 16px; font-size: 14px; }
+.gotchas b { display: block; color: var(--warn); margin-bottom: 4px; }
+
+.blockers { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin-top: 18px; }
+.blockers div { background: var(--surface); border: 1px solid var(--line); border-top: 4px solid var(--pub); border-radius: var(--radius); padding: 14px 16px; font-size: 14px; }
+.blockers b { display: block; margin-bottom: 4px; }
+
+footer { padding: 40px 0 60px; color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+
+<nav class="top" aria-label="Sections">
+  <div class="wrap">
+    <a href="#picture">Big picture</a>
+    <a href="#request">A request</a>
+    <a href="#commit">A commit</a>
+    <a href="#glossary">Glossary</a>
+    <a href="#decisions">Decisions</a>
+    <a href="#cost">Cost</a>
+    <a href="#blockers">Blockers</a>
+    <a href="#phases">Phases</a>
+    <a href="#gotchas">Gotchas</a>
+  </div>
+</nav>
+
+<header class="wrap" style="padding-top:40px">
+  <div class="eyebrow">AskTravel · deployment explainer</div>
+  <h1>Putting AskTravel in the cloud, explained</h1>
+  <p class="lead">A companion to <span class="mono">docs/plans/deployment.md</span>. The plan says what to do; this page explains the words in it and why each choice was made. It's written for someone who knows the fundamentals but hasn't run anything in production.</p>
+  <div class="facts">
+    <div class="fact"><span class="n">1 server</span><p>An AWS Lightsail instance running the same Docker Compose stack you run on your laptop</p></div>
+    <div class="fact"><span class="n">~$13 / month</span><p>Hosting: $12 server + domain + cents for backups. $25 if it needs 4 GB. LLM usage is separate</p></div>
+    <div class="fact"><span class="n">1 open door</span><p>Only HTTPS (443, plus 80 to redirect) is reachable from the internet. The API, database and SSH aren't</p></div>
+    <div class="fact"><span class="n">1 click</span><p>To ship: merge a PR, approve the deploy, and the pipeline does the rest, rolling back if a health check fails</p></div>
+  </div>
+</header>
+
+<!-- ================= BIG PICTURE ================= -->
+<section id="picture" class="wrap">
+  <h2>The big picture</h2>
+  <p class="lead">Click any box to see what it is and how AskTravel uses it. Colour shows trust: who can reach it.</p>
+  <div class="zones" aria-hidden="true">
+    <span><i style="background:var(--pub-bg);border-color:var(--pub)"></i>Public: reachable from the internet</span>
+    <span><i style="background:var(--priv-bg);border-color:var(--priv)"></i>Private: only inside the server</span>
+    <span><i style="background:var(--ext-bg);border-color:var(--ext)"></i>External services we call</span>
+    <span><i style="background:var(--ci-bg);border-color:var(--ci)"></i>Delivery: how code gets there</span>
+  </div>
+  <div class="diagram-row">
+    <div class="diagram">
+      <svg viewBox="0 0 960 590" role="img" aria-labelledby="dg-title">
+        <title id="dg-title">Users reach Caddy over HTTPS on a Lightsail server; Caddy forwards to Open WebUI, which calls the agent API with a token; the API uses Postgres and calls OpenRouter, LangSmith and Google. GitHub builds images and deploys over Tailscale.</title>
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/>
+          </marker>
+        </defs>
+
+        <!-- server and docker network outlines -->
+        <rect x="200" y="20" width="530" height="440" rx="10" fill="none" stroke="var(--line)" stroke-width="2"/>
+        <text x="216" y="44" class="zone-lbl" style="fill:var(--muted)">LIGHTSAIL INSTANCE · UBUNTU · 2 GB · US-EAST-1</text>
+        <rect x="228" y="64" width="474" height="376" rx="8" fill="none" stroke="var(--priv)" stroke-width="1.5" stroke-dasharray="6 5"/>
+        <text x="244" y="86" class="zone-lbl" style="fill:var(--priv)">DOCKER NETWORK (PRIVATE)</text>
+
+        <!-- edges -->
+        <path class="edge dash" d="M90 96 V150" marker-end="url(#arr)"/>
+        <text x="98" y="128" class="edge-lbl">1 · look up</text>
+        <path class="edge" d="M160 68 C205 68 210 130 248 130" marker-end="url(#arr)"/>
+        <text x="166" y="58" class="edge-lbl">2 · HTTPS :443</text>
+        <path class="edge" d="M430 130 H478" marker-end="url(#arr)"/>
+        <path class="edge" d="M575 160 V208" marker-end="url(#arr)"/>
+        <text x="583" y="190" class="edge-lbl">Bearer token</text>
+        <path class="edge" d="M575 270 V318" marker-end="url(#arr)"/>
+        <path class="edge" d="M430 240 H478" marker-end="url(#arr)"/>
+        <path class="edge" d="M430 350 H478" marker-end="url(#arr)"/>
+        <path class="edge" d="M340 380 V420 H850 V402" marker-end="url(#arr)"/>
+        <text x="610" y="414" class="edge-lbl">nightly upload</text>
+        <path class="edge" d="M670 222 C715 222 715 130 758 130" marker-end="url(#arr)"/>
+        <path class="edge" d="M670 238 C720 238 720 210 758 210" marker-end="url(#arr)"/>
+        <path class="edge" d="M670 252 C720 252 720 290 758 290" marker-end="url(#arr)"/>
+        <path class="edge" d="M160 530 H228" marker-end="url(#arr)"/>
+        <text x="166" y="520" class="edge-lbl">git push</text>
+        <path class="edge" d="M470 530 H518" marker-end="url(#arr)"/>
+        <path class="edge" d="M605 500 V462" marker-end="url(#arr)"/>
+        <text x="613" y="486" class="edge-lbl">docker pull</text>
+        <path class="edge dash" d="M350 500 V462" marker-end="url(#arr)"/>
+        <text x="358" y="486" class="edge-lbl">deploy · SSH over Tailscale</text>
+
+        <!-- nodes -->
+        <g class="node pub" data-key="users" tabindex="0" role="button"><rect x="20" y="40" width="140" height="56" rx="6"/><text x="34" y="64" class="lbl">Beta users</text><text x="34" y="82" class="sm">a browser, anywhere</text></g>
+        <g class="node pub" data-key="dns" tabindex="0" role="button"><rect x="20" y="150" width="140" height="56" rx="6"/><text x="34" y="174" class="lbl">DNS</text><text x="34" y="192" class="sm">name → static IP</text></g>
+        <g class="node pub" data-key="caddy" tabindex="0" role="button"><rect x="250" y="100" width="180" height="60" rx="6"/><text x="264" y="126" class="lbl">Caddy</text><text x="264" y="145" class="sm">HTTPS · reverse proxy</text></g>
+        <g class="node priv" data-key="owui" tabindex="0" role="button"><rect x="480" y="100" width="190" height="60" rx="6"/><text x="494" y="126" class="lbl">Open WebUI</text><text x="494" y="145" class="sm">chat UI · accounts</text></g>
+        <g class="node priv" data-key="api" tabindex="0" role="button"><rect x="480" y="210" width="190" height="60" rx="6"/><text x="494" y="236" class="lbl">Agent API</text><text x="494" y="255" class="sm">FastAPI · agent · Chromium</text></g>
+        <g class="node priv" data-key="books" tabindex="0" role="button"><rect x="250" y="210" width="180" height="60" rx="6"/><text x="264" y="236" class="lbl">Guidebooks</text><text x="264" y="255" class="sm">files on disk</text></g>
+        <g class="node priv" data-key="pg" tabindex="0" role="button"><rect x="480" y="320" width="190" height="60" rx="6"/><text x="494" y="346" class="lbl">Postgres</text><text x="494" y="365" class="sm">threads · memory · accounts</text></g>
+        <g class="node priv" data-key="backup" tabindex="0" role="button"><rect x="250" y="320" width="180" height="60" rx="6"/><text x="264" y="346" class="lbl">Backup job</text><text x="264" y="365" class="sm">nightly pg_dump</text></g>
+        <g class="node ext" data-key="openrouter" tabindex="0" role="button"><rect x="760" y="100" width="180" height="56" rx="6"/><text x="774" y="124" class="lbl">OpenRouter</text><text x="774" y="142" class="sm">the LLM</text></g>
+        <g class="node ext" data-key="langsmith" tabindex="0" role="button"><rect x="760" y="180" width="180" height="56" rx="6"/><text x="774" y="204" class="lbl">LangSmith</text><text x="774" y="222" class="sm">traces</text></g>
+        <g class="node ext" data-key="google" tabindex="0" role="button"><rect x="760" y="260" width="180" height="56" rx="6"/><text x="774" y="284" class="lbl">Google</text><text x="774" y="302" class="sm">flights · hotels pages</text></g>
+        <g class="node ext" data-key="s3" tabindex="0" role="button"><rect x="760" y="346" width="180" height="56" rx="6"/><text x="774" y="370" class="lbl">S3 bucket</text><text x="774" y="388" class="sm">backups, 35 days</text></g>
+        <g class="node ci" data-key="laptop" tabindex="0" role="button"><rect x="20" y="500" width="140" height="60" rx="6"/><text x="34" y="526" class="lbl">Your laptop</text><text x="34" y="545" class="sm">dev · branches</text></g>
+        <g class="node ci" data-key="github" tabindex="0" role="button"><rect x="230" y="500" width="240" height="60" rx="6"/><text x="244" y="526" class="lbl">GitHub Actions</text><text x="244" y="545" class="sm">PR → CI → approve → deploy</text></g>
+        <g class="node ci" data-key="ghcr" tabindex="0" role="button"><rect x="520" y="500" width="170" height="60" rx="6"/><text x="534" y="526" class="lbl">GHCR</text><text x="534" y="545" class="sm">image registry</text></g>
+      </svg>
+    </div>
+    <aside class="card panel" id="panel" aria-live="polite"></aside>
+  </div>
+</section>
+
+<!-- ================= A REQUEST ================= -->
+<section id="request" class="wrap">
+  <h2>Follow one chat message</h2>
+  <p class="lead">What happens between a beta user pressing Enter and the answer streaming back. Each step names the concept it relies on.</p>
+  <ol class="journey">
+    <li style="--c:var(--pub)"><div><b>The browser looks up <span class="mono">asktravel.&lt;domain&gt;</span></b><span>DNS answers with the server's static IP (an <span class="term">A record</span>). It's cached for a while (the record's <span class="term">TTL</span>), which is why DNS changes take minutes to show.</span></div></li>
+    <li style="--c:var(--pub)"><div><b>It opens an encrypted connection on port 443</b><span>The <span class="term">firewall</span> lets 443 through. Caddy presents a <span class="term">TLS certificate</span> from Let's Encrypt proving it really is your domain, so the password and chat can't be read on the way.</span></div></li>
+    <li style="--c:var(--priv)"><div><b>Caddy forwards the request to Open WebUI</b><span>Caddy is a <span class="term">reverse proxy</span>: the only thing listening publicly. It hands the request to the <span class="mono">open-webui</span> container by name, over the private Docker network.</span></div></li>
+    <li style="--c:var(--priv)"><div><b>Open WebUI checks who you are</b><span>Your session cookie (signed with <span class="mono">WEBUI_SECRET_KEY</span>) identifies your account. It then calls the agent API like any OpenAI-compatible model, adding your email as a header and the shared <span class="term">bearer token</span>.</span></div></li>
+    <li style="--c:var(--priv)"><div><b>The agent API runs a turn</b><span>It rejects calls without the token (#27), loads the thread and your memories from Postgres, and runs the agent loop. It calls OpenRouter for each model step and Google for flights and hotels, all <span class="term">outbound</span> HTTPS.</span></div></li>
+    <li style="--c:var(--ext)"><div><b>Traces go to LangSmith</b><span>Each model call and tool call is sent in the background, so you can see later what happened and what it cost.</span></div></li>
+    <li style="--c:var(--pub)"><div><b>The answer streams back the same way</b><span>Server-sent events flow API → Open WebUI → Caddy → browser for 30–90 s. Every hop must allow long, unbuffered responses, one reason the plan uses Caddy, which does.</span></div></li>
+  </ol>
+</section>
+
+<!-- ================= A COMMIT ================= -->
+<section id="commit" class="wrap">
+  <h2>Follow one commit to production</h2>
+  <p class="lead"><b>CI</b> (continuous integration) checks every change automatically. <b>CD</b> (continuous deployment) ships every change that passes. Here's the path of a prompt tweak.</p>
+  <div class="pipeline">
+    <div><b>1 · Branch</b>Commit on <span class="mono">feat/…</span> on your laptop, push it</div>
+    <div><b>2 · Pull request</b>CI runs ruff and pytest on a fresh GitHub machine (a <i>runner</i>)</div>
+    <div><b>3 · Merge</b>Only if CI is green (a <i>required check</i>). <span class="mono">main</span> moves</div>
+    <div><b>4 · Build</b>Tests again, then a Docker image tagged with the commit SHA → GHCR</div>
+    <div class="gate"><b>5 · Approve</b>The job waits in the <i>production environment</i> until you click</div>
+    <div><b>6 · Connect</b>The runner joins your tailnet for a few minutes, then SSHes in</div>
+    <div class="box"><b>7 · Deploy</b><span class="mono">deploy.sh &lt;sha&gt;</span>: backup, pull, restart, health check</div>
+    <div class="box"><b>8 · Live or rolled back</b>Healthy → done. Unhealthy → previous image restored, run turns red</div>
+  </div>
+  <p class="sub" style="margin-top:12px">Why tag images by commit SHA and not <span class="mono">latest</span>: a SHA always means exactly one build. A rollback is "deploy the SHA that worked", and you can always tell what's running.</p>
+</section>
+
+<!-- ================= GLOSSARY ================= -->
+<section id="glossary" class="wrap">
+  <h2>Glossary</h2>
+  <p class="lead">Each term in plain words, and where it shows up in this deployment.</p>
+  <div class="gloss-tools">
+    <input id="gq" type="search" placeholder="Filter terms, e.g. TLS, rollback, IAM" aria-label="Filter glossary">
+    <div id="gchips" role="group" aria-label="Topic"></div>
+  </div>
+  <div class="gloss" id="gloss"></div>
+  <p class="empty" id="gempty">No terms match. Try a shorter word.</p>
+</section>
+
+<!-- ================= DECISIONS ================= -->
+<section id="decisions" class="wrap">
+  <h2>The decisions, and what each one gives up</h2>
+  <p class="lead">Every architecture choice trades something away. Open a decision to see the alternatives, the cost of choosing it, and the signal that it's time to revisit.</p>
+  <div class="decisions">
+    <details class="dec" open>
+      <summary><span class="id">D-1</span><span class="q">One server, or managed containers (ECS, RDS, load balancer)?</span><span class="a">One server with Docker Compose</span></summary>
+      <div class="body">
+        <div><h4>Why</h4><p>It's the stack you already run, so the new things to learn are the cloud parts, not a new runtime. The managed design (Fargate + RDS + load balancer) costs ~$110–150 a month; the load balancer alone exceeds the budget.</p></div>
+        <div><h4>Given up</h4><p>High availability: if the server dies, AskTravel is down until you restore it. Deploys cause 10–30 s of downtime. No automatic scaling.</p></div>
+        <div><h4>Revisit when</h4><p>Users pay, you promise uptime, or one server can't keep up. The skills carry over: images, DNS, TLS, secrets, CI/CD.</p></div>
+      </div>
+    </details>
+    <details class="dec">
+      <summary><span class="id">D-2</span><span class="q">Which kind of server, from whom?</span><span class="a">Lightsail 2 GB, us-east-1</span></summary>
+      <div class="body">
+        <div><h4>Why</h4><p>It's AWS, it has a fixed price (no surprise bills), and it's the simplest AWS compute product. A US region keeps Google's results and consent pages as they are on your laptop. Resizing is a snapshot plus moving the static IP.</p></div>
+        <div><h4>Given up</h4><p>Memory headroom: 2 GB needs hotel searches run one at a time and swap as a safety net. Lightsail also teaches few AWS-specific concepts. EC2 teaches more (VPC, IAM roles) for ~$5 more.</p></div>
+        <div><h4>Revisit when</h4><p>D0's measurement shows memory pressure (go to 4 GB), or after a month, as the next lesson (EC2 with infrastructure as code). If $10 is a hard cap, Hetzner's 4 GB plan is cheaper, with EU-location caveats.</p></div>
+      </div>
+    </details>
+    <details class="dec">
+      <summary><span class="id">D-3</span><span class="q">Where do traces go?</span><span class="a">LangSmith, free plan</span></summary>
+      <div class="body">
+        <div><h4>Why</h4><p>Self-hosted Langfuse was six containers using ~4 GB (measured locally; ClickHouse alone 2.5 GB), more than the rest of AskTravel combined. LangSmith (since #87) is cloud only, native to LangChain, and its free plan gives 5k traces a month: one trace per chat turn.</p></div>
+        <div><h4>Given up</h4><p>Your traces (which contain users' messages) live with a third party, and you see only the last 14 days. Dev and prod share the 5k, so use a separate prod project and keep evals untraced.</p></div>
+        <div><h4>Revisit when</h4><p>Usage nears the limit: sample traces, or pay.</p></div>
+      </div>
+    </details>
+    <details class="dec">
+      <summary><span class="id">D-4</span><span class="q">Where do builds run and images live?</span><span class="a">GitHub Actions + GHCR</span></summary>
+      <div class="body">
+        <div><h4>Why</h4><p>The repo is public, so both are free. The workflow already has a token that can push images; the server pulls public images with no credentials.</p></div>
+        <div><h4>Given up</h4><p>The image is public. That's fine, because it contains only code that's already public, never secrets or guidebooks. Keep it that way with <span class="mono">.dockerignore</span>.</p></div>
+        <div><h4>Revisit when</h4><p>The repo goes private (GHCR storage then counts against a quota), or you move to EC2, where ECR plus an instance role is natural.</p></div>
+      </div>
+    </details>
+    <details class="dec">
+      <summary><span class="id">D-5</span><span class="q">How does CI reach the server?</span><span class="a">Push over SSH via Tailscale, after your approval</span></summary>
+      <div class="body">
+        <div><h4>Why</h4><p>SSH stays closed to the internet: the runner joins your private network (tailnet) only while it deploys. Each deploy is visible in GitHub and needs one click. Rollback is a re-run.</p></div>
+        <div><h4>Given up</h4><p>One more service to set up (Tailscale's free plan), and an SSH key in GitHub's secrets.</p></div>
+        <div><h4>Not chosen</h4><p>SSH open to the world (GitHub's runner IPs keep changing, so you can't allow-list them). An auto-updater on the server (no approval, no visibility).</p></div>
+      </div>
+    </details>
+    <details class="dec">
+      <summary><span class="id">D-6</span><span class="q">Who terminates HTTPS?</span><span class="a">Caddy, on the server</span></summary>
+      <div class="body">
+        <div><h4>Why</h4><p>Automatic Let's Encrypt certificates and renewals from a tiny config file, streaming without buffering, about 30 MB of memory.</p></div>
+        <div><h4>Given up</h4><p>One more container to keep updated (pinned, like the others).</p></div>
+        <div><h4>Not chosen</h4><p>Nginx + certbot (more to learn at once). A Lightsail load balancer with a certificate ($18 a month).</p></div>
+      </div>
+    </details>
+    <details class="dec">
+      <summary><span class="id">D-7</span><span class="q">Do we need a staging environment?</span><span class="a">Not yet</span></summary>
+      <div class="body">
+        <div><h4>Why</h4><p>A second server doubles the cost. Running the production compose file on your laptop (D3) catches packaging problems, and the approval step is a last look.</p></div>
+        <div><h4>Given up</h4><p>Testing on a real cloud server before users see a change. Problems specific to the server (memory, Google blocking) show up in prod.</p></div>
+        <div><h4>Revisit when</h4><p>More users or more contributors: a smaller second instance and a <span class="mono">staging</span> environment in the same workflow.</p></div>
+      </div>
+    </details>
+    <details class="dec">
+      <summary><span class="id">D-8</span><span class="q">Where do secrets live?</span><span class="a"><span class="mono">.env</span> on the server, chmod 600</span></summary>
+      <div class="body">
+        <div><h4>Why</h4><p>The app already reads settings from the environment. Lightsail can't attach an IAM role, so AWS's secret stores would need a stored AWS key anyway.</p></div>
+        <div><h4>Given up</h4><p>No audit trail or automatic rotation. Anyone with server access can read the file.</p></div>
+        <div><h4>Revisit when</h4><p>On EC2: an instance role reads SSM Parameter Store with no stored keys.</p></div>
+      </div>
+    </details>
+  </div>
+</section>
+
+<!-- ================= COST ================= -->
+<section id="cost" class="wrap">
+  <h2>What it costs</h2>
+  <p class="lead">Prices from the Lightsail and LangSmith pricing pages, checked 2026-10-30. The model (OpenRouter) is billed by usage and will likely cost more than hosting: set a credit limit on the production key.</p>
+  <div class="table-scroll"><table>
+    <thead><tr><th>Server option</th><th class="num">Per month</th><th>Memory</th><th>Fits AskTravel?</th></tr></thead>
+    <tbody>
+      <tr><td>Lightsail 1 GB</td><td class="num">$7</td><td>1 GB</td><td>No: Open WebUI alone uses ~0.7 GB</td></tr>
+      <tr class="pick"><td><b>Lightsail 2 GB (plan)</b></td><td class="num"><b>$12</b></td><td>2 GB</td><td>Yes, with hotel searches one at a time and swap</td></tr>
+      <tr><td>Lightsail 4 GB</td><td class="num">$24</td><td>4 GB</td><td>Comfortably; the fallback</td></tr>
+      <tr><td>EC2 t4g.small + IPv4 + disk</td><td class="num">~$17.50</td><td>2 GB</td><td>Same as Lightsail 2 GB, with more to learn</td></tr>
+      <tr><td>Hetzner CX23 / CAX11 (EU)</td><td class="num">~€6–7</td><td>4 GB</td><td>Yes, but EU location affects Google scraping</td></tr>
+      <tr><td>ECS Fargate + RDS + load balancer</td><td class="num">~$110–150</td><td>n/a</td><td>Yes: the "real" AWS design, for later</td></tr>
+    </tbody>
+  </table></div>
+  <div class="table-scroll"><table>
+    <thead><tr><th>Everything else</th><th class="num">Per month</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>Static IP</td><td class="num">$0</td><td>Free while attached to a running instance</td></tr>
+      <tr><td>Domain name</td><td class="num">~$1</td><td>~$10–15 a year</td></tr>
+      <tr><td>DNS zone (Lightsail)</td><td class="num">$0</td><td></td></tr>
+      <tr><td>S3 backups</td><td class="num">&lt; $0.25</td><td>35 nightly dumps, deleted automatically after that</td></tr>
+      <tr><td>GitHub Actions + GHCR</td><td class="num">$0</td><td>Free for public repos</td></tr>
+      <tr><td>Tailscale, UptimeRobot, Healthchecks.io</td><td class="num">$0</td><td>Free personal plans</td></tr>
+      <tr><td>LangSmith Developer</td><td class="num">$0</td><td>5k traces a month</td></tr>
+      <tr><td><b>Hosting total</b></td><td class="num"><b>~$13</b></td><td>~$25 on the 4 GB server</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ================= BLOCKERS ================= -->
+<section id="blockers" class="wrap">
+  <h2>Four things that can stop the beta</h2>
+  <p class="lead">None of them is solved by infrastructure. Decide each one in D0, before you spend time on the rest.</p>
+  <div class="blockers">
+    <div><b>Guidebook copyright</b>Serving Lonely Planet excerpts to 100 people is distribution. Get permission, switch the guidebook tools off, or use openly licensed sources such as Wikivoyage.</div>
+    <div><b>Open WebUI's branding licence</b>Custom logos are allowed for up to 50 users in 30 days. Cap the beta at 50, or use Open WebUI's own logo beyond that.</div>
+    <div><b>Google blocks cloud IPs</b>Flights and hotels scrape Google, which often challenges data-centre traffic. D0 tests it from a real AWS server for pennies.</div>
+    <div><b>The model's rate limit</b>~20 calls a minute ÷ ~3.7 calls per turn ≈ 5 turns a minute for everyone, about 10 people chatting at once. Raise it, add a fallback (#51), or invite in waves.</div>
+  </div>
+</section>
+
+<!-- ================= PHASES ================= -->
+<section id="phases" class="wrap">
+  <h2>The phases</h2>
+  <p class="lead">Each one is a PR (or a few), with checks you can run. Doing the first deploy by hand (D4) before automating it (D5) is on purpose: you learn what the pipeline does for you.</p>
+  <div class="phases">
+    <div class="phase"><div class="pid">D0</div><h3>Decide and spike</h3><div class="iss">#90</div><ul><li>Blockers decided</li><li>AWS account: MFA, budget alerts</li><li>Throwaway server: memory and Google measured</li></ul></div>
+    <div class="phase"><div class="pid">D1</div><h3>Lock the API, invite-only signup</h3><div class="iss">#27</div><ul><li>No token → 401</li><li>New sign-ups wait for approval</li></ul></div>
+    <div class="phase"><div class="pid">D2</div><h3>CI on every PR</h3><div class="iss">#29</div><ul><li>Failing test blocks merge</li></ul></div>
+    <div class="phase"><div class="pid">D3</div><h3>Containerise, run prod locally</h3><div class="iss">#28</div><ul><li>Dockerfile, prod compose, Caddy</li><li>e2e suites pass against it</li><li>One browser at a time</li></ul></div>
+    <div class="phase"><div class="pid">D4</div><h3>First deploy, by hand</h3><div class="iss">#30</div><ul><li>HTTPS works</li><li>8000, 5432, 22 closed from outside</li><li>Flights and hotels e2e pass on the server</li></ul></div>
+    <div class="phase"><div class="pid">D5</div><h3>Continuous deployment</h3><div class="iss">#91</div><ul><li>Merge + approve = live</li><li>Broken image rolls back by itself</li></ul></div>
+    <div class="phase"><div class="pid">D6</div><h3>Backups, monitoring, limits</h3><div class="iss">#31 · #32</div><ul><li>Restore drill done and timed</li><li>Downtime alert within 5 min</li><li>Daily turn limit per user</li></ul></div>
+    <div class="phase"><div class="pid">D7</div><h3>Beta launch</h3><div class="iss">#92</div><ul><li>Waves: 5 → 25 → 50 → 100</li><li>Privacy note in the invite</li><li>Weekly 15-minute review</li></ul></div>
+  </div>
+</section>
+
+<!-- ================= GOTCHAS ================= -->
+<section id="gotchas" class="wrap">
+  <h2>Things that surprise people the first time</h2>
+  <div class="gotchas">
+    <div><b>A stopped Lightsail server still costs money</b>You pay for the reservation until you delete it. The same goes for snapshots and unattached static IPs.</div>
+    <div><b>Untested backups aren't backups</b>The restore drill (D6) is the only proof. Time it: that's how long a disaster takes to recover from.</div>
+    <div><b>Logs fill disks</b>Docker keeps container logs forever by default. The prod compose caps them at 3 × 10 MB per service.</div>
+    <div><b>"latest" isn't a version</b>Pin Open WebUI and Postgres to exact versions. Upgrades are deliberate PRs, because Open WebUI's upgrades can change the tables our deletion trigger watches.</div>
+    <div><b>Secrets leak through images and git</b>Anything copied into an image is readable by anyone who pulls it. Keep <span class="mono">.env</span>, <span class="mono">data/</span> and <span class="mono">reference/</span> in <span class="mono">.dockerignore</span>.</div>
+    <div><b>Port 22 open = constant attacks</b>Bots try SSH passwords on every public IP within minutes. Closing it (Tailscale) beats defending it.</div>
+    <div><b>The docker group is root</b>Anyone who can run <span class="mono">docker</span> on the server controls it. Only the <span class="mono">deploy</span> user is in it.</div>
+    <div><b>NAT gateways and load balancers bill by the hour</b>The classic surprise AWS bill. This plan uses neither, and the budget alert catches anything you add by mistake.</div>
+  </div>
+</section>
+
+<footer class="wrap">Companion to <span class="mono">docs/plans/deployment.md</span> · Memory figures measured locally on 2026-10-30 · Prices checked 2026-10-30</footer>
+
+<script>
+(function () {
+  // ---- Diagram detail panel ----
+  var ZONE = {
+    pub: ["Public", "t-pub"], priv: ["Private", "t-priv"], ext: ["External service", "t-ext"], ci: ["Delivery", "t-ci"]
+  };
+  var NODES = {
+    users: ["pub", "Beta users", "People using AskTravel in a normal browser. They only ever talk to one address: https://asktravel.<domain>.", "They sign up, wait for your approval (pending role), then chat. Their email becomes their identity in the agent's memory.", "They can reach Caddy on 80/443, nothing else."],
+    dns: ["pub", "DNS", "The internet's phone book: turns a name into an IP address. You add records in a DNS zone; an A record maps a name to an IPv4 address.", "One A record: asktravel → the Lightsail static IP, in a free Lightsail DNS zone or where you bought the domain.", "Public by design: anyone can look a name up."],
+    caddy: ["pub", "Caddy (reverse proxy + HTTPS)", "A web server that sits in front of your apps. It accepts connections from the internet, handles HTTPS, and forwards each request to the right container.", "Gets a free Let's Encrypt certificate for your domain and renews it. Sends / to Open WebUI and /agent-health to the API's /health, and nothing else to the API.", "The only container with published ports (80, 443)."],
+    owui: ["priv", "Open WebUI", "The off-the-shelf chat app AskTravel uses as its front end. It handles accounts, logins, chat history and the UI.", "Pinned to a release. Stores its tables in our Postgres (schema open_webui). Calls the agent API at http://api:8000/v1 with the shared token and the user's email header.", "Not published; reached only through Caddy."],
+    api: ["priv", "Agent API (this repo)", "The FastAPI app with the LangChain agent: an OpenAI-compatible endpoint Open WebUI treats as a model.", "Runs from the image CI built (tagged by commit SHA). Starts Chromium for hotel searches, one at a time on 2 GB. Runs the chat-deletion and consolidation loops in the background.", "Private, and requires the bearer token (#27): it trusts the email header, so it must never be public."],
+    books: ["priv", "Guidebooks", "The extracted guidebook markdown the agent searches. Copyrighted, so never in git or in an image.", "Copied to the server once with scp and mounted into the API container read-only. Turn off with a setting if the beta can't use them.", "On the server's disk only."],
+    pg: ["priv", "Postgres", "The database. One instance holds the agent's threads (checkpointer), long-term memory (store) and Open WebUI's accounts and chats.", "Same container image as local, with a real password and no published port. Its data lives in a Docker volume on the server's disk.", "Private: only the API, Open WebUI and the backup job can reach it."],
+    backup: ["priv", "Backup job", "A scheduled task (a systemd timer) that dumps the database to a file and copies it off the server.", "Nightly pg_dump to S3, then a ping to Healthchecks.io, so a missed night alerts you. deploy.sh also takes a dump just before every deploy.", "Runs on the server; can only write to the bucket."],
+    openrouter: ["ext", "OpenRouter", "An API that routes LLM calls to model providers. Your agent's brain, billed per token.", "A separate production key with a credit limit, so bugs or abuse can't drain the account. Its ~20 calls/minute limit caps the whole beta (#51).", "We call it; it never calls us."],
+    langsmith: ["ext", "LangSmith", "LangChain's hosted tracing service: one trace per agent turn, with every model call, tool call and middleware step nested in it, plus timings and tokens.", "Free Developer plan (5k traces/month, 14 days). The server uses a write-only tracing key. Traces contain user messages: mention it in the invite.", "We send to it; it never calls us."],
+    google: ["ext", "Google (Flights, Hotels)", "The pages search_flights and search_hotels read. Not an API: scraping.", "D0 checks that Google answers requests from an AWS IP instead of showing captchas. If not, the tools return errors and the agent goes on without live prices.", "We call it; it may block cloud IPs."],
+    s3: ["ext", "S3 bucket", "AWS object storage: files (objects) in a bucket, private by default, very durable.", "Holds nightly database dumps for 35 days (lifecycle rule). The server's IAM user may only add files, not read or delete them: least privilege.", "Private (Block Public Access on)."],
+    laptop: ["ci", "Your laptop", "Where you develop, exactly as today: branches, tests, local stack.", "Also your staging: run docker-compose.prod.yml locally before merging packaging changes. On your tailnet, so you can SSH to the server.", "Not reachable from the internet."],
+    github: ["ci", "GitHub Actions", "GitHub's CI/CD: workflows (YAML files) run jobs on fresh machines (runners) when something happens in the repo.", "ci.yml checks every PR (ruff, pytest). deploy.yml runs on merge to main: build the image, wait for your approval, then deploy over Tailscale and check health.", "Reaches the server only through Tailscale, only while deploying."],
+    ghcr: ["ci", "GHCR (container registry)", "GitHub's registry: a place to store Docker images so other machines can pull them.", "Holds ghcr.io/stoicdataguy/asktravel-api:<commit sha>. Public and free; contains code only.", "The server pulls from it."]
+  };
+  var panel = document.getElementById("panel");
+  var nodes = document.querySelectorAll("svg .node");
+  function show(key) {
+    var n = NODES[key]; if (!n) return;
+    var z = ZONE[n[0]];
+    panel.innerHTML = '<span class="tag ' + z[1] + '">' + z[0] + '</span><h3>' + n[1] + '</h3><dl>' +
+      '<dt>What it is</dt><dd>' + esc(n[2]) + '</dd><dt>In AskTravel</dt><dd>' + esc(n[3]) + '</dd>' +
+      '<dt>Who can reach it</dt><dd>' + esc(n[4]) + '</dd></dl>';
+    nodes.forEach(function (g) { g.classList.toggle("on", g.getAttribute("data-key") === key); });
+  }
+  function esc(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;"); }
+  nodes.forEach(function (g) {
+    g.setAttribute("aria-label", NODES[g.getAttribute("data-key")][1]);
+    g.addEventListener("click", function () { show(g.getAttribute("data-key")); });
+    g.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); show(g.getAttribute("data-key")); } });
+  });
+  show("caddy");
+
+  // ---- Glossary ----
+  var TERMS = [
+    ["Basics", "Region", "A geographic location with its own data centres (us-east-1 is northern Virginia). Data and servers live in one region unless you copy them.", "us-east-1, close to US users and to the Google results you test with."],
+    ["Basics", "Availability Zone (AZ)", "An isolated data centre (or group) inside a region. Spreading across AZs survives one failing.", "We use one: a single server is a single point of failure, accepted for the beta."],
+    ["Basics", "Instance / VM", "A virtual machine: a slice of a physical server that behaves like your own computer with an OS.", "One Lightsail instance, Ubuntu 24.04, 2 GB RAM."],
+    ["Basics", "VPS", "Virtual private server: a VM sold at a fixed monthly price with disk and bandwidth included. Lightsail is AWS's VPS product.", "Why Lightsail's bill is predictable, unlike raw EC2."],
+    ["Basics", "Managed service", "The provider runs the software (patches, backups, failover) and you just use it, e.g. RDS for Postgres.", "We self-manage Postgres to save ~$15/month; tracing is managed (LangSmith)."],
+    ["Basics", "Burstable CPU", "Cheap instances get a baseline share of CPU and bank credits to burst above it. Run out and they slow down.", "Chromium page loads burst. Watch Lightsail's burst-capacity graph in the weekly review."],
+    ["Basics", "Vertical vs horizontal scaling", "Vertical: a bigger machine. Horizontal: more machines behind a load balancer.", "Our scaling path is vertical first: 2 GB → 4 GB via snapshot."],
+    ["Basics", "Free tier", "Allowances or credits a provider gives new accounts. Easy to exceed without noticing.", "Nice if it applies; the plan's numbers don't assume it."],
+    ["Networking", "IP address / static IP", "A machine's address on the internet. A static IP stays the same across restarts and can move to another instance.", "DNS points at the static IP, so resizing the server doesn't change DNS."],
+    ["Networking", "DNS, A record, TTL", "DNS turns names into IPs. An A record maps a name to an IPv4 address; the TTL says how long resolvers may cache the answer.", "asktravel.<domain> → static IP. A short TTL (300 s) while setting up."],
+    ["Networking", "Port", "A numbered door on a machine: 443 for HTTPS, 80 for HTTP, 22 for SSH, 5432 for Postgres.", "Only 80 and 443 are open from the internet."],
+    ["Networking", "Firewall / security group", "Rules for which ports accept traffic from where. Lightsail calls it the instance firewall; EC2 calls it a security group.", "Allow 80, 443. SSH removed once Tailscale works."],
+    ["Networking", "Reverse proxy", "A server that receives public requests and forwards them to internal services, often doing HTTPS too.", "Caddy, in front of Open WebUI."],
+    ["Networking", "Load balancer", "A managed reverse proxy that spreads traffic over several servers and removes unhealthy ones.", "Not used (~$16–20/month). Needed once you run two servers."],
+    ["Networking", "Ingress / egress", "Traffic into / out of your server. Clouds often charge for egress.", "Lightsail includes 3 TB of transfer; we use a tiny fraction."],
+    ["Networking", "NAT gateway", "Lets servers without public IPs reach the internet. On AWS it costs ~$32+/month per AZ.", "The classic surprise bill. Not used."],
+    ["Networking", "VPN / tailnet", "A private network over the internet. Tailscale builds one (a tailnet) between your devices.", "Your laptop and the CI runner reach the server's SSH through it."],
+    ["Security", "TLS / HTTPS / certificate", "TLS encrypts traffic; HTTPS is HTTP over TLS. A certificate proves the server owns the domain, signed by a trusted authority.", "Caddy gets free certificates from Let's Encrypt and renews them."],
+    ["Security", "IAM", "AWS's Identity and Access Management: users, roles and policies that say who may do what to which resource.", "One IAM user that may only add backup files to one bucket path."],
+    ["Security", "Least privilege", "Give each identity only the permissions it needs, so a leak does limited damage.", "The backup key can't read or delete backups; the CI device can only reach port 22."],
+    ["Security", "Root user / MFA", "The AWS root user can do anything, including closing the account. MFA adds a second factor to a login.", "Root gets MFA and is then never used; you log in as an admin user."],
+    ["Security", "Secret", "A value that grants access: API keys, passwords, tokens. Never in git, images or logs.", "In /opt/asktravel/.env (chmod 600) and GitHub Actions secrets."],
+    ["Security", "Bearer token", "A secret sent in the Authorization header. Whoever has it is allowed in.", "Open WebUI → API (#27). Without it the API returns 401."],
+    ["Security", "Attack surface", "Everything an attacker could reach. Smaller is safer.", "One public port; API, Postgres and SSH unreachable."],
+    ["Containers", "Image vs container", "An image is a read-only package of an app and its dependencies; a container is a running instance of an image.", "The API image is built once per commit and run on the server."],
+    ["Containers", "Registry", "A server that stores images for others to pull.", "GHCR (ghcr.io/stoicdataguy/asktravel-api)."],
+    ["Containers", "Tag vs digest", "A tag is a movable name (main, v0.12.4); a digest is the image's content hash and never changes.", "We tag by commit SHA, so a tag means exactly one build."],
+    ["Containers", "Docker Compose", "A YAML file describing several containers, their networks and volumes, started with one command.", "docker-compose.prod.yml: caddy, open-webui, api, postgres."],
+    ["Containers", "Volume", "Storage that outlives a container. Delete the container and the data stays.", "Postgres data, Caddy certificates, Open WebUI files."],
+    ["Containers", "Health check", "A command or URL that says whether a service is working. Orchestrators and scripts act on it.", "/health on the API; deploy.sh rolls back if it fails."],
+    ["Containers", "Restart policy", "What Docker does when a container stops: restart it, or not.", "unless-stopped, so a crash or reboot brings the app back."],
+    ["Containers", "OOM / swap", "Out of memory: the kernel kills a process. Swap is disk used as slow overflow memory.", "2 GB of swap as a safety net; one hotel browser at a time to stay within RAM."],
+    ["CI/CD", "CI (continuous integration)", "Every change is built and tested automatically when pushed, so main always works.", "ci.yml: ruff and pytest on every PR."],
+    ["CI/CD", "CD (continuous deployment)", "Every change that passes CI is shipped automatically (or after one approval).", "deploy.yml, on merge to main."],
+    ["CI/CD", "Workflow, job, step, runner", "A workflow (YAML) has jobs; jobs have steps; each job runs on a fresh machine called a runner.", "deploy.yml: test → build → deploy jobs."],
+    ["CI/CD", "Required status check", "A branch rule that blocks merging until a check is green.", "CI becomes required in the 'Protect main' ruleset (#29)."],
+    ["CI/CD", "Environment + approval", "A GitHub deployment target with its own secrets and rules, such as required reviewers.", "production: the deploy waits for your click."],
+    ["CI/CD", "Rollback", "Returning to the last version that worked.", "Automatic on a failed health check, or manual: rerun deploy with an older SHA."],
+    ["CI/CD", "Staging", "A copy of production for testing before users see a change.", "Not yet: your laptop runs the prod compose instead."],
+    ["CI/CD", "Infrastructure as code", "Servers and cloud resources described in files (Terraform, CDK, scripts), so they can be rebuilt exactly.", "bootstrap.sh for now; Terraform or CDK when you move to EC2."],
+    ["Operations", "Backup, RPO, RTO", "RPO: how much data you can lose (time since the last backup). RTO: how long recovery takes.", "Nightly dumps: RPO ≤ 24 h (less around deploys). RTO measured in the restore drill."],
+    ["Operations", "Snapshot", "A point-in-time copy of a whole disk or instance.", "Taken before risky changes and to resize the server; deleted after."],
+    ["Operations", "Uptime monitoring", "An outside service that requests your site every few minutes and alerts you if it fails.", "UptimeRobot on /agent-health."],
+    ["Operations", "Heartbeat monitoring", "A job pings a URL when it finishes; silence means it didn't run.", "Healthchecks.io for the nightly backup."],
+    ["Operations", "Runbook", "Step-by-step instructions for routine and emergency tasks, written before you need them.", "deploy/runbook.md: deploy, roll back, restore, rotate, resize."],
+    ["Operations", "Rate limit", "A cap on requests per time window, by a provider or by you.", "OpenRouter's ~20 calls/min caps the beta; our per-user daily turn limit protects spend."],
+    ["Operations", "Budget alert", "An email when cloud spend crosses a threshold, actual or forecast.", "AWS Budget at $15, alerting at 50/80/100%."]
+  ];
+  var groups = ["All"].concat(TERMS.map(function (t) { return t[0]; }).filter(function (g, i, a) { return a.indexOf(g) === i; }));
+  var gloss = document.getElementById("gloss"), chips = document.getElementById("gchips"), q = document.getElementById("gq"), empty = document.getElementById("gempty");
+  var current = "All";
+  try { current = localStorage.getItem("deploy-gloss-group") || "All"; } catch (e) {}
+  if (groups.indexOf(current) < 0) current = "All";
+  groups.forEach(function (g) {
+    var b = document.createElement("button");
+    b.className = "chip"; b.textContent = g; b.type = "button";
+    b.addEventListener("click", function () {
+      current = g;
+      try { localStorage.setItem("deploy-gloss-group", g); } catch (e) {}
+      render();
+    });
+    chips.appendChild(b);
+  });
+  function render() {
+    var needle = q.value.trim().toLowerCase(), shown = 0;
+    chips.querySelectorAll(".chip").forEach(function (b) { b.setAttribute("aria-pressed", b.textContent === current ? "true" : "false"); });
+    gloss.innerHTML = "";
+    TERMS.forEach(function (t) {
+      if (current !== "All" && t[0] !== current) return;
+      if (needle && (t[1] + " " + t[2] + " " + t[3]).toLowerCase().indexOf(needle) < 0) return;
+      var a = document.createElement("article");
+      a.innerHTML = '<div class="grp">' + t[0] + '</div><h3>' + esc(t[1]) + '</h3><p>' + esc(t[2]) + '</p><p class="here"><b>Here:</b> ' + esc(t[3]) + '</p>';
+      gloss.appendChild(a); shown++;
+    });
+    empty.style.display = shown ? "none" : "block";
+  }
+  q.addEventListener("input", render);
+  render();
+})();
+</script>
+</body>
+</html>

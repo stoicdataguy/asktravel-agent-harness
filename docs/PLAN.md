@@ -203,6 +203,11 @@ Goal: a private, authenticated deployment for a small group, with the same archi
 Everything is already containerised or a managed equivalent exists, so this is mostly packaging,
 hardening the two trust boundaries, and infrastructure as code.
 
+> **The beta plan comes first:** [plans/deployment.md](plans/deployment.md) puts 50–100 beta users
+> on one Lightsail server (~$13/month) with GitHub Actions CI/CD, in phases D0–D7. Its
+> [explainer](deployment-explainer.html) covers the terms and decisions. The ECS design below is
+> the path after the beta.
+
 ### Target architecture
 
 ECS Fargate, two services behind one public load balancer:
@@ -292,6 +297,9 @@ likely dominate: a tool-heavy itinerary run is 15+ model calls.
 
 ## Detailed plans
 
+- [Deployment for the beta](plans/deployment.md): one Lightsail server with Docker Compose, Caddy,
+  CI/CD with GitHub Actions and GHCR, backups to S3, LangSmith for traces; phases D0–D7
+  ([explainer](deployment-explainer.html)).
 - [User feedback → audit tables](plans/feedback-audit.md): capture every 👍/👎 in an append-only
   Postgres audit table, linked to the agent turn and its LangSmith trace.
 - [Streaming agent progress](plans/streaming-progress.md): progress in Open WebUI's reasoning

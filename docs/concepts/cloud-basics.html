@@ -124,13 +124,13 @@ footer { margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--line);
   <div class="figure">
     <div class="scroll" tabindex="0" aria-label="Diagram, scrolls sideways on small screens">
     <svg viewBox="0 0 700 330" role="img" aria-labelledby="fig-t">
-      <title id="fig-t">Users reach the server by name through DNS and HTTPS. Inside the server, Caddy forwards to Open WebUI, which calls the agent API, which uses Postgres. GitHub delivers new code through a private Tailscale tunnel. The server sends backups to S3 and calls OpenRouter and LangSmith.</title>
+      <title id="fig-t">Users reach the server by name through DNS and HTTPS. Inside the server, Caddy forwards to Open WebUI, which calls the agent API, which uses Postgres. GitHub delivers new code through AWS (OIDC and SSM), with no SSH. The server uses AWS services for backups, images and monitoring, and calls OpenRouter and LangSmith.</title>
       <defs>
         <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill: var(--muted)"/></marker>
       </defs>
       <!-- Server zone -->
       <rect x="200" y="20" width="300" height="290" rx="8" style="fill: var(--priv-bg); stroke: var(--priv)" stroke-width="1.5"/>
-      <text x="214" y="42" class="zone-lbl" style="fill: var(--priv)">Your rented server (Lightsail)</text>
+      <text x="214" y="42" class="zone-lbl" style="fill: var(--priv)">Your rented server (EC2, inside a VPC)</text>
       <!-- Caddy (public door) -->
       <rect x="222" y="58" width="256" height="48" rx="6" style="fill: var(--pub-bg); stroke: var(--pub)"/>
       <text x="236" y="80" class="lbl">Caddy</text><text x="236" y="97" class="sm">front door · HTTPS on port 443</text>
@@ -151,14 +151,14 @@ footer { margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--line);
       <rect x="10" y="182" width="150" height="56" rx="6" style="fill: var(--ci-bg); stroke: var(--ci)"/>
       <text x="24" y="205" class="lbl">GitHub</text><text x="24" y="223" class="sm">tests, builds, deploys</text>
       <line x1="160" y1="210" x2="220" y2="210" style="stroke: var(--ci)" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#ar)"/>
-      <text x="24" y="258" class="sm">via a private Tailscale tunnel</text>
+      <text x="24" y="258" class="sm">via AWS (OIDC + SSM), no SSH</text>
       <!-- External -->
       <rect x="540" y="96" width="150" height="40" rx="6" style="fill: var(--ext-bg); stroke: var(--ext)"/>
       <text x="554" y="121" class="lbl">OpenRouter</text>
       <rect x="540" y="150" width="150" height="40" rx="6" style="fill: var(--ext-bg); stroke: var(--ext)"/>
       <text x="554" y="175" class="lbl">LangSmith</text>
       <rect x="540" y="232" width="150" height="56" rx="6" style="fill: var(--ext-bg); stroke: var(--ext)"/>
-      <text x="554" y="256" class="lbl">S3</text><text x="554" y="274" class="sm">nightly backups</text>
+      <text x="554" y="256" class="lbl">AWS services</text><text x="554" y="274" class="sm">S3 · ECR · CloudWatch</text>
       <line x1="478" y1="200" x2="538" y2="118" style="stroke: var(--ext)" stroke-width="1.5" marker-end="url(#ar)"/>
       <line x1="478" y1="204" x2="538" y2="172" style="stroke: var(--ext)" stroke-width="1.5" marker-end="url(#ar)"/>
       <line x1="478" y1="260" x2="538" y2="260" style="stroke: var(--ext)" stroke-width="1.5" marker-end="url(#ar)"/>
@@ -166,7 +166,7 @@ footer { margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--line);
     </div>
     <div class="legend"><span><i style="background: var(--pub)"></i>Public: reachable from the internet</span><span><i style="background: var(--priv)"></i>Private: inside the server</span><span><i style="background: var(--ci)"></i>Delivery of new code</span><span><i style="background: var(--ext)"></i>Outside services</span></div>
   </div>
-  <p class="caption">Only Caddy faces the internet. Everything else is reachable only from inside the server, or by you through the private tunnel.</p>
+  <p class="caption">Only Caddy faces the internet. Everything else is reachable only from inside the server, or by you through AWS's own management channel (SSM).</p>
 
   <h2>The ten ideas</h2>
 
@@ -175,7 +175,7 @@ footer { margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--line);
     <h3>A cloud server is a computer you rent by the hour</h3>
     <p>"The cloud" is somebody else's computer that never sleeps. You choose its size (memory and CPU) and the <b>region</b>, which is the city where the building is.</p>
     <div class="like"><b>Like</b>Renting a flat instead of buying a house. You pay monthly, and the landlord fixes the plumbing.</div>
-    <p class="here"><b>In AskTravel:</b> one AWS Lightsail server with 2 GB of memory in <code>us-east-1</code> (Virginia), $12 a month. A <b>static IP</b> keeps its address the same across restarts.</p>
+    <p class="here"><b>In AskTravel:</b> one <b>EC2</b> server, type <code>t4g.small</code> (2 GB, Amazon's own arm64 chips), in <code>us-east-1</code> (Virginia), ~$12 a month. It lives in a <b>VPC</b>, your own private network inside AWS. An <b>Elastic IP</b> keeps its address the same across restarts ($3.65 a month: every public IPv4 address costs money).</p>
   </section>
 
   <section class="concept z-pub">
@@ -187,11 +187,11 @@ footer { margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--line);
   </section>
 
   <section class="concept z-pub">
-    <span class="num">3 · Ports and firewall</span>
-    <h3>A firewall decides which doors are open</h3>
-    <p>A server has numbered doors called <b>ports</b>: 443 for HTTPS, 80 for plain HTTP, 22 for SSH (remote login), 5432 for Postgres. The <b>firewall</b> lists which ones the internet may knock on. Every open door is something an attacker can try.</p>
+    <span class="num">3 · Ports and security group</span>
+    <h3>A security group decides which doors are open</h3>
+    <p>A server has numbered doors called <b>ports</b>: 443 for HTTPS, 80 for plain HTTP, 22 for SSH (remote login), 5432 for Postgres. A firewall lists which ones the internet may knock on; on EC2 it's called a <b>security group</b>. Every open door is something an attacker can try.</p>
     <div class="like"><b>Like</b>A building with many doors where only the front entrance is unlocked, and it has a guard.</div>
-    <p class="here"><b>In AskTravel:</b> only 80 and 443 are open. SSH is closed to the world; you reach the server through Tailscale (idea 8). Postgres and the agent API have no public port at all.</p>
+    <p class="here"><b>In AskTravel:</b> the security group opens only 80 and 443. Port 22 isn't open at all; you reach the server through SSM (idea 8). Postgres and the agent API have no public port.</p>
   </section>
 
   <section class="concept z-pub">
@@ -213,7 +213,7 @@ footer { margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--line);
       <li><b>Docker Compose:</b> one file that lists the containers and how they connect.</li>
     </ul>
     <div class="like"><b>Like</b>A frozen ready meal (image) and the hot meal on your plate (container). The freezer aisle is the registry.</div>
-    <p class="here"><b>In AskTravel:</b> images live in <b>GHCR</b> (GitHub's registry), tagged with the git commit they were built from, so you always know exactly which code is running. <code>docker-compose.prod.yml</code> runs Caddy, Open WebUI, the API and Postgres.</p>
+    <p class="here"><b>In AskTravel:</b> images live in <b>ECR</b> (AWS's private registry), tagged with the git commit they were built from, so you always know exactly which code is running. <code>docker-compose.prod.yml</code> runs Caddy, Open WebUI, the API and Postgres.</p>
   </section>
 
   <section class="concept z-ci">
@@ -235,42 +235,42 @@ footer { margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--line);
 
   <section class="concept z-ci">
     <span class="num">8 · Private access</span>
-    <h3>A private tunnel instead of an open door</h3>
-    <p>To deploy or fix things you need to log in to the server (SSH). Leaving port 22 open invites a constant stream of password-guessing bots. <b>Tailscale</b> puts your laptop, the server and the GitHub runner on a private network that only they can see.</p>
-    <div class="like"><b>Like</b>A staff entrance at the back that only opens for people with a badge.</div>
-    <p class="here"><b>In AskTravel:</b> you and GitHub Actions reach the server over Tailscale; the internet never sees SSH.</p>
+    <h3>No back door at all: the server checks in with AWS</h3>
+    <p>To deploy or fix things you need to run commands on the server. The classic way is SSH on port 22, which invites a constant stream of password-guessing bots. AWS's <b>SSM agent</b> turns it around: it runs on the server and connects <i>out</i> to AWS, asking "anything for me?". <b>Session Manager</b> gives you a shell that way, and <b>Run Command</b> runs a script.</p>
+    <div class="like"><b>Like</b>A house with no letterbox that collects its own post from the post office. Nobody can knock, but messages still arrive.</div>
+    <p class="here"><b>In AskTravel:</b> you open a shell with <code>aws ssm start-session</code>, and the deploy job uses Run Command. There's no SSH key anywhere.</p>
   </section>
 
   <section class="concept z-ext">
     <span class="num">9 · Secrets and least privilege</span>
-    <h3>Give each key the smallest power it needs</h3>
-    <p><b>Secrets</b> (API keys, database passwords) live in a <code>.env</code> file on the server, never in git. <b>IAM</b> is AWS's system of users and permissions. <b>Least privilege</b> means every user or key can do only its one job, so a leaked key does little harm.</p>
-    <div class="like"><b>Like</b>A cleaner's key opens the office, not the safe.</div>
-    <p class="here"><b>In AskTravel:</b> the AWS <b>root</b> account gets two-factor login and is then put away. The backup user can only write into one S3 bucket. The LangSmith key on the server can send traces but not read them. The OpenRouter key has a spending cap.</p>
+    <h3>Badges that expire, each opening as few doors as possible</h3>
+    <p><b>IAM</b> is AWS's system of identities and permissions. An <b>IAM role</b> is an identity with no password or key: whoever is allowed to use it gets credentials that expire within hours. <b>Least privilege</b> means each role can do only its one job, so a mistake or a leak does little harm. <b>Secrets</b> (API keys, passwords) never go in git; here they live in <b>Parameter Store</b>, encrypted.</p>
+    <div class="like"><b>Like</b>A visitor badge that opens two rooms and stops working tonight, instead of a copied master key.</div>
+    <p class="here"><b>In AskTravel:</b> the server has a role that can add backups to one S3 bucket, pull one image and read its secrets, nothing more. GitHub gets a role through <b>OIDC</b> (a trusted sign-in from GitHub), so no AWS keys are stored anywhere. The <b>root</b> account gets two-factor login and is put away.</p>
   </section>
 
   <section class="concept z-ext">
     <span class="num">10 · Backups and monitoring</span>
     <h3>Assume things break, and find out before your users do</h3>
     <ul>
-      <li><b>Backup:</b> each night, <code>pg_dump</code> copies the database to <b>S3</b>, Amazon's file storage. You can lose at most one day of data.</li>
+      <li><b>Backup:</b> each night, <code>pg_dump</code> copies the database to <b>S3</b>, Amazon's file storage, and AWS takes a <b>snapshot</b> of the whole disk. You can lose at most one day of data.</li>
       <li><b>Restore drill:</b> restore a backup once, for real. A backup you've never restored is a hope, not a backup.</li>
       <li><b>Uptime check:</b> an outside service visits the site every few minutes and emails you if it's down.</li>
       <li><b>Heartbeat:</b> the backup job checks in after each run; silence means it failed.</li>
-      <li><b>Budget alert:</b> AWS emails you if the bill passes a limit you set.</li>
+      <li><b>Alarms:</b> <b>CloudWatch</b> watches the server's memory, disk and health and emails you; <b>AWS Budgets</b> emails you if the bill passes a limit you set.</li>
       <li><b>Tracing:</b> LangSmith shows what the agent did in each chat.</li>
     </ul>
     <div class="like"><b>Like</b>Smoke alarms and a fire drill. The alarm tells you something's wrong; the drill proves the exit works.</div>
-    <p class="here"><b>In AskTravel:</b> S3 backups, UptimeRobot, Healthchecks.io, AWS Budgets and LangSmith. All free or cents.</p>
+    <p class="here"><b>In AskTravel:</b> S3 backups, daily EBS snapshots, CloudWatch alarms, UptimeRobot, Healthchecks.io, AWS Budgets and LangSmith. About $1–2 a month in total.</p>
   </section>
 
   <h2>One change, start to finish</h2>
   <p>Here is how a prompt fix reaches your beta users once everything is set up:</p>
   <ol class="story">
     <li>You change the prompt on a branch and open a pull request. <b>CI</b> runs the tests: green.</li>
-    <li>You merge. <b>CD</b> starts: GitHub builds a new <b>image</b>, tags it with the commit, and pushes it to <b>GHCR</b>.</li>
+    <li>You merge. <b>CD</b> starts: GitHub builds a new <b>image</b>, tags it with the commit, and pushes it to <b>ECR</b>.</li>
     <li>GitHub asks for your <b>approval</b>. You click "Approve".</li>
-    <li>The runner joins the <b>Tailscale</b> network and runs <code>deploy.sh</code> on the server. The server pulls the image and swaps the API <b>container</b>.</li>
+    <li>The job signs in to AWS with <b>OIDC</b> and asks <b>SSM Run Command</b> to run <code>deploy.sh</code>. The server pulls the image and swaps the API <b>container</b>.</li>
     <li>The <b>health check</b> passes and the run goes green. If it had failed, the <b>rollback</b> would have restored the previous image.</li>
     <li>Users open <code>asktravel.&lt;your domain&gt;</code>. <b>DNS</b> finds the server, <b>Caddy</b> handles <b>HTTPS</b>, and they chat with the new prompt.</li>
   </ol>
@@ -287,7 +287,7 @@ footer { margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--line);
   </section>
 
   <footer>
-    Next: the <a href="../deployment-explainer.html">deployment explainer</a> (clickable diagram, 47-term glossary, costs) and the full <a href="https://github.com/stoicdataguy/asktravel-agent-harness/blob/main/docs/plans/deployment.md">deployment plan</a>.
+    Next: the <a href="../deployment-explainer.html">deployment explainer</a> (clickable diagram, 61-term glossary, costs) and the full <a href="https://github.com/stoicdataguy/asktravel-agent-harness/blob/main/docs/plans/deployment.md">deployment plan</a>.
   </footer>
 </main>
 
@@ -300,7 +300,7 @@ footer { margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--line);
       1, "DNS is the contacts app of the internet: it looks up the number (IP address) behind a name."],
     ["Which ports does the AskTravel server open to the internet?",
       ["22 (SSH) and 443 (HTTPS)", "Every port, protected by passwords", "Only 80 and 443", "5432 (Postgres) and 8000 (agent API)"],
-      2, "Only the web doors are open. SSH goes through Tailscale; Postgres and the agent API have no public port."],
+      2, "Only the web doors are open in the security group. There's no SSH at all (SSM instead); Postgres and the agent API have no public port."],
     ["Who gets and renews the HTTPS certificate?",
       ["Caddy, automatically, from Let's Encrypt", "You, by buying one every year", "GitHub Actions, on every deploy", "Open WebUI"],
       0, "Caddy is the reverse proxy at the front door. It requests the free certificate and renews it before it expires."],
@@ -308,7 +308,7 @@ footer { margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--line);
       ["They are two names for the same thing", "An image runs on AWS; a container runs on your laptop", "A container is the packed app; an image is a running copy", "An image is the packed app; a container is a running copy of it"],
       3, "The image is the frozen meal; the container is the meal heated and on the plate. Many containers can start from one image."],
     ["Why tag each image with its git commit?",
-      ["It makes the image smaller", "You know exactly which code is running and can go back to any earlier version", "GHCR refuses images without one", "It turns on HTTPS"],
+      ["It makes the image smaller", "You know exactly which code is running and can go back to any earlier version", "ECR refuses images without one", "It turns on HTTPS"],
       1, "A commit tag never changes meaning, so a rollback means \"run the image for that older commit\"."],
     ["What is the difference between CI and CD?",
       ["CI tests each change before merge; CD ships merged changes to the server", "CI runs on AWS; CD runs on GitHub", "CI is for Python; CD is for Docker", "There is none"],
@@ -316,12 +316,12 @@ footer { margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--line);
     ["A deploy finishes, but /agent-health doesn't answer. What happens?",
       ["Nothing until a user complains", "AWS restarts the whole server", "deploy.sh puts the previous image back and the run goes red", "GitHub deletes the new image"],
       2, "That is the automatic rollback: users keep the last good version and you get a red run to investigate."],
-    ["How does GitHub Actions reach the server to deploy when SSH is closed to the internet?",
-      ["Through Caddy on port 443", "It joins the private Tailscale network, then uses SSH", "It emails the server a script", "It can't: you deploy by hand"],
-      1, "The runner joins Tailscale for the length of the job. The server stays invisible to everyone else."],
-    ["The backup user can only write files into one S3 bucket. Which principle is that?",
+    ["Port 22 is closed. How does GitHub Actions run the deploy script on the server?",
+      ["Through Caddy on port 443", "It signs in to AWS with OIDC and asks SSM Run Command; the server's SSM agent picks the command up", "It emails the server a script", "With an AWS access key stored in GitHub, over SSH"],
+      1, "The SSM agent connects out to AWS, so nothing has to listen for inbound connections. OIDC gives GitHub temporary credentials, so no keys are stored."],
+    ["The server's IAM role can only add files to one S3 bucket. Which principle is that?",
       ["Least privilege", "High availability", "Continuous integration", "Defence by obscurity"],
-      0, "Each key can do only its one job. If the backup key leaks, nobody can use it to read your data or run servers."],
+      0, "Each role can do only its one job. Even if someone got onto the server, they couldn't read or delete your backups, or start other AWS resources."],
     ["Backups run every night. When do you actually know they work?",
       ["When the job reports success", "When the S3 bucket isn't empty", "After you have restored one and the app runs on it", "After 30 days of backups"],
       2, "Only a restore drill proves the backup is complete and usable. Do it before inviting users."]

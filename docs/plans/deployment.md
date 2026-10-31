@@ -3,6 +3,8 @@
 Status: proposed (2026-10-30). Covers issues #27–#32 and #14, plus #90 (spike), #91 (deploy
 pipeline) and #92 (beta launch); see §9. Key terms and the reasoning behind each
 decision are explained visually in [deployment-explainer.html](../deployment-explainer.html).
+New to cloud? Start with the 8-minute primer and quiz,
+[concepts/cloud-basics.html](../concepts/cloud-basics.html).
 
 **Goal:** a private beta for 50–100 invited users at `https://asktravel.<your-domain>`, deployed
 from GitHub on every merged PR, for about $10–15 a month in hosting (LLM usage is separate,

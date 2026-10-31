@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cloud Basics Primer</title>
+<meta name="description" content="Ten cloud ideas you need before deploying AskTravel, in plain words, with a 10-question quiz.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Primer for docs/plans/deployment.md. Same type, neutrals and zone hues as
+   deployment-explainer.html: public = amber, private (inside the server) = teal,
+   external services = violet, delivery (git, CI/CD) = blue. */
+:root {
+  --bg: #f5f7fa; --surface: #ffffff; --surface-2: #eef1f5;
+  --ink: #16202b; --muted: #586373; --line: #d6dce4;
+  --pub: #a45a0b; --pub-bg: #fdf1e1;
+  --priv: #0f766e; --priv-bg: #e2f4f1;
+  --ext: #6a33c9; --ext-bg: #f1eafd;
+  --ci: #1d5fc4; --ci-bg: #e7effc;
+  --ok: #157f3b; --ok-bg: #e5f5ea;
+  --warn: #b42318; --warn-bg: #fdecea;
+  --font-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --radius: 6px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1319; --surface: #151c25; --surface-2: #1b2430; --ink: #e5e9ef; --muted: #9aa5b3; --line: #2a3542;
+    --pub: #f2a65a; --pub-bg: #2a1d0e; --priv: #4fd1c5; --priv-bg: #0f2a28; --ext: #b99cff; --ext-bg: #221a37;
+    --ci: #7aaeff; --ci-bg: #172741; --ok: #6ee7a0; --ok-bg: #12291b; --warn: #ff8a80; --warn-bg: #3a1714;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1319; --surface: #151c25; --surface-2: #1b2430; --ink: #e5e9ef; --muted: #9aa5b3; --line: #2a3542;
+  --pub: #f2a65a; --pub-bg: #2a1d0e; --priv: #4fd1c5; --priv-bg: #0f2a28; --ext: #b99cff; --ext-bg: #221a37;
+  --ci: #7aaeff; --ci-bg: #172741; --ok: #6ee7a0; --ok-bg: #12291b; --warn: #ff8a80; --warn-bg: #3a1714;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 16px; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.65 var(--font-body); -webkit-font-smoothing: antialiased; }
+main { max-width: 760px; margin: 0 auto; padding: 48px max(16px, env(safe-area-inset-left, 0px)) 72px; }
+h1, h2, h3 { font-family: var(--font-display); line-height: 1.15; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(32px, 5vw, 44px); letter-spacing: -0.01em; margin-bottom: 12px; }
+h2 { font-size: clamp(22px, 3vw, 27px); margin: 48px 0 14px; }
+h3 { font-size: 19px; margin-bottom: 6px; }
+p { margin: 0 0 12px; }
+a { color: var(--ci); }
+code { font-family: var(--font-mono); font-size: 0.86em; background: var(--surface-2); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+.lead { font-size: 18px; color: var(--muted); max-width: 640px; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 0; font-size: 13.5px; color: var(--muted); }
+.meta span { background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 3px 11px; }
+
+/* Diagram */
+.figure { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; margin: 18px 0 8px; }
+.figure .scroll { overflow-x: auto; }
+.figure svg { display: block; width: 100%; height: auto; min-width: 560px; }
+.figure svg text { font-family: var(--font-body); fill: var(--ink); }
+.figure .sm { font-size: 12px; fill: var(--muted); }
+.figure .lbl { font-size: 14px; font-weight: 600; }
+.figure .zone-lbl { font-size: 11.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--muted); margin-top: 10px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+.caption { font-size: 14px; color: var(--muted); }
+
+/* Concept cards */
+.concept { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--c, var(--line)); border-radius: var(--radius); padding: 18px 20px; margin: 14px 0; }
+.concept .num { font: 700 13px var(--font-mono); color: var(--c); margin-bottom: 4px; display: block; }
+.concept .like { background: var(--surface-2); border-radius: var(--radius); padding: 10px 12px; margin: 10px 0; font-size: 15px; }
+.concept .like b { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; display: block; margin-bottom: 2px; }
+.concept .here { font-size: 15px; margin: 0; }
+.concept .here b { color: var(--c); }
+.concept ul { margin: 6px 0 10px; padding-left: 20px; }
+.concept li { margin: 3px 0; }
+.z-pub { --c: var(--pub); } .z-priv { --c: var(--priv); } .z-ext { --c: var(--ext); } .z-ci { --c: var(--ci); }
+
+/* Story */
+ol.story { counter-reset: s; list-style: none; padding: 0; margin: 0; }
+ol.story li { counter-increment: s; position: relative; padding: 0 0 14px 44px; }
+ol.story li::before { content: counter(s); position: absolute; left: 0; top: 0; width: 28px; height: 28px; border-radius: 50%; background: var(--ci-bg); color: var(--ci); font: 700 14px/28px var(--font-display); text-align: center; }
+
+/* Quiz */
+.quiz { margin-top: 10px; }
+.q { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; margin: 14px 0; }
+.q legend { font-weight: 600; font-size: 16.5px; padding: 0; margin-bottom: 10px; }
+.q legend .qn { color: var(--muted); font: 600 13px var(--font-mono); margin-right: 6px; }
+.q fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.opts { display: grid; gap: 8px; }
+.opt { display: block; width: 100%; text-align: left; font: inherit; font-size: 15px; color: var(--ink); background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; cursor: pointer; min-height: 44px; }
+.opt:hover:not(:disabled) { border-color: var(--ci); }
+.opt:focus-visible { outline: 2px solid var(--ci); outline-offset: 2px; }
+.opt:disabled { cursor: default; }
+.opt.right { background: var(--ok-bg); border-color: var(--ok); }
+.opt.wrong { background: var(--warn-bg); border-color: var(--warn); }
+.opt .mark { float: right; font-weight: 700; margin-left: 8px; }
+.opt.right .mark { color: var(--ok); } .opt.wrong .mark { color: var(--warn); }
+.why { margin: 12px 0 0; font-size: 15px; padding: 10px 12px; border-radius: var(--radius); background: var(--surface-2); }
+.why[hidden] { display: none; }
+.why b.ok { color: var(--ok); } .why b.no { color: var(--warn); }
+.score { position: sticky; bottom: 12px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 16px; box-shadow: 0 6px 20px rgb(0 0 0 / .08); margin-top: 18px; }
+.score strong { font: 700 20px var(--font-display); }
+.score button { font: 600 14px var(--font-body); color: var(--ci); background: transparent; border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 14px; cursor: pointer; min-height: 40px; }
+.score button:hover { border-color: var(--ci); }
+.verdict { color: var(--muted); font-size: 14.5px; flex-basis: 100%; }
+.verdict:empty { display: none; }
+
+footer { margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Cloud basics for the AskTravel beta</h1>
+  <p class="lead">The ten ideas you need before you deploy, explained in plain words. Each one has an everyday comparison and what it means for AskTravel. At the end, a 10-question quiz checks what stuck.</p>
+  <div class="meta"><span>About 8 minutes</span><span>No AWS knowledge needed</span><span>Companion to the <a href="https://github.com/stoicdataguy/asktravel-agent-harness/blob/main/docs/plans/deployment.md">deployment plan</a></span></div>
+
+  <h2>The picture in one diagram</h2>
+  <p>Today everything runs on your laptop. For the beta, the same containers run on a computer you rent from Amazon. Three kinds of things talk to it: your users, GitHub (to deliver new code), and a few outside services.</p>
+  <div class="figure">
+    <div class="scroll" tabindex="0" aria-label="Diagram, scrolls sideways on small screens">
+    <svg viewBox="0 0 700 330" role="img" aria-labelledby="fig-t">
+      <title id="fig-t">Users reach the server by name through DNS and HTTPS. Inside the server, Caddy forwards to Open WebUI, which calls the agent API, which uses Postgres. GitHub delivers new code through AWS (OIDC and SSM), with no SSH. The server uses AWS services for backups, images and monitoring, and calls OpenRouter and LangSmith.</title>
+      <defs>
+        <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill: var(--muted)"/></marker>
+      </defs>
+      <!-- Server zone -->
+      <rect x="200" y="20" width="300" height="290" rx="8" style="fill: var(--priv-bg); stroke: var(--priv)" stroke-width="1.5"/>
+      <text x="214" y="42" class="zone-lbl" style="fill: var(--priv)">Your rented server (EC2, inside a VPC)</text>
+      <!-- Caddy (public door) -->
+      <rect x="222" y="58" width="256" height="48" rx="6" style="fill: var(--pub-bg); stroke: var(--pub)"/>
+      <text x="236" y="80" class="lbl">Caddy</text><text x="236" y="97" class="sm">front door · HTTPS on port 443</text>
+      <rect x="222" y="124" width="256" height="40" rx="6" style="fill: var(--surface); stroke: var(--line)"/>
+      <text x="236" y="149" class="lbl">Open WebUI</text>
+      <rect x="222" y="182" width="256" height="40" rx="6" style="fill: var(--surface); stroke: var(--line)"/>
+      <text x="236" y="207" class="lbl">Agent API</text>
+      <rect x="222" y="240" width="256" height="40" rx="6" style="fill: var(--surface); stroke: var(--line)"/>
+      <text x="236" y="265" class="lbl">Postgres</text>
+      <line x1="350" y1="106" x2="350" y2="122" style="stroke: var(--muted)" stroke-width="1.5" marker-end="url(#ar)"/>
+      <line x1="350" y1="164" x2="350" y2="180" style="stroke: var(--muted)" stroke-width="1.5" marker-end="url(#ar)"/>
+      <line x1="350" y1="222" x2="350" y2="238" style="stroke: var(--muted)" stroke-width="1.5" marker-end="url(#ar)"/>
+      <!-- Users -->
+      <rect x="10" y="58" width="150" height="48" rx="6" style="fill: var(--pub-bg); stroke: var(--pub)"/>
+      <text x="24" y="80" class="lbl">Beta users</text><text x="24" y="97" class="sm">in a web browser</text>
+      <line x1="160" y1="82" x2="220" y2="82" style="stroke: var(--pub)" stroke-width="2" marker-end="url(#ar)"/>
+      <!-- GitHub -->
+      <rect x="10" y="182" width="150" height="56" rx="6" style="fill: var(--ci-bg); stroke: var(--ci)"/>
+      <text x="24" y="205" class="lbl">GitHub</text><text x="24" y="223" class="sm">tests, builds, deploys</text>
+      <line x1="160" y1="210" x2="220" y2="210" style="stroke: var(--ci)" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#ar)"/>
+      <text x="24" y="258" class="sm">via AWS (OIDC + SSM), no SSH</text>
+      <!-- External -->
+      <rect x="540" y="96" width="150" height="40" rx="6" style="fill: var(--ext-bg); stroke: var(--ext)"/>
+      <text x="554" y="121" class="lbl">OpenRouter</text>
+      <rect x="540" y="150" width="150" height="40" rx="6" style="fill: var(--ext-bg); stroke: var(--ext)"/>
+      <text x="554" y="175" class="lbl">LangSmith</text>
+      <rect x="540" y="232" width="150" height="56" rx="6" style="fill: var(--ext-bg); stroke: var(--ext)"/>
+      <text x="554" y="256" class="lbl">AWS services</text><text x="554" y="274" class="sm">S3 · ECR · CloudWatch</text>
+      <line x1="478" y1="200" x2="538" y2="118" style="stroke: var(--ext)" stroke-width="1.5" marker-end="url(#ar)"/>
+      <line x1="478" y1="204" x2="538" y2="172" style="stroke: var(--ext)" stroke-width="1.5" marker-end="url(#ar)"/>
+      <line x1="478" y1="260" x2="538" y2="260" style="stroke: var(--ext)" stroke-width="1.5" marker-end="url(#ar)"/>
+    </svg>
+    </div>
+    <div class="legend"><span><i style="background: var(--pub)"></i>Public: reachable from the internet</span><span><i style="background: var(--priv)"></i>Private: inside the server</span><span><i style="background: var(--ci)"></i>Delivery of new code</span><span><i style="background: var(--ext)"></i>Outside services</span></div>
+  </div>
+  <p class="caption">Only Caddy faces the internet. Everything else is reachable only from inside the server, or by you through AWS's own management channel (SSM).</p>
+
+  <h2>The ten ideas</h2>
+
+  <section class="concept z-priv">
+    <span class="num">1 · Server</span>
+    <h3>A cloud server is a computer you rent by the hour</h3>
+    <p>"The cloud" is somebody else's computer that never sleeps. You choose its size (memory and CPU) and the <b>region</b>, which is the city where the building is.</p>
+    <div class="like"><b>Like</b>Renting a flat instead of buying a house. You pay monthly, and the landlord fixes the plumbing.</div>
+    <p class="here"><b>In AskTravel:</b> one <b>EC2</b> server, type <code>t4g.small</code> (2 GB, Amazon's own arm64 chips), in <code>us-east-1</code> (Virginia), ~$12 a month. It lives in a <b>VPC</b>, your own private network inside AWS. An <b>Elastic IP</b> keeps its address the same across restarts ($3.65 a month: every public IPv4 address costs money).</p>
+  </section>
+
+  <section class="concept z-pub">
+    <span class="num">2 · DNS</span>
+    <h3>DNS turns a name into an address</h3>
+    <p>Computers find each other by numbers (IP addresses like <code>3.91.20.7</code>). People prefer names. A <b>domain</b> is the name you buy; a <b>DNS record</b> says which number it points to.</p>
+    <div class="like"><b>Like</b>The contacts app on your phone: you tap "Mum", it dials the number.</div>
+    <p class="here"><b>In AskTravel:</b> an <code>A</code> record sends <code>asktravel.&lt;your domain&gt;</code> to the server's static IP.</p>
+  </section>
+
+  <section class="concept z-pub">
+    <span class="num">3 · Ports and security group</span>
+    <h3>A security group decides which doors are open</h3>
+    <p>A server has numbered doors called <b>ports</b>: 443 for HTTPS, 80 for plain HTTP, 22 for SSH (remote login), 5432 for Postgres. A firewall lists which ones the internet may knock on; on EC2 it's called a <b>security group</b>. Every open door is something an attacker can try.</p>
+    <div class="like"><b>Like</b>A building with many doors where only the front entrance is unlocked, and it has a guard.</div>
+    <p class="here"><b>In AskTravel:</b> the security group opens only 80 and 443. Port 22 isn't open at all; you reach the server through SSM (idea 8). Postgres and the agent API have no public port.</p>
+  </section>
+
+  <section class="concept z-pub">
+    <span class="num">4 · HTTPS</span>
+    <h3>HTTPS seals the envelope and proves who you are</h3>
+    <p>HTTPS encrypts traffic so nobody on the café Wi-Fi can read chats or passwords. It needs a <b>TLS certificate</b>: a signed card that proves the server really owns the domain. <b>Let's Encrypt</b> gives these out free; they last 90 days.</p>
+    <p>A <b>reverse proxy</b> is the program at the front door. It handles HTTPS, then passes each request to the right app inside.</p>
+    <div class="like"><b>Like</b>A receptionist who checks the visitor in, then walks them to the right office.</div>
+    <p class="here"><b>In AskTravel:</b> <b>Caddy</b> is the reverse proxy. It gets and renews the certificate by itself and forwards to Open WebUI.</p>
+  </section>
+
+  <section class="concept z-priv">
+    <span class="num">5 · Containers</span>
+    <h3>An image is the packed box; a container is the box opened and running</h3>
+    <ul>
+      <li><b>Image:</b> your app plus everything it needs (Python, libraries, files), frozen into one file. Built once, runs the same anywhere.</li>
+      <li><b>Container:</b> a running copy of an image. Stop it, start a new one from the same image, and you get the same app.</li>
+      <li><b>Registry:</b> a warehouse for images. <b>Tag:</b> the label on the box.</li>
+      <li><b>Docker Compose:</b> one file that lists the containers and how they connect.</li>
+    </ul>
+    <div class="like"><b>Like</b>A frozen ready meal (image) and the hot meal on your plate (container). The freezer aisle is the registry.</div>
+    <p class="here"><b>In AskTravel:</b> images live in <b>ECR</b> (AWS's private registry), tagged with the git commit they were built from, so you always know exactly which code is running. <code>docker-compose.prod.yml</code> runs Caddy, Open WebUI, the API and Postgres.</p>
+  </section>
+
+  <section class="concept z-ci">
+    <span class="num">6 · CI</span>
+    <h3>CI checks every change before it is merged</h3>
+    <p><b>Continuous integration</b>: each time you open a pull request, a robot runs the tests and the linter. A red result blocks the merge. It catches mistakes while they're still cheap.</p>
+    <div class="like"><b>Like</b>Spell-check that runs before you can hit "send".</div>
+    <p class="here"><b>In AskTravel:</b> a <b>GitHub Actions</b> <b>workflow</b> (a YAML file in <code>.github/workflows/</code>) runs <code>pytest</code> and <code>ruff</code> on a <b>runner</b>, a short-lived computer GitHub lends you.</p>
+  </section>
+
+  <section class="concept z-ci">
+    <span class="num">7 · CD</span>
+    <h3>CD ships each merged change to the server</h3>
+    <p><b>Continuous deployment</b>: after a merge, the robot builds the image, pushes it to the registry and puts it on the server. An <b>environment</b> with a required approval makes it wait for your click first.</p>
+    <p>After the switch, a <b>health check</b> asks the app "are you OK?" (<code>/agent-health</code>). If the answer is no, a <b>rollback</b> puts the previous image back.</p>
+    <div class="like"><b>Like</b>A conveyor belt with one human checkpoint, and a reverse gear if the new part doesn't fit.</div>
+    <p class="here"><b>In AskTravel:</b> merge → test → build → you approve → <code>deploy.sh &lt;commit&gt;</code> → health check → automatic rollback on failure. No terminal needed.</p>
+  </section>
+
+  <section class="concept z-ci">
+    <span class="num">8 · Private access</span>
+    <h3>No back door at all: the server checks in with AWS</h3>
+    <p>To deploy or fix things you need to run commands on the server. The classic way is SSH on port 22, which invites a constant stream of password-guessing bots. AWS's <b>SSM agent</b> turns it around: it runs on the server and connects <i>out</i> to AWS, asking "anything for me?". <b>Session Manager</b> gives you a shell that way, and <b>Run Command</b> runs a script.</p>
+    <div class="like"><b>Like</b>A house with no letterbox that collects its own post from the post office. Nobody can knock, but messages still arrive.</div>
+    <p class="here"><b>In AskTravel:</b> you open a shell with <code>aws ssm start-session</code>, and the deploy job uses Run Command. There's no SSH key anywhere.</p>
+  </section>
+
+  <section class="concept z-ext">
+    <span class="num">9 · Secrets and least privilege</span>
+    <h3>Badges that expire, each opening as few doors as possible</h3>
+    <p><b>IAM</b> is AWS's system of identities and permissions. An <b>IAM role</b> is an identity with no password or key: whoever is allowed to use it gets credentials that expire within hours. <b>Least privilege</b> means each role can do only its one job, so a mistake or a leak does little harm. <b>Secrets</b> (API keys, passwords) never go in git; here they live in <b>Parameter Store</b>, encrypted.</p>
+    <div class="like"><b>Like</b>A visitor badge that opens two rooms and stops working tonight, instead of a copied master key.</div>
+    <p class="here"><b>In AskTravel:</b> the server has a role that can add backups to one S3 bucket, pull one image and read its secrets, nothing more. GitHub gets a role through <b>OIDC</b> (a trusted sign-in from GitHub), so no AWS keys are stored anywhere. The <b>root</b> account gets two-factor login and is put away.</p>
+  </section>
+
+  <section class="concept z-ext">
+    <span class="num">10 · Backups and monitoring</span>
+    <h3>Assume things break, and find out before your users do</h3>
+    <ul>
+      <li><b>Backup:</b> each night, <code>pg_dump</code> copies the database to <b>S3</b>, Amazon's file storage, and AWS takes a <b>snapshot</b> of the whole disk. You can lose at most one day of data.</li>
+      <li><b>Restore drill:</b> restore a backup once, for real. A backup you've never restored is a hope, not a backup.</li>
+      <li><b>Uptime check:</b> an outside service visits the site every few minutes and emails you if it's down.</li>
+      <li><b>Heartbeat:</b> the backup job checks in after each run; silence means it failed.</li>
+      <li><b>Alarms:</b> <b>CloudWatch</b> watches the server's memory, disk and health and emails you; <b>AWS Budgets</b> emails you if the bill passes a limit you set.</li>
+      <li><b>Tracing:</b> LangSmith shows what the agent did in each chat.</li>
+    </ul>
+    <div class="like"><b>Like</b>Smoke alarms and a fire drill. The alarm tells you something's wrong; the drill proves the exit works.</div>
+    <p class="here"><b>In AskTravel:</b> S3 backups, daily EBS snapshots, CloudWatch alarms, UptimeRobot, Healthchecks.io, AWS Budgets and LangSmith. About $1–2 a month in total.</p>
+  </section>
+
+  <h2>One change, start to finish</h2>
+  <p>Here is how a prompt fix reaches your beta users once everything is set up:</p>
+  <ol class="story">
+    <li>You change the prompt on a branch and open a pull request. <b>CI</b> runs the tests: green.</li>
+    <li>You merge. <b>CD</b> starts: GitHub builds a new <b>image</b>, tags it with the commit, and pushes it to <b>ECR</b>.</li>
+    <li>GitHub asks for your <b>approval</b>. You click "Approve".</li>
+    <li>The job signs in to AWS with <b>OIDC</b> and asks <b>SSM Run Command</b> to run <code>deploy.sh</code>. The server pulls the image and swaps the API <b>container</b>.</li>
+    <li>The <b>health check</b> passes and the run goes green. If it had failed, the <b>rollback</b> would have restored the previous image.</li>
+    <li>Users open <code>asktravel.&lt;your domain&gt;</code>. <b>DNS</b> finds the server, <b>Caddy</b> handles <b>HTTPS</b>, and they chat with the new prompt.</li>
+  </ol>
+
+  <section aria-labelledby="quiz">
+  <h2 id="quiz">Check what stuck</h2>
+  <p>Ten questions. Pick an answer to see whether it's right and why. Aim for 8 or more before starting phase D0.</p>
+  <div class="quiz" id="quiz-list"></div>
+  <div class="score" aria-live="polite">
+    <span><strong id="score">0 / 10</strong> <span id="answered" class="caption">0 answered</span></span>
+    <button type="button" id="reset">Start again</button>
+    <span class="verdict" id="verdict"></span>
+  </div>
+  </section>
+
+  <footer>
+    Next: the <a href="../deployment-explainer.html">deployment explainer</a> (clickable diagram, 61-term glossary, costs) and the full <a href="https://github.com/stoicdataguy/asktravel-agent-harness/blob/main/docs/plans/deployment.md">deployment plan</a>.
+  </footer>
+</main>
+
+<script>
+(function () {
+  // [question, options, index of the right option, explanation]
+  var QUESTIONS = [
+    ["What does DNS do?",
+      ["Encrypts traffic between the browser and the server", "Turns a name like asktravel.example.com into the server's IP address", "Stores the nightly database backups", "Blocks every port except 443"],
+      1, "DNS is the contacts app of the internet: it looks up the number (IP address) behind a name."],
+    ["Which ports does the AskTravel server open to the internet?",
+      ["22 (SSH) and 443 (HTTPS)", "Every port, protected by passwords", "Only 80 and 443", "5432 (Postgres) and 8000 (agent API)"],
+      2, "Only the web doors are open in the security group. There's no SSH at all (SSM instead); Postgres and the agent API have no public port."],
+    ["Who gets and renews the HTTPS certificate?",
+      ["Caddy, automatically, from Let's Encrypt", "You, by buying one every year", "GitHub Actions, on every deploy", "Open WebUI"],
+      0, "Caddy is the reverse proxy at the front door. It requests the free certificate and renews it before it expires."],
+    ["What is the difference between an image and a container?",
+      ["They are two names for the same thing", "An image runs on AWS; a container runs on your laptop", "A container is the packed app; an image is a running copy", "An image is the packed app; a container is a running copy of it"],
+      3, "The image is the frozen meal; the container is the meal heated and on the plate. Many containers can start from one image."],
+    ["Why tag each image with its git commit?",
+      ["It makes the image smaller", "You know exactly which code is running and can go back to any earlier version", "ECR refuses images without one", "It turns on HTTPS"],
+      1, "A commit tag never changes meaning, so a rollback means \"run the image for that older commit\"."],
+    ["What is the difference between CI and CD?",
+      ["CI tests each change before merge; CD ships merged changes to the server", "CI runs on AWS; CD runs on GitHub", "CI is for Python; CD is for Docker", "There is none"],
+      0, "CI is the spell-check before sending. CD is the conveyor belt after merge."],
+    ["A deploy finishes, but /agent-health doesn't answer. What happens?",
+      ["Nothing until a user complains", "AWS restarts the whole server", "deploy.sh puts the previous image back and the run goes red", "GitHub deletes the new image"],
+      2, "That is the automatic rollback: users keep the last good version and you get a red run to investigate."],
+    ["Port 22 is closed. How does GitHub Actions run the deploy script on the server?",
+      ["Through Caddy on port 443", "It signs in to AWS with OIDC and asks SSM Run Command; the server's SSM agent picks the command up", "It emails the server a script", "With an AWS access key stored in GitHub, over SSH"],
+      1, "The SSM agent connects out to AWS, so nothing has to listen for inbound connections. OIDC gives GitHub temporary credentials, so no keys are stored."],
+    ["The server's IAM role can only add files to one S3 bucket. Which principle is that?",
+      ["Least privilege", "High availability", "Continuous integration", "Defence by obscurity"],
+      0, "Each role can do only its one job. Even if someone got onto the server, they couldn't read or delete your backups, or start other AWS resources."],
+    ["Backups run every night. When do you actually know they work?",
+      ["When the job reports success", "When the S3 bucket isn't empty", "After you have restored one and the app runs on it", "After 30 days of backups"],
+      2, "Only a restore drill proves the backup is complete and usable. Do it before inviting users."]
+  ];
+
+  var list = document.getElementById("quiz-list");
+  var scoreEl = document.getElementById("score");
+  var answeredEl = document.getElementById("answered");
+  var verdictEl = document.getElementById("verdict");
+  var score = 0, answered = 0;
+
+  function update() {
+    scoreEl.textContent = score + " / " + QUESTIONS.length;
+    answeredEl.textContent = answered + " answered";
+    if (answered < QUESTIONS.length) { verdictEl.textContent = ""; return; }
+    verdictEl.textContent = score >= 8
+      ? "Ready for D0. Keep this page open as a reference while you set up AWS."
+      : "Re-read the ideas behind the red answers, then start again. 8 or more means you're ready for D0.";
+  }
+
+  function render() {
+    list.innerHTML = "";
+    score = 0; answered = 0;
+    QUESTIONS.forEach(function (q, qi) {
+      var box = document.createElement("div");
+      box.className = "q";
+      var fs = document.createElement("fieldset");
+      var lg = document.createElement("legend");
+      lg.innerHTML = '<span class="qn">' + (qi + 1) + "/" + QUESTIONS.length + "</span>";
+      lg.appendChild(document.createTextNode(q[0]));
+      fs.appendChild(lg);
+      var opts = document.createElement("div");
+      opts.className = "opts";
+      var why = document.createElement("p");
+      why.className = "why";
+      why.hidden = true;
+      why.setAttribute("aria-live", "polite");
+      var buttons = q[1].map(function (text, oi) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "opt";
+        b.textContent = text;
+        b.addEventListener("click", function () {
+          var right = oi === q[2];
+          buttons.forEach(function (x, xi) {
+            x.disabled = true;
+            if (xi === q[2]) { x.classList.add("right"); x.insertAdjacentHTML("afterbegin", '<span class="mark" aria-hidden="true">✓</span>'); }
+            else if (xi === oi) { x.classList.add("wrong"); x.insertAdjacentHTML("afterbegin", '<span class="mark" aria-hidden="true">✗</span>'); }
+          });
+          why.innerHTML = right ? '<b class="ok">Right.</b> ' : '<b class="no">Not quite.</b> ';
+          why.appendChild(document.createTextNode(q[3]));
+          why.hidden = false;
+          if (right) score++;
+          answered++;
+          update();
+        });
+        opts.appendChild(b);
+        return b;
+      });
+      fs.appendChild(opts);
+      fs.appendChild(why);
+      box.appendChild(fs);
+      list.appendChild(box);
+    });
+    update();
+  }
+
+  document.getElementById("reset").addEventListener("click", function () {
+    render();
+    document.getElementById("quiz").scrollIntoView();
+  });
+  render();
+})();
+</script>
+</body>
+</html>

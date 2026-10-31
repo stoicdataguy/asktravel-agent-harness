@@ -92,7 +92,8 @@ thread, and they stay in context for the rest of the conversation.
 
 - **The checkpointer is the only episodic memory the agent can read, and only for the current chat.**
   - In a new chat, the agent has **no access to past conversations**. Trips and profile facts are the only bridge, and they hold extracted facts, not what happened.
-  - The checkpointer also stores a full snapshot after **every step**: 3 per plain turn, 5 for one tool call, 22 for a long research turn. That's what makes rewind and branching work (issue #3), and it's also the biggest growth driver: 5 MB of blobs for 17 threads.
+  - The checkpointer also stores a full snapshot after **every step**: 3 per plain turn, 5 for one tool call, 22 for a long research turn. It's the biggest growth driver: 5 MB of blobs for 17 threads.
+  - *Update (#94):* rewind and branching (issue #3) only need the checkpoint at the end of each turn, so API runs now use `durability="exit"`: one checkpoint per turn. Existing in-between checkpoints stay until M6 prunes them.
 
 ### Semantic memory
 
@@ -132,7 +133,7 @@ and retrieval are triggered (agent tools on demand, background workers, event-dr
 | Memory | **What** (changes) | **When** (changes) | **How** (changes) |
 |---|---|---|---|
 | Working | Same parts, under a **token budget** (§6); earlier turns **compacted** to their user message and final answer | Every call, as now | Our own `wrap_model_call` middleware that edits only the request, never the saved thread (§6) |
-| Episodic: thread | Unchanged. Pruning waits for production (§5) | Store per step (needed for rewind) | Same tables |
+| Episodic: thread | Unchanged. Pruning waits for production (§5) | One checkpoint per turn (#94); rewind needs only turn ends | Same tables |
 | **Episodic: past chats (new, M3)** | The user's other chats, as saved: each turn's user message and final answer | **Store:** nothing new; a small chat index `(email, "chats")` is written after every run (no model call). **Retrieve:** `recall_conversations(query)` tool, when the user refers back | Keyword search over the checkpointed threads (raw logs, CoALA's episodic memory). Summaries and pgvector only if keyword recall falls short: per-turn summaries would cost a model call per turn against the rate limit |
 | Semantic: profile facts | Same facts, plus `source` (thread id) and `confirmed_at`; list-valued keys (`likes`, `dislikes`, `interests`) hold one item per entry | **Store:** agent tool, with rules applied on write (see How). LLM consolidation only for genuine conflicts ("vegetarian" vs "I eat fish now"), and only if evals still show them after M1. **Retrieve:** every call | Postgres store; `save_memory` adds items to list keys instead of rewriting one string, and returns the previous value when it overwrites |
 | Semantic: trips | Same, with an **opaque, stable trip id** and a **status and relative date computed when the prompt is built** ("upcoming, in 25 days"; never stored, so it can't go stale) | **Store:** on write, a new trip is matched to an existing one by normalised destination and overlapping dates; an undated trip is claimed when its dates arrive. Destination can be renamed without changing the id | Postgres store; a one-off migration merges today's duplicates and re-keys trips |

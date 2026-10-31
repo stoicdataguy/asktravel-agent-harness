@@ -1,3 +1,4 @@
+import pytest
 from langchain_core.messages import AIMessage
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.store.memory import InMemoryStore
@@ -5,9 +6,17 @@ from langgraph.store.memory import InMemoryStore
 from tests.fakes import FakeToolModel
 from travel_agent.agent.graph import build_agent
 from travel_agent.api.thread_sync import SyncAction, Turn, plan_run
+from travel_agent.config import get_settings
 from travel_agent.context import UserContext
 
 CONFIG = {"configurable": {"thread_id": "ana@example.com:c1"}}
+
+
+@pytest.fixture(autouse=True, params=["exit", "async"])
+def durability(request, monkeypatch):
+    """Every test runs under both checkpoint modes: the API's default ("exit") and per-step."""
+    monkeypatch.setenv("CHECKPOINT_DURABILITY", request.param)
+    return request.param
 
 
 def make_agent(*replies: str):
@@ -22,7 +31,12 @@ def transcript(*turns: str) -> list[Turn]:
 
 async def run(agent, *turns: str, config=CONFIG) -> SyncAction:
     plan = await plan_run(agent, config, transcript(*turns))
-    await agent.ainvoke(plan.inputs, plan.config, context=UserContext("ana@example.com"))
+    await agent.ainvoke(
+        plan.inputs,
+        plan.config,
+        context=UserContext("ana@example.com"),
+        durability=get_settings().checkpoint_durability,
+    )
     return plan.action
 
 
@@ -84,3 +98,15 @@ async def test_regenerate_first_answer_replaces_thread():
     await run(agent, "u1")
     assert await run(agent, "u1") == SyncAction.REPLACE
     assert await thread(agent) == ["human:u1", "ai:a1 again"]
+
+
+async def test_exit_durability_saves_one_checkpoint_per_turn(durability):
+    agent = make_agent("a1", "a2")
+    await run(agent, "u1")
+    await run(agent, "u1", "a1", "u2")
+    checkpoints = [s async for s in agent.aget_state_history(CONFIG)]
+    if durability == "exit":
+        assert len(checkpoints) == 2
+    else:
+        assert len(checkpoints) > 4
+    assert all(not s.next for s in checkpoints) == (durability == "exit")

@@ -444,7 +444,7 @@ footer { color: var(--muted); font-size: 13px; padding-bottom: 40px; display: fl
           <td><ul>
             <li><span class="pill t-sem">semantic</span> facts with provenance (which chat, when confirmed, sensitive or not); trips with stable ids; itineraries</li>
             <li><span class="pill t-proc">procedural</span> hand-written skills and rules</li>
-            <li><span class="pill t-epi">episodic</span> raw chat threads, every step, plus a chat index to find them</li>
+            <li><span class="pill t-epi">episodic</span> raw chat threads, one checkpoint per turn, plus a chat index to find them</li>
           </ul></td>
           <td>Expiry for trips and sensitive facts (M6); skill proposals from feedback (M7)</td>
         </tr>
@@ -453,7 +453,7 @@ footer { color: var(--muted); font-size: 13px; padding-bottom: 40px; display: fl
           <td>Agent tools (on demand), background workers, event-driven</td>
           <td><ul>
             <li><b>Agent tools:</b> <span class="mono">save_memory</span>, <span class="mono">save_trip_details</span>, <span class="mono">get_trip</span>, <span class="mono">recall_conversations</span>, <span class="mono">load_skill</span></li>
-            <li><b>Events:</b> checkpoint after every step; chat index after every run; each itinerary filed under its trip; earlier turns compacted before every model call; chat deleted in Open WebUI → trigger</li>
+            <li><b>Events:</b> one checkpoint per turn (#94); chat index after every run; each itinerary filed under its trip; earlier turns compacted before every model call; chat deleted in Open WebUI → trigger</li>
             <li><b>Background:</b> the chat-deletion sync loop; startup migrations and backfills</li>
           </ul></td>
           <td>Nightly retention (M6); weekly skill review from feedback (M7). LLM consolidation (M5) only if an eval case starts failing</td>

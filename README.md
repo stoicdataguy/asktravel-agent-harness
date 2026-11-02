@@ -24,6 +24,7 @@ Start with these documents before you read the code.
 |---|---|
 | [Architecture](docs/architecture.html) ([open rendered](https://stoicdataguy.github.io/asktravel-agent-harness/architecture.html)) | Four tabs: the system components, how state persists in Postgres, the tools and skills, and how the context window grows and shrinks in a real 15-turn chat |
 | [Memory architecture](docs/memory-explainer.html) ([open rendered](https://stoicdataguy.github.io/asktravel-agent-harness/memory-explainer.html)) | The four memory types (working, episodic, semantic, procedural), when the agent writes each type, and the eval results |
+| [Cloud basics](docs/concepts/cloud-basics.html) ([open rendered](https://stoicdataguy.github.io/asktravel-agent-harness/concepts/cloud-basics.html)) | Ten cloud ideas behind the deployment plan, in plain words, with a 10-question quiz (about 8 minutes) |
 | [Plan and roadmap](docs/PLAN.md) | The decisions, the status of each milestone, and the known limits |
 | [Detailed plans](docs/plans/) | One design document for each large feature: memory, streaming progress, knowledge base, feedback audit |
 

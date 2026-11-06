@@ -189,7 +189,9 @@ How git behaves here (GitHub ruleset "Protect main" on the default branch):
 - Merging is done through the PR (`gh pr merge`), never by pushing a local merge to `main`.
 - Locally, `main` only moves by `git pull` after a PR merges. If you committed on `main` by
   mistake, move the commit to a new branch (`git switch -c feat/<slug>`) and push that.
-- No CI yet, so the PR itself is the gate: run the tests below before opening it.
+- CI (`.github/workflows/ci.yml`, #29) runs ruff, the format check and pytest on every PR; its
+  `test` job is a required check, so a red PR can't merge. CI runs no live suites: run the e2e
+  and eval suites below yourself before opening the PR.
 
 1. **Issue first.** File every feature or bug as a GitHub issue (`gh issue create`). Features
    state the problem, acceptance criteria written as checks an end-to-end test can make, and what

@@ -24,6 +24,7 @@ if ! docker compose version >/dev/null 2>&1; then
   apt-get install -yq docker-ce docker-ce-cli containerd.io docker-compose-plugin
 fi
 systemctl enable --now docker
+docker info >/dev/null  # stop here if the daemon isn't really up
 # After Docker, and without recommends: it would otherwise pull in Ubuntu's older docker.io
 apt-get install -yq --no-install-recommends amazon-ecr-credential-helper
 

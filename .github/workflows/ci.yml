@@ -21,7 +21,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      # setup-uv publishes no moving major tag (v10 doesn't resolve): pin the release
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
           enable-cache: true
       - name: Install

@@ -69,6 +69,34 @@ def test_parse_card_deals_rentals_and_unclassed():
     assert hostel.hotel_class is None and hostel.price_per_night == 100
 
 
+@pytest.mark.parametrize(
+    ("resource_type", "outcome"),
+    [
+        ("image", "abort"),
+        ("font", "abort"),
+        ("media", "abort"),
+        ("document", "continue"),
+        ("script", "continue"),
+        ("xhr", "continue"),
+        ("stylesheet", "continue"),
+    ],
+)
+async def test_page_skips_photos_fonts_and_media(resource_type, outcome):
+    class Route:
+        request = type("Request", (), {"resource_type": resource_type})
+        seen = None
+
+        async def abort(self):
+            self.seen = "abort"
+
+        async def continue_(self):
+            self.seen = "continue"
+
+    route = Route()
+    await hotels.skip_heavy(route)
+    assert route.seen == outcome
+
+
 @pytest.fixture
 def google(monkeypatch):
     """Fake the browser step; tests set `google.cards` or `google.error`."""

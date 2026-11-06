@@ -72,6 +72,9 @@ services:
       ENABLE_AUTOCOMPLETE_GENERATION: "false"
       ENABLE_SEARCH_QUERY_GENERATION: "false"
       ENABLE_RETRIEVAL_QUERY_GENERATION: "false"
+      # No document chat (RAG): don't load a local embedding model at startup (memory)
+      RAG_EMBEDDING_ENGINE: "openai"
+      BYPASS_EMBEDDING_AND_RETRIEVAL: "true"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:

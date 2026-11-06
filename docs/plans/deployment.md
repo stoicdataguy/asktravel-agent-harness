@@ -1,13 +1,13 @@
 # Deployment plan: AskTravel beta on AWS
 
-Status: D0–D3 done (2026-11-05); D4 (AWS setup, first deploy) next. Covers issues #27–#32 and #14, plus #90 (spike), #91 (deploy
+Status: D0–D4 done (2026-11-06): live at https://asktravel.site on `t4g.small`. D5 (automatic deploys) next. Covers issues #27–#32 and #14, plus #90 (spike), #91 (deploy
 pipeline) and #92 (beta launch); see §9. Key terms and the reasoning behind each
 decision are explained visually in [deployment-explainer.html](../deployment-explainer.html).
 New to cloud? Start with the 8-minute primer and quiz,
 [concepts/cloud-basics.html](../concepts/cloud-basics.html).
 
-**Goal:** a private beta for 50–100 invited users at `https://asktravel.<your-domain>`, deployed
-from GitHub on every merged PR, for about $33 a month in hosting (LLM usage is separate, §7).
+**Goal:** a private beta for up to 50 invited users at `https://asktravel.site`, deployed
+from GitHub on every merged PR, for about $21–33 a month in hosting (LLM usage is separate, §7).
 A second goal: learn the core AWS services by using them for real.
 
 *Revised 2026-10-30 (#98): EC2 with AWS-native services replaced Lightsail, Tailscale and GHCR,
@@ -17,10 +17,15 @@ simpler option.*
 *Revised 2026-11-05 (#90): the D0 spike chose `t4g.medium` (4 GB), because 2 GB fills to 94%
 during a single hotel search even after the memory fixes in #101. Measurements in §1.*
 
+*Revised 2026-11-06 (D4): the free plan only launches free-tier-eligible instance types, and refuses
+`t4g.medium`. The beta starts on `t4g.small` with `HOTEL_BROWSERS=1`, swap and no upgrade. Upgrade
+and resize to `t4g.medium` before inviting people (D7). Two more limits of this account type are in
+§6.1: no domain registration on the free plan, and no GitHub OIDC on any plan (D5).*
+
 **The short version**
 
-- **One small server running the stack you already run locally:** an EC2 `t4g.medium` (4 GB,
-  arm64) in the default VPC of us-east-2 (Ohio), running Docker Compose. Caddy serves HTTPS in front of
+- **One small server running the stack you already run locally:** an EC2 `t4g.small` (2 GB,
+  arm64, resized to 4 GB before inviting people) in the default VPC of us-east-2 (Ohio), running Docker Compose. Caddy serves HTTPS in front of
   Open WebUI. The security group opens 80 and 443 only. The agent API and Postgres are not
   reachable from the internet.
 - **No SSH and no stored AWS keys anywhere:**
@@ -33,8 +38,8 @@ during a single hotel search even after the memory fixes in #101. Measurements i
   health check and rollback.
 - **Nightly database backups to S3, daily disk snapshots, and a restore drill** before inviting
   anyone.
-- **Hosting cost:** about **$33/month** for the 4 GB server that D0 chose. New AWS accounts get up
-  to $200 in credits for 6 months (§7).
+- **Hosting cost:** about **$21/month** on `t4g.small`, **$33/month** on `t4g.medium`. New AWS accounts
+  get up to $200 in credits for 6 months (§7).
 
 ---
 
@@ -64,7 +69,8 @@ stack uses about **1.3 GB**. Then Chromium adds memory during hotel searches:
 | One hotel search | 1.73 GB (**94%**) | 1.73 GB (45%) |
 | Two at once | 1.98–2.08 GB, **doesn't fit** | ~2.1 GB (55%) |
 
-So the beta uses **`t4g.medium` (4 GB)**. These are empty-database numbers. Postgres and Open
+So inviting people needs **`t4g.medium` (4 GB)**; until then `t4g.small` is enough for testing (D4: a
+real chat with flights, hotels and guidebooks peaked at 1.35 GB). These are empty-database numbers. Postgres and Open
 WebUI grow with users, and 4 GB leaves room for that.
 
 Other properties of the app that shape the design:
@@ -133,12 +139,12 @@ explainer page shows the same decisions with diagrams.
   secrets, CI/CD, backups, monitoring.
 - **Revisit when:** paying users, an uptime promise, or more traffic than one server handles.
 
-### D-2. EC2 t4g.medium (4 GB, arm64), not Lightsail
+### D-2. EC2 t4g.small now, t4g.medium before inviting people (arm64), not Lightsail
 
 | Option | Monthly | RAM | What you learn | Catch |
 |---|---|---|---|---|
-| **EC2 t4g.medium** (chosen in D0) | **~$29.80** server part (instance $24.53 + public IPv4 $3.65 + 20 GB gp3 $1.60) | 4 GB, 2 vCPU (Graviton, arm64) | Real AWS: VPC, subnets, security groups, AMIs, EBS, Elastic IPs, IAM roles, IMDSv2, SSM, CloudWatch | More parts to set up; images must be built for arm64; burstable CPU credits |
-| EC2 t4g.small | ~$17.50 server part | 2 GB | Same | The first choice. D0 measured 94% memory during one hotel search, and two parallel searches don't fit (§1) |
+| **EC2 t4g.medium** (chosen in D0, for the beta; needs the paid plan) | **~$29.80** server part (instance $24.53 + public IPv4 $3.65 + 20 GB gp3 $1.60) | 4 GB, 2 vCPU (Graviton, arm64) | Real AWS: VPC, subnets, security groups, AMIs, EBS, Elastic IPs, IAM roles, IMDSv2, SSM, CloudWatch | More parts to set up; images must be built for arm64; burstable CPU credits |
+| **EC2 t4g.small** (running now) | ~$17.50 server part | 2 GB | Same | Allowed on the free plan. D0 measured 94% memory during one hotel search, and two parallel searches don't fit (§1), so it's for testing, with `HOTEL_BROWSERS=1` |
 | EC2 t3.medium (x86) | ~$35.60 server part | 4 GB | Same | The fallback if an arm64 problem turns up later. D0 found none |
 | Lightsail 2 GB | $12, all included | 2 GB | Instance, static IP, firewall, DNS, snapshots; little AWS beyond that | The previous choice: cheapest AWS option, fixed price, but it hides the AWS concepts this plan now wants to teach |
 | Hetzner CX23 / CAX11 | ~€6–7 incl. IPv4 | 4 GB | The same VM skills, not AWS | EU data centres at that price, where Google shows cookie-consent walls that break the scrapers |
@@ -417,6 +423,13 @@ code later.
    - **Fixed region:** the project's region follows the contact address: **us-east-2 (Ohio)** for
      the US. Confirm it in settings.aws.com → Project → Additional info before creating anything.
      Another region needs "activate advanced features".
+   - **Limits found in D4** (test with a real call: `--dry-run` and the published service list both
+     missed the first two):
+     - The free plan only launches free-tier-eligible types: `t4g.small` yes, `t4g.medium` no
+       (`describe-instance-types --filters Name=free-tier-eligible,Values=true`).
+     - Route 53 can't register domains on the free plan; its DNS works. The domain is at Namecheap
+       with Route 53's name servers.
+     - An AWS-managed policy denies `iam:*Provider*`, so no GitHub OIDC on either plan (see D5).
    - **AWS CLI:** `aws login --profile asktravel --region us-east-2` (CLI v2.32+). It reuses your
      Console sign-in in the browser and stores only temporary credentials that renew themselves,
      so there are no access keys. Run it again when the CLI says the session has expired.
@@ -448,7 +461,7 @@ code later.
 5. **EC2:**
    - **AMI:** Ubuntu 24.04 LTS, arm64. In the launch form, pick the image first and then set
      **Architecture: 64-bit (Arm)**: changing the image resets the security group and the disk.
-     **Type:** `t4g.medium`, credit specification `standard`.
+     **Type:** `t4g.small` for now, credit specification `standard`.
    - **No key pair.** Security group `asktravel-web`, instance profile `asktravel-ec2`, tag
      `app=asktravel`.
    - **Storage:** 20 GB gp3, encrypted, "delete on termination" off (the data survives a mistake).
@@ -496,7 +509,8 @@ WEBUI_SECRET_KEY=...         # keeps Open WebUI sessions valid across restarts
 LANGSMITH_TRACING=true
 LANGSMITH_API_KEY=...        # a write-only tracing key
 LANGSMITH_PROJECT=asktravel-prod
-HOTEL_BROWSERS=2
+HOTEL_BROWSERS=1             # 2 once on t4g.medium
+BACKUP_BUCKET=...            # also holds guidebooks/, which deploy.sh copies to the server
 DAILY_TURN_LIMIT=40
 DOMAIN=asktravel.<domain>
 ```
@@ -507,7 +521,7 @@ DOMAIN=asktravel.<domain>
 
 | Item | Monthly (USD) |
 |---|---|
-| EC2 `t4g.medium`, on demand ($0.0336/h) | $24.53 (`t4g.small`, too small in D0: $12.26) |
+| EC2 `t4g.small`, on demand ($0.0168/h) | $12.26 (`t4g.medium`, before inviting people: $24.53) |
 | Public IPv4 address (Elastic IP, $0.005/h) | $3.65 |
 | EBS gp3, 20 GB ($0.08/GB) | $1.60 |
 | EBS snapshots (7 daily, incremental) | ~$0.50 |
@@ -519,7 +533,7 @@ DOMAIN=asktravel.<domain>
 | SSM, Parameter Store (standard), IAM, OIDC, DLM, Budgets, CloudTrail (90-day history) | $0 |
 | GitHub Actions (incl. arm64 runners) on a public repo, UptimeRobot, Healthchecks.io | $0 |
 | LangSmith Developer | $0 (pay per extra trace over 5k a month) |
-| **Hosting total** | **~$33** |
+| **Hosting total** | **~$21** (`t4g.medium`: ~$33) |
 | OpenRouter (LLM) | **Usage-based; likely more than hosting.** Read your real cost per chat from OpenRouter's activity page or LangSmith, multiply by expected chats, and set the prod key's credit limit to that plus a margin |
 
 Prices are for us-east-2 (the same as us-east-1 for these services) from the AWS and LangSmith pricing pages, checked 2026-10-30; recheck
@@ -591,7 +605,7 @@ PR → approval → merge.
   once, 17 s in all). The API container peaked at 1,415 MiB of its 1,600 limit, including
   reclaimable disk cache; its process alone is 250 MB.
 
-### D4. AWS setup and first deploy, by hand — #30
+### D4. AWS setup and first deploy, by hand — #30 ✅
 
 Do every step yourself once before automating it: the best way to learn what the pipeline does.
 
@@ -602,16 +616,22 @@ Do every step yourself once before automating it: the best way to learn what the
    WebUI** (`docker compose restart open-webui`): it switches sign-ups off after the first account
    until it restarts, and invitees would get an error (seen in D3).
 
-**Exit checks**
+**Exit checks** (2026-11-06)
 
-- [ ] `https://asktravel.<domain>` loads with a valid certificate.
-- [ ] Ports 8000, 5432 and 22 are closed from outside (`nc -vz <ip> 22` fails).
-- [ ] The instance has no key pair, and Session Manager gives you a shell.
-- [ ] Container logs show up in CloudWatch Logs.
-- [ ] `e2e_flights.py` and `e2e_hotels.py` pass when run on the server. They need small
-  `--base-url` / `--api` options added.
+- [x] `https://asktravel.site` loads with a valid certificate; HTTP redirects to it.
+- [x] Ports 8000, 5432 and 22 are closed from outside; only 80 and 443 answer.
+- [x] The instance has no key pair, and Session Manager gives you a shell.
+- [x] Container logs show up in CloudWatch Logs.
+- [x] A new sign-up gets `pending` and can't chat until approved (HTTP 401).
+- [x] A broken image and a commit with no image both fail the deploy and roll back by themselves.
+- [~] Live checks on the server, in place of `e2e_flights.py` and `e2e_hotels.py` (those need an
+  auto-approved test user and a browser): a real chat through the public URL got live flights,
+  hotels and guidebook pages, peaking at 1,349 of 1,834 MB, with no errors, OOM kills or restarts.
 
 ### D5. Continuous deployment — #91
+
+**Blocked as written:** this account type denies GitHub OIDC on both plans. Options are on #91, and
+the workflow below changes with the choice.
 
 `.github/workflows/deploy.yml`:
 
@@ -658,6 +678,8 @@ jobs:
 
 ### D7. Beta launch — #92
 
+0. **Before the first invite:** upgrade to the paid plan, set a spend limit, resize to `t4g.medium`
+   (stop → change type → start), set `HOTEL_BROWSERS=2`, raise the OpenRouter key's limit (now $5).
 1. **Waves:** 5 friends → 25 → 50 (→ 100 once §4.2 and §4.4 are resolved).
 2. **Invite note:** what AskTravel is, that conversations are stored and traced, how to delete
    your data, and where to send feedback (👍/👎 in the chat; the Feedback phase F1–F4 makes those
@@ -684,7 +706,7 @@ jobs:
 The guidebook switch isn't needed: D0 kept the guidebooks (§4.1).
 
 The existing #27–#32 keep their scope. #30 becomes "AWS setup and first deploy by hand" (§6),
-on the `t4g.medium` that D0 chose. #14's ECS design stays in PLAN.md as the path after the
+on `t4g.small` until D7. #14's ECS design stays in PLAN.md as the path after the
 beta.
 
 ## 10. What you'll have learned by the end

@@ -88,7 +88,7 @@ Open WebUI (:3000) ── OpenAI-compatible HTTP + X-OpenWebUI-User-Email / -Cha
 | 11 | Trusted knowledge base (pgvector / OpenSearch retrieval) | ⬜ Planned |
 | 12 | MCP tools | ⬜ Planned |
 | 13 | Streaming polish: agent progress | ✅ Done (#81 and the P2–P4 follow-ups, issue #36) |
-| 14 | AWS deployment | 🟨 Beta plan in [plans/deployment.md](plans/deployment.md): D0 done (#90: arm64 and Google work from AWS; `t4g.medium`, ~$33/month); D1 next |
+| 14 | AWS deployment | 🟨 Beta plan in [plans/deployment.md](plans/deployment.md): D0–D4 done: live at https://asktravel.site (`t4g.small`, ~$21/month; `t4g.medium` before inviting people); D5 next |
 
 ### Next up
 

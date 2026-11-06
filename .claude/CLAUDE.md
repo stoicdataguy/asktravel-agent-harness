@@ -98,6 +98,11 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
   (`migrate_memories`) rather than in readers.
 - Store/checkpointer are async Postgres: anything touching them (tools, middleware) must be
   `async def` and use `aput`/`asearch`/…; sync calls fail inside the event loop.
+- API auth (#27): every route except `/health` requires `Authorization: Bearer $AGENT_API_KEY`
+  (`api/auth.py`, an app-wide dependency); Compose passes the same key to Open WebUI as
+  `OPENAI_API_KEY`. Unset = open (laptop only). Scripts that call the API directly add
+  `api_key_headers()`. New routes are protected automatically; only add to `OPEN_PATHS` for
+  health checks. Check it with `uv run python scripts/e2e_auth.py [--expect-pending]`.
 - Identity: `user_id` = `X-OpenWebUI-User-Email` header (lowercased), passed as `UserContext` runtime
   context. Tools read it from `runtime.context.user_id`; never take user_id as an LLM-visible argument.
 - Context budget: never rewrite the saved thread to shrink context (`SummarizationMiddleware` does,

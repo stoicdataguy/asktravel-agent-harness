@@ -315,8 +315,8 @@ likely dominate: a tool-heavy itinerary run is 15+ model calls.
 
 - **Open WebUI background tasks are off.** Title, tag and follow-up generation would otherwise
   run through the agent and pollute threads, so chats are titled by their first message.
-- **The agent API is unauthenticated** and trusts the user-email header. Fine on a laptop; must
-  be fixed before any deployment (see [Required changes](#required-changes-before-deploying)).
+- **The agent API trusts the user-email header**, so it requires a bearer token
+  (`AGENT_API_KEY`) that only Open WebUI holds (#27). Unset, the API is open: laptop only.
 - **Open WebUI admin-panel changes don't persist** across restarts
   (`ENABLE_PERSISTENT_CONFIG=false`); `docker-compose.yml` is the source of truth for its settings.
 - **Guidebooks are 2016-era editions.** The agent flags prices, hours and contacts as possibly

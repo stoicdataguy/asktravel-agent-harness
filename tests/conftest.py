@@ -27,6 +27,8 @@ def instant_retries(monkeypatch):
 def no_tracing(monkeypatch):
     """Keep tests off the network even when .env enables tracing; env vars beat .env."""
     monkeypatch.setenv("LANGSMITH_TRACING", "false")
+    # A key in a developer's .env would otherwise make every API test get 401
+    monkeypatch.setenv("AGENT_API_KEY", "")
     _clear_caches()
     yield
     _clear_caches()

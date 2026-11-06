@@ -1,6 +1,6 @@
 # Deployment plan: AskTravel beta on AWS
 
-Status: D0 done (2026-11-05); D1 next. Covers issues #27–#32 and #14, plus #90 (spike), #91 (deploy
+Status: D0 and D1 done (2026-11-05); D2 (CI) next. Covers issues #27–#32 and #14, plus #90 (spike), #91 (deploy
 pipeline) and #92 (beta launch); see §9. Key terms and the reasoning behind each
 decision are explained visually in [deployment-explainer.html](../deployment-explainer.html).
 New to cloud? Start with the 8-minute primer and quiz,
@@ -556,11 +556,12 @@ PR → approval → merge.
 - **No inbound rules at all:** the spike's security group had none, and Session Manager still
   worked. The production group only adds 80 and 443.
 
-### D1. API auth and invite-only signup — #27
+### D1. API auth and invite-only signup — #27 ✅
 
-- [ ] Requests without the token get 401.
-- [ ] `e2e_branching.py` passes.
-- [ ] A new sign-up lands in "pending" until approved.
+- [x] Requests without the token get 401 (`e2e_auth.py`, 6/6 with `--expect-pending`).
+- [x] `e2e_branching.py` passes (3/3).
+- [x] A new sign-up lands in "pending" until approved, with `DEFAULT_USER_ROLE=pending`, which
+  the prod compose sets (D3).
 
 ### D2. CI — #29
 

@@ -97,6 +97,46 @@ class HotelOption(BaseModel):
         return " · ".join(parts)
 
 
+class TrainClass(BaseModel):
+    """One class on a train from `search_trains`."""
+
+    code: str = Field(description="e.g. SL, 3A, 2A, 1A, CC, EC.")
+    fare: int | None = Field(default=None, description="Per person.")
+    availability: str | None = Field(default=None, description="As shown, e.g. 'AVL 71', 'WL 12'.")
+
+    def summary(self) -> str:
+        fare = f"₹{self.fare:,}" if self.fare is not None else "fare unknown"
+        return f"{self.code} {fare} {self.availability or 'availability unknown'}"
+
+
+class TrainOption(BaseModel):
+    """A train from `search_trains`, on the stations it actually uses. Fares are per person."""
+
+    number: str
+    name: str
+    from_station: str = Field(description="Station code.")
+    to_station: str = Field(description="Station code.")
+    departs: str = Field(description="Local time, e.g. '06:00'.")
+    arrives: str = Field(description="Local time, e.g. '07:50'.")
+    duration_minutes: int | None = None
+    classes: list[TrainClass] = Field(default_factory=list)
+
+    def summary(self) -> str:
+        parts = [
+            f"{self.number} {self.name}",
+            f"{self.from_station} {self.departs} → {self.to_station} {self.arrives}",
+        ]
+        if self.duration_minutes:
+            hours, minutes = divmod(self.duration_minutes, 60)
+            parts.append(
+                " ".join(
+                    ([f"{hours} hr"] if hours else []) + ([f"{minutes} min"] if minutes else [])
+                )
+            )
+        parts += [c.summary() for c in self.classes]
+        return " · ".join(parts)
+
+
 class Itinerary(BaseModel):
     """A complete day-by-day trip plan."""
 
@@ -122,6 +162,9 @@ class Itinerary(BaseModel):
     )
     flights: list[FlightOption] = Field(
         default_factory=list, description="Flights the user chose, from search_flights results."
+    )
+    trains: list[TrainOption] = Field(
+        default_factory=list, description="Trains the user chose, from search_trains results."
     )
     days: list[DayPlan] = Field(min_length=1)
     bookings_to_make: list[str] = Field(
@@ -171,6 +214,8 @@ def render_itinerary(itinerary: Itinerary) -> str:
         lines += ["**Hotels**", ""] + [f"- {h.summary()}" for h in itinerary.hotels] + [""]
     if itinerary.flights:
         lines += ["**Flights**", ""] + [f"- {f.summary()}" for f in itinerary.flights] + [""]
+    if itinerary.trains:
+        lines += ["**Trains**", ""] + [f"- {t.summary()}" for t in itinerary.trains] + [""]
     for day in itinerary.days:
         lines += [f"## Day {day.day} · {day.title}", ""]
         lines += [_activity_line(a) for a in day.activities]

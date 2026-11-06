@@ -18,6 +18,11 @@ Read the pages for frequencies, journey times and price bands. **Schedules and p
 an old edition**: give them as guidance and tell the user to check the operator's site or app
 before travelling.
 
+## Trains within India
+
+Call `search_trains` with the station codes and date for real times, fares and availability. If
+you don't have a date, ask for one. Say how old the availability is, and that it changes quickly.
+
 ## Compare options
 
 For each leg the user cares about, give a small table:

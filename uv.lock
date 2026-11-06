@@ -3467,6 +3467,7 @@ source = { editable = "." }
 dependencies = [
     { name = "fast-flights" },
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "langchain" },
     { name = "langchain-mcp-adapters" },
     { name = "langchain-openai" },
@@ -3499,6 +3500,7 @@ ingest = [
 requires-dist = [
     { name = "fast-flights", specifier = ">=3.1.0" },
     { name = "fastapi", specifier = ">=0.162.0" },
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "langchain", specifier = ">=1.0" },
     { name = "langchain-mcp-adapters", specifier = ">=0.3.2" },
     { name = "langchain-openai", specifier = ">=1.7.3" },

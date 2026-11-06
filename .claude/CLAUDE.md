@@ -56,6 +56,7 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
 - `src/travel_agent/tools/itinerary.py` — `present_itinerary` (structured plan → store + chat).
 - `src/travel_agent/tools/flights.py` — `search_flights` (Google Flights via fast-flights; sync lib run in a thread).
 - `src/travel_agent/tools/hotels.py` — `search_hotels` (Playwright on Google Hotels; `parse_card` is pure and unit-tested).
+- `src/travel_agent/tools/trains.py` — `search_trains` (Indian trains via ConfirmTkt's JSON endpoint; `to_option` is pure and unit-tested).
 - `src/travel_agent/tools/trips.py` — trip memory (`Trip`, `save_trip_details`, `get_trip`, `delete_trip`,
   `match_trip`, `trip_status`, startup id migration + backfill).
 - `src/travel_agent/user_data.py` — view / export / delete-all of one user's data (`/api/memory`).
@@ -131,8 +132,8 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
   `e2e_memory.py` (other e2e scripts still assume :8000).
 - Token usage per model call (input, cache read, cache write) is on every LangSmith LLM run;
   OpenRouter does cache `gpt-6-luna` prompts, so keep the start of the prompt stable.
-- After changing flight or hotel search, run `uv run python scripts/e2e_flights.py` / `e2e_hotels.py`
-  (both check quoted prices against a live Google lookup). If Google changes its markup, update
+- After changing flight, hotel or train search, run `uv run python scripts/e2e_flights.py` / `e2e_hotels.py`
+  / `e2e_trains.py` (all check quoted prices against a separate live lookup). If Google changes its markup, update
   the selectors in `tools/hotels.py` and the captured card texts in `tests/test_hotels.py`.
 - The provider rate-limits at about 20 requests/min on gpt-6-luna. The agent's model calls are
   retried by `agent/retry.py` (its client has `max_retries=0`): Retry-After or exponential backoff,
@@ -144,7 +145,8 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
   readable message (`error_message`) followed by `[DONE]`.
 - After changing anything in the request path, run the browser test
   `uv run python scripts/e2e_branching.py` (full stack running).
-- Flights: `fast-flights`. Hotels and web pages: Playwright scraping. No paid search APIs.
+- Flights: `fast-flights`. Hotels and web pages: Playwright scraping. Trains (India only): ConfirmTkt's
+  undocumented JSON endpoint, no browser, so no extra memory. No paid search APIs.
 - `reference/` (raw PDFs) and `data/guidebooks/*.md` are copyrighted material: never commit them.
 - Every agent invocation (incl. future subagents) uses `observability.run_config(user_id, thread_id)`
   so traces get the tracer plus `thread_id` / `user_id` metadata (a chat's traces form one LangSmith

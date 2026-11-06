@@ -24,6 +24,8 @@ mid-range / splurge). Ask only for what's missing and matters; otherwise assume 
 - For accommodation, call `search_hotels` for the base(s) and dates and use real nightly rates
   (they may exclude taxes and fees; say so). Without dates, use guidebook price bands labelled
   as estimates.
+- For trains within India, call `search_trains` with station codes and the date, and use real
+  fares (per person, so multiply by travellers). Elsewhere, label train costs as estimates.
 - Never present an estimate as a live or exact price.
 
 ## Break it down

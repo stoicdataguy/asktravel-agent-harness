@@ -19,6 +19,7 @@ import sys
 import urllib.request
 import uuid
 
+from travel_agent.api.auth import api_key_headers
 from travel_agent.config import get_settings
 from travel_agent.memory import open_memory, user_namespace
 
@@ -43,6 +44,7 @@ def chat(chat_id: str, history: list[dict], text: str) -> str:
             "content-type": "application/json",
             "X-OpenWebUI-User-Email": USER,
             "X-OpenWebUI-Chat-Id": chat_id,
+            **api_key_headers(),
         },
     )
     with urllib.request.urlopen(request, timeout=600) as response:

@@ -25,6 +25,9 @@ class Settings(BaseSettings):
 
     host: str = "0.0.0.0"
     port: int = 8000
+    # Bearer token every API request except /health must carry (#27). Docker Compose hands the
+    # same value to Open WebUI as OPENAI_API_KEY. Empty = no check (local dev only).
+    agent_api_key: SecretStr = SecretStr("")
 
     # Checkpointer (thread memory) and store (long-term memory) both live here
     database_url: str = "postgresql://travel:travel@localhost:5433/travel_agent"

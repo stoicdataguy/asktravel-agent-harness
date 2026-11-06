@@ -42,7 +42,8 @@ services:
       DATABASE_URL: postgresql://travel:travel@postgres:5432/travel_agent
       DATABASE_SCHEMA: open_webui
       OPENAI_API_BASE_URL: http://host.docker.internal:8000/v1
-      OPENAI_API_KEY: not-used
+      # The agent API's bearer token (#27), from AGENT_API_KEY in .env (Compose reads it too)
+      OPENAI_API_KEY: ${AGENT_API_KEY:-not-used}
       ENABLE_OLLAMA_API: "false"
       # Dummy multi-user login: anyone can sign up with an email (password is required but unchecked
       # by us) and is active immediately. The email becomes the agent's user_id.
@@ -53,7 +54,9 @@ services:
       WEBUI_NAME: AskTravel
       WEBUI_AUTH: "true"
       ENABLE_SIGNUP: "true"
-      DEFAULT_USER_ROLE: user
+      # "pending" in production: a new sign-up waits until an admin approves it (invite-only
+      # beta, #27). "user" locally, where e2e scripts sign up test accounts.
+      DEFAULT_USER_ROLE: ${DEFAULT_USER_ROLE:-user}
       DEFAULT_MODELS: travel-agent
       DEFAULT_PROMPT_SUGGESTIONS: >-
         [{"title": ["Plan 3 days on the Big Island", "using Lonely Planet's picks"],

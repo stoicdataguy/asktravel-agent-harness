@@ -18,6 +18,7 @@ import urllib.request
 from owui import delete_chat, get_token
 
 from travel_agent import user_data
+from travel_agent.api.auth import api_key_headers
 from travel_agent.config import get_settings
 from travel_agent.memory import open_memory
 from travel_agent.tools.conversations import chats_namespace
@@ -55,7 +56,7 @@ async def main(args) -> int:
     post(
         f"{args.api}/v1/chat/completions",
         {"model": "travel-agent", "messages": [{"role": "user", "content": "Say hi in 3 words."}]},
-        {"X-OpenWebUI-User-Email": EMAIL, "X-OpenWebUI-Chat-Id": chat["id"]},
+        {"X-OpenWebUI-User-Email": EMAIL, "X-OpenWebUI-Chat-Id": chat["id"], **api_key_headers()},
     )
     async with open_memory(get_settings().database_url) as (checkpointer, store):
         try:

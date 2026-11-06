@@ -141,8 +141,9 @@ Run only the cases that your change can affect.
 
 This is a POC for learning and testing. It is not ready for public users.
 
-- **Security:** The agent API trusts the user email in a request header. Do not expose port 8000
-  to a network (issue #27).
+- **Security:** The agent API trusts the user email in a request header, so only Open WebUI may
+  call it: set `AGENT_API_KEY` in `.env` and every route except `/health` needs that bearer
+  token (#27). Without a key the API is open, which is fine on a laptop only.
 - **Scraping:** Flight and hotel search read Google's pages. Google can change its pages or
   block the requests.
 - **Branding:** The chat UI shows "AskTravel (Open WebUI)". The Open WebUI license allows a custom

@@ -2,10 +2,11 @@ import asyncio
 import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 
 from travel_agent import user_data
 from travel_agent.agent.graph import build_agent
+from travel_agent.api.auth import check_auth_config, require_api_key
 from travel_agent.api.openai_compat import resolve_user
 from travel_agent.api.openai_compat import router as openai_router
 from travel_agent.chat_deletions import run_chat_deletion_sync
@@ -23,6 +24,7 @@ from travel_agent.tools.trips import backfill_trips, migrate_trip_ids
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     check_tracing_config()
+    check_auth_config()
     async with open_memory(get_settings().database_url) as (checkpointer, store):
         await migrate_memories(store)
         await migrate_trip_ids(store)
@@ -61,7 +63,7 @@ async def lifespan(app: FastAPI):
     flush_traces()
 
 
-app = FastAPI(title="Travel Agent", lifespan=lifespan)
+app = FastAPI(title="Travel Agent", lifespan=lifespan, dependencies=[Depends(require_api_key)])
 app.include_router(openai_router)
 
 
@@ -91,7 +93,8 @@ async def list_models() -> dict:
 async def itineraries(request: Request) -> dict:
     """Structured itineraries the agent produced for this user, newest first.
 
-    The user comes from the same X-OpenWebUI-User-Email header as chat requests (dev-only trust).
+    The user comes from the same X-OpenWebUI-User-Email header as chat requests, trusted because
+    only Open WebUI holds the API key (api/auth.py).
     """
     return {"data": await list_itineraries(request.app.state.store, resolve_user(request.headers))}
 
@@ -100,8 +103,7 @@ async def itineraries(request: Request) -> dict:
 async def memory_view(request: Request) -> dict:
     """What AskTravel remembers about the calling user: facts, trips, saved plans and chats.
 
-    Like /api/itineraries, the user comes from the X-OpenWebUI-User-Email header (dev-only trust
-    until the API is authenticated, #27).
+    Like /api/itineraries, the user comes from the X-OpenWebUI-User-Email header.
     """
     state = request.app.state
     return await user_data.remembered(

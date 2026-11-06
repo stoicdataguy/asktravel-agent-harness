@@ -8,14 +8,24 @@
 # .env.prod.local holds what deploy.sh writes on the server, with DOMAIN=:80 (plain HTTP),
 # APP_ENV_FILE=.env.prod.local, API_IMAGE=asktravel-api:local, GUIDEBOOKS_DIR=./data/guidebooks and
 # DEFAULT_USER_ROLE=user (e2e scripts sign up test accounts).
+x-local-logging: &local-logging !override
+  driver: json-file  # production sends logs to CloudWatch
+
 services:
   caddy:
+    logging: *local-logging
     ports: !override
       - "3000:80"
+  open-webui:
+    logging: *local-logging
   api:
+    logging: *local-logging
     build: .
     ports:
       - "8001:8000"  # e2e_memory.py and e2e_chat_deletion.py: --api http://localhost:8001
   postgres:
+    logging: *local-logging
     ports:
       - "5434:5432"  # e2e scripts read threads: DATABASE_URL=postgresql://travel:…@localhost:5434/…
+  db-init:
+    logging: *local-logging

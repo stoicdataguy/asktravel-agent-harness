@@ -366,8 +366,8 @@ Differences from the dev file:
 
 ### 5.3 `deploy/` folder (new)
 
-`Caddyfile` came with D3. The scripts below are written in D4, because only the real server can
-test them.
+`Caddyfile` came with D3. `bootstrap.sh` and `deploy.sh` came with D4, because only the real server
+can test them. `backup.sh`, its timer and the CloudWatch agent come with D6.
 
 - `Caddyfile`: serves `$DOMAIN` over HTTPS. `/agent-health` goes to the API's `/health`, and
   everything else goes to Open WebUI, so nothing else of the API is reachable from outside.

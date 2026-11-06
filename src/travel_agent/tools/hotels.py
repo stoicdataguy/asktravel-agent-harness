@@ -24,6 +24,11 @@ MAX_RESULTS = 10
 MAX_DAYS_AHEAD = 330  # Google's calendar covers roughly the next year
 PAGE_TIMEOUT_MS = 45_000
 
+# Only the cards' text is read, so photos, fonts and video are never downloaded or rendered:
+# ~60 MB less per search on the server (#100). /dev/shm is tiny in containers.
+SKIPPED_RESOURCES = {"image", "media", "font"}
+CHROME_ARGS = ["--disable-dev-shm-usage", "--disable-gpu", "--disable-extensions"]
+
 # One card per hotel: from each "Prices starting from $X, <name>" link, climb to the largest
 # ancestor that still contains exactly one hotel name (h2)
 _CARDS_JS = r"""() => {
@@ -49,6 +54,13 @@ _RATING = re.compile(r"^(\d(?:\.\d)?)(?:/5)?$")
 _REVIEWS = re.compile(r"^\(([\d.,]+K?)\)$")
 _AMENITIES = re.compile(r"Amenities for [^:]*:\s*(.+)")
 _DEAL_TAGS = ("DEAL", "GREAT PRICE")
+
+
+async def skip_heavy(route) -> None:
+    if route.request.resource_type in SKIPPED_RESOURCES:
+        await route.abort()
+    else:
+        await route.continue_()
 
 
 def search_url(location: str) -> str:
@@ -99,9 +111,10 @@ async def fetch_hotel_cards(
     """
     async with async_playwright() as p:
         on_step("opening Google Hotels")
-        browser = await p.chromium.launch()
+        browser = await p.chromium.launch(args=CHROME_ARGS)
         try:
             page = await browser.new_page(locale="en-US", viewport={"width": 1280, "height": 1000})
+            await page.route("**/*", skip_heavy)
             page.set_default_timeout(PAGE_TIMEOUT_MS)
             await page.goto(search_url(location), wait_until="domcontentloaded")
             await page.locator('a[aria-label^="Prices starting from"]').first.wait_for()

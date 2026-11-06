@@ -4,8 +4,17 @@
 # Run it on a laptop with docker-compose.prod.local.yml (see that file).
 name: asktravel
 
+# Every container's log goes to CloudWatch Logs; the instance role allows it, no keys needed
+x-logging: &logging
+  driver: awslogs
+  options:
+    awslogs-region: us-east-2
+    awslogs-group: /asktravel/prod
+    tag: "{{.Name}}"
+
 services:
   caddy:
+    logging: *logging
     image: caddy:2.11.8-alpine
     restart: unless-stopped
     mem_limit: 128m
@@ -23,6 +32,7 @@ services:
       - caddy-config:/config
 
   open-webui:
+    logging: *logging
     image: ghcr.io/open-webui/open-webui:v0.12.5  # upgrades are their own PR; rerun e2e_chat_deletion.py
     restart: unless-stopped
     mem_limit: 1200m
@@ -79,6 +89,7 @@ services:
       - ./branding/favicon.png:/app/build/favicon.png:ro  # default assistant avatar
 
   api:
+    logging: *logging
     image: ${API_IMAGE:?set API_IMAGE in .env}
     restart: unless-stopped
     mem_limit: 1600m  # the API (~235 MB) plus HOTEL_BROWSERS Chromiums (~400 MB each)
@@ -94,6 +105,7 @@ services:
       - ${GUIDEBOOKS_DIR:-./guidebooks}:/app/data/guidebooks:ro
 
   postgres:
+    logging: *logging
     image: postgres:16-alpine
     restart: unless-stopped
     mem_limit: 512m
@@ -111,6 +123,7 @@ services:
 
   # Creates the schema Open WebUI keeps its tables in (see docker-compose.yml)
   db-init:
+    logging: *logging
     image: postgres:16-alpine
     depends_on:
       postgres:

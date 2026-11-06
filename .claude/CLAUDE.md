@@ -16,6 +16,10 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
 ## Commands
 - Prod stack on a laptop: see `docker-compose.prod.local.yml`'s header (`Dockerfile`, `docker-compose.prod.yml`,
   `deploy/Caddyfile`). Its own Compose project and database; only stop the dev Open WebUI (port 3000).
+- Production: https://asktravel.site (EC2 `asktravel`, us-east-2). Shell: Session Manager. By hand: push
+  `<ecr>/asktravel-api:<sha>` from a pushed commit, then `/opt/asktravel/deploy/deploy.sh <sha>` as root
+  (rolls back on failed health checks). Secrets: Parameter Store `/asktravel/prod/*`. After the first
+  account on a new database, restart Open WebUI or sign-ups stay off. AWS limits: plan §6.1.
 - Infra: `docker compose up -d` → Postgres :5433, Open WebUI http://localhost:3000
   (Open WebUI's tables live in our Postgres, schema `open_webui`; an old SQLite install is copied over
   once with `scripts/migrate_owui_to_postgres.py`, see its docstring)

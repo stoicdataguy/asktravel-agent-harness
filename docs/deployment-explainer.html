@@ -194,8 +194,8 @@ footer { padding: 40px 0 60px; color: var(--muted); font-size: 13px; }
   <h1>Putting AskTravel in the cloud, explained</h1>
   <p class="lead">A companion to <span class="mono">docs/plans/deployment.md</span>. The plan says what to do; this page explains the words in it and why each choice was made. It's written for someone who knows the fundamentals but hasn't run anything in production. Revised for EC2 with AWS-native services (#98), so the beta also teaches real AWS.</p>
   <div class="facts">
-    <div class="fact"><span class="n">1 server</span><p>An EC2 t4g.small (2 GB, arm64) in a VPC, running the same Docker Compose stack you run on your laptop</p></div>
-    <div class="fact"><span class="n">~$21 / month</span><p>Hosting: $12.26 server + $3.65 public IP + disk, DNS, snapshots. ~$33 if it needs 4 GB. LLM usage is separate</p></div>
+    <div class="fact"><span class="n">1 server</span><p>An EC2 t4g.medium (4 GB, arm64) in a VPC, running the same Docker Compose stack you run on your laptop</p></div>
+    <div class="fact"><span class="n">~$33 / month</span><p>Hosting: $24.53 server + $3.65 public IP + disk, DNS, snapshots. The D0 spike showed 2 GB is too tight. LLM usage is separate</p></div>
     <div class="fact"><span class="n">0 SSH, 0 keys</span><p>The security group opens only 80 and 443. No SSH port, no key pair, and no AWS access keys anywhere: IAM roles and SSM instead</p></div>
     <div class="fact"><span class="n">1 click</span><p>To ship: merge a PR, approve the deploy, and the pipeline does the rest, rolling back if a health check fails</p></div>
   </div>
@@ -223,7 +223,7 @@ footer { padding: 40px 0 60px; color: var(--muted); font-size: 13px; }
 
         <!-- server and docker network outlines -->
         <rect x="200" y="20" width="530" height="440" rx="10" fill="none" stroke="var(--line)" stroke-width="2"/>
-        <text x="216" y="44" class="zone-lbl" style="fill:var(--muted)">EC2 T4G.SMALL · ARM64 · 2 GB · VPC · SECURITY GROUP 80/443</text>
+        <text x="216" y="44" class="zone-lbl" style="fill:var(--muted)">EC2 T4G.MEDIUM · ARM64 · 4 GB · VPC · SECURITY GROUP 80/443</text>
         <rect x="228" y="64" width="474" height="376" rx="8" fill="none" stroke="var(--priv)" stroke-width="1.5" stroke-dasharray="6 5"/>
         <text x="244" y="86" class="zone-lbl" style="fill:var(--priv)">DOCKER NETWORK (PRIVATE)</text>
 
@@ -334,11 +334,11 @@ footer { padding: 40px 0 60px; color: var(--muted); font-size: 13px; }
       </div>
     </details>
     <details class="dec">
-      <summary><span class="id">D-2</span><span class="q">Which kind of server, from whom?</span><span class="a">EC2 t4g.small (arm64), us-east-2</span></summary>
+      <summary><span class="id">D-2</span><span class="q">Which kind of server, from whom?</span><span class="a">EC2 t4g.medium (arm64), us-east-2</span></summary>
       <div class="body">
         <div><h4>Why</h4><p>It teaches the AWS concepts everything else builds on: VPC, subnets, security groups, EBS, Elastic IPs and IAM roles. With a role, the server needs no AWS keys. arm64 (Graviton) is ~20% cheaper than x86. A US region keeps Google's results as they are on your laptop.</p></div>
-        <div><h4>Given up</h4><p>~$8 a month more than Lightsail (whose price includes the IP and disk), more setup, and more ways to make a costly mistake: NAT gateways, idle IPs, unlimited CPU credits. Images must be built for arm64. Memory is still tight at 2 GB.</p></div>
-        <div><h4>Revisit when</h4><p>D0 shows memory pressure (t4g.medium, 4 GB) or an arm64 problem (t3.small). After a month: capture it as infrastructure as code. If cost matters more than learning AWS, Lightsail 2 GB ($12) is the simpler fallback.</p></div>
+        <div><h4>Given up</h4><p>~$20 a month more than Lightsail 2 GB (whose price includes the IP and disk), more setup, and more ways to make a costly mistake: NAT gateways, idle IPs, unlimited CPU credits. Images must be built for arm64. The D0 spike ruled out 2 GB: one hotel search filled it to 94%.</p></div>
+        <div><h4>Revisit when</h4><p>Memory or CPU credits run low in the beta (CloudWatch alarms), or an arm64 problem turns up (t3.medium; D0 found none). After a month: capture it as infrastructure as code. If cost matters more than learning AWS, Lightsail 2 GB ($12) is the simpler fallback.</p></div>
       </div>
     </details>
     <details class="dec">
@@ -399,10 +399,10 @@ footer { padding: 40px 0 60px; color: var(--muted); font-size: 13px; }
   <div class="table-scroll"><table>
     <thead><tr><th>Server option</th><th class="num">Per month</th><th>Memory</th><th>Fits AskTravel?</th></tr></thead>
     <tbody>
-      <tr><td>EC2 t4g.micro</td><td class="num">~$11.40</td><td>1 GB</td><td>No: Open WebUI alone uses ~0.7 GB</td></tr>
-      <tr class="pick"><td><b>EC2 t4g.small (plan)</b></td><td class="num"><b>~$17.50</b></td><td>2 GB</td><td>Yes, with hotel searches one at a time and swap</td></tr>
-      <tr><td>EC2 t4g.medium</td><td class="num">~$29.80</td><td>4 GB</td><td>Comfortably; the fallback</td></tr>
-      <tr><td>EC2 t3.small (x86)</td><td class="num">~$20.40</td><td>2 GB</td><td>Yes; the fallback if something won't run on arm64</td></tr>
+      <tr><td>EC2 t4g.micro</td><td class="num">~$11.40</td><td>1 GB</td><td>No: Open WebUI alone uses ~0.67 GB</td></tr>
+      <tr><td>EC2 t4g.small</td><td class="num">~$17.50</td><td>2 GB</td><td>No: measured in D0, one hotel search fills it to 94%</td></tr>
+      <tr class="pick"><td><b>EC2 t4g.medium (plan)</b></td><td class="num"><b>~$29.80</b></td><td>4 GB</td><td>Yes: ~45% with one hotel search, ~55% with two</td></tr>
+      <tr><td>EC2 t3.medium (x86)</td><td class="num">~$35.60</td><td>4 GB</td><td>Yes; the fallback if something won't run on arm64 (D0 found nothing)</td></tr>
       <tr><td>Lightsail 2 GB</td><td class="num">$12</td><td>2 GB</td><td>Yes; cheaper and simpler, but teaches little AWS</td></tr>
       <tr><td>Hetzner CX23 / CAX11 (EU)</td><td class="num">~€6–7</td><td>4 GB</td><td>Yes, but EU location affects Google scraping</td></tr>
       <tr><td>ECS Fargate + RDS + load balancer</td><td class="num">~$110–150</td><td>n/a</td><td>Yes: the "real" AWS design, for later</td></tr>
@@ -420,7 +420,7 @@ footer { padding: 40px 0 60px; color: var(--muted); font-size: 13px; }
       <tr><td>SSM, Parameter Store, IAM, OIDC, DLM, Budgets</td><td class="num">$0</td><td>No charge at this use</td></tr>
       <tr><td>GitHub Actions (incl. arm64), UptimeRobot, Healthchecks.io</td><td class="num">$0</td><td>Free for public repos / free plans</td></tr>
       <tr><td>LangSmith Developer</td><td class="num">$0</td><td>5k traces a month</td></tr>
-      <tr><td><b>Hosting total</b></td><td class="num"><b>~$21</b></td><td>~$33 on the 4 GB server. New accounts get up to $200 in credits for 6 months; don't plan around them</td></tr>
+      <tr><td><b>Hosting total</b></td><td class="num"><b>~$33</b></td><td>On the 4 GB server. New accounts get up to $200 in credits for 6 months; don't plan around them</td></tr>
     </tbody>
   </table></div>
 </section>
@@ -442,7 +442,7 @@ footer { padding: 40px 0 60px; color: var(--muted); font-size: 13px; }
   <h2>The phases</h2>
   <p class="lead">Each one is a PR (or a few), with checks you can run. Doing the first deploy by hand (D4) before automating it (D5) is on purpose: you learn what the pipeline does for you.</p>
   <div class="phases">
-    <div class="phase"><div class="pid">D0</div><h3>Decide and spike</h3><div class="iss">#90</div><ul><li>Blockers decided</li><li>AWS account: MFA, budget alerts</li><li>Throwaway t4g.small: arm64, memory and Google checked</li></ul></div>
+    <div class="phase"><div class="pid">D0</div><h3>Decide and spike</h3><div class="iss">#90 ✅</div><ul><li>Blockers decided: guidebooks kept, 50 users</li><li>AWS account: MFA, budget alerts</li><li>Throwaway t4g.small: arm64 ✅, Google ✅, 2 GB too tight → t4g.medium</li></ul></div>
     <div class="phase"><div class="pid">D1</div><h3>Lock the API, invite-only signup</h3><div class="iss">#27</div><ul><li>No token → 401</li><li>New sign-ups wait for approval</li></ul></div>
     <div class="phase"><div class="pid">D2</div><h3>CI on every PR</h3><div class="iss">#29</div><ul><li>Failing test blocks merge</li></ul></div>
     <div class="phase"><div class="pid">D3</div><h3>Containerise, run prod locally</h3><div class="iss">#28</div><ul><li>Dockerfile, prod compose, Caddy</li><li>e2e suites pass against it</li><li>One browser at a time</li></ul></div>
@@ -519,14 +519,14 @@ footer { padding: 40px 0 60px; color: var(--muted); font-size: 13px; }
   var TERMS = [
     ["Basics", "Region", "A geographic location with its own data centres (us-east-2 is Ohio). Data and servers live in one region unless you copy them.", "us-east-2, fixed by the new AWS sign-up for a US address. Close to US users and to the Google results you test with."],
     ["Basics", "Availability Zone (AZ)", "An isolated data centre (or group) inside a region. Spreading across AZs survives one failing.", "We use one: a single server is a single point of failure, accepted for the beta."],
-    ["Basics", "Instance / VM / instance type", "A virtual machine: a slice of a physical server that behaves like your own computer with an OS. The instance type sets its CPU and memory.", "One EC2 t4g.small: 2 vCPU, 2 GB, Ubuntu 24.04."],
+    ["Basics", "Instance / VM / instance type", "A virtual machine: a slice of a physical server that behaves like your own computer with an OS. The instance type sets its CPU and memory.", "One EC2 t4g.medium: 2 vCPU, 4 GB, Ubuntu 24.04."],
     ["Basics", "AMI", "Amazon Machine Image: the disk template an instance starts from (OS plus preinstalled software).", "Ubuntu 24.04 LTS for arm64, which already includes the SSM agent."],
     ["Basics", "Graviton / arm64", "AWS's own ARM processors. Cheaper per GB than x86, but software must be built for arm64.", "t4g = Graviton. The image is built on GitHub's arm64 runner; your Apple-silicon Mac is arm64 too."],
     ["Basics", "User data", "A script EC2 runs on an instance's first boot.", "deploy/bootstrap.sh: installs Docker, the AWS CLI and the ECR helper, adds swap, clones the repo."],
     ["Basics", "EBS volume", "A network disk attached to an instance. It outlives the instance if you say so, and can be snapshotted.", "20 GB gp3, encrypted, kept on termination."],
     ["Basics", "Managed service", "The provider runs the software (patches, backups, failover) and you just use it, e.g. RDS for Postgres.", "We self-manage Postgres to save ~$15/month; tracing is managed (LangSmith)."],
     ["Basics", "Burstable CPU", "Cheap instances get a baseline share of CPU and bank credits to burst above it. Run out and they slow down.", "Chromium page loads burst. Credit mode standard (no surprise charges), and a CloudWatch alarm when CPUCreditBalance drops below 30."],
-    ["Basics", "Vertical vs horizontal scaling", "Vertical: a bigger machine. Horizontal: more machines behind a load balancer.", "Our scaling path is vertical first: stop, change type to t4g.medium, start."],
+    ["Basics", "Vertical vs horizontal scaling", "Vertical: a bigger machine. Horizontal: more machines behind a load balancer.", "Our scaling path is vertical first: stop, change type (t4g.medium → t4g.large, 8 GB), start."],
     ["Basics", "Free tier / free plan", "Allowances or credits a provider gives new accounts. AWS's free plan gives up to $200 in credits but closes the account after 6 months unless you upgrade.", "Nice while it lasts; upgrade before the beta, and the plan's numbers don't assume it."],
     ["Networking", "IP address / Elastic IP", "A machine's address on the internet. An Elastic IP is a fixed public IPv4 you own and can move between instances. Every public IPv4 costs $3.65 a month.", "Route 53 points at the Elastic IP, so resizing or replacing the server doesn't change DNS."],
     ["Networking", "VPC", "Virtual Private Cloud: your own isolated network inside AWS, with its own address range.", "The default VPC that every account has. No new VPC needed for one server."],
@@ -559,7 +559,7 @@ footer { padding: 40px 0 60px; color: var(--muted); font-size: 13px; }
     ["Containers", "Volume", "Storage that outlives a container. Delete the container and the data stays.", "Postgres data, Caddy certificates, Open WebUI files."],
     ["Containers", "Health check", "A command or URL that says whether a service is working. Orchestrators and scripts act on it.", "/health on the API; deploy.sh rolls back if it fails."],
     ["Containers", "Restart policy", "What Docker does when a container stops: restart it, or not.", "unless-stopped, so a crash or reboot brings the app back."],
-    ["Containers", "OOM / swap", "Out of memory: the kernel kills a process. Swap is disk used as slow overflow memory.", "2 GB of swap as a safety net; one hotel browser at a time to stay within RAM."],
+    ["Containers", "OOM / swap", "Out of memory: the kernel kills a process. Swap is disk used as slow overflow memory.", "2 GB of swap as a safety net; at most two hotel browsers at once (~400 MB each, measured in D0)."],
     ["CI/CD", "CI (continuous integration)", "Every change is built and tested automatically when pushed, so main always works.", "ci.yml: ruff and pytest on every PR."],
     ["CI/CD", "CD (continuous deployment)", "Every change that passes CI is shipped automatically (or after one approval).", "deploy.yml, on merge to main."],
     ["CI/CD", "Workflow, job, step, runner", "A workflow (YAML) has jobs; jobs have steps; each job runs on a fresh machine called a runner.", "deploy.yml: test → build → deploy jobs."],
@@ -577,7 +577,7 @@ footer { padding: 40px 0 60px; color: var(--muted); font-size: 13px; }
     ["Operations", "Heartbeat monitoring", "A job pings a URL when it finishes; silence means it didn't run.", "Healthchecks.io for the nightly backup."],
     ["Operations", "Runbook", "Step-by-step instructions for routine and emergency tasks, written before you need them.", "deploy/runbook.md: deploy, roll back, restore, rotate, resize."],
     ["Operations", "Rate limit", "A cap on requests per time window, by a provider or by you.", "OpenRouter's ~20 calls/min caps the beta; our per-user daily turn limit protects spend."],
-    ["Operations", "Budget alert", "An email when cloud spend crosses a threshold, actual or forecast.", "AWS Budget at $25, alerting at 50/80/100%, plus Cost Anomaly Detection."]
+    ["Operations", "Budget alert", "An email when cloud spend crosses a threshold, actual or forecast.", "Two AWS Budgets: $25 a month, plus a $5 early warning. (Cost Anomaly Detection isn't available on the new sign-up type.)"]
   ];
   var groups = ["All"].concat(TERMS.map(function (t) { return t[0]; }).filter(function (g, i, a) { return a.indexOf(g) === i; }));
   var gloss = document.getElementById("gloss"), chips = document.getElementById("gchips"), q = document.getElementById("gq"), empty = document.getElementById("gempty");

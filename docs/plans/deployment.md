@@ -1,22 +1,25 @@
 # Deployment plan: AskTravel beta on AWS
 
-Status: proposed (2026-10-30). Covers issues #27–#32 and #14, plus #90 (spike), #91 (deploy
+Status: D0 done (2026-11-05); D1 next. Covers issues #27–#32 and #14, plus #90 (spike), #91 (deploy
 pipeline) and #92 (beta launch); see §9. Key terms and the reasoning behind each
 decision are explained visually in [deployment-explainer.html](../deployment-explainer.html).
 New to cloud? Start with the 8-minute primer and quiz,
 [concepts/cloud-basics.html](../concepts/cloud-basics.html).
 
 **Goal:** a private beta for 50–100 invited users at `https://asktravel.<your-domain>`, deployed
-from GitHub on every merged PR, for about $20 a month in hosting (LLM usage is separate, §7).
+from GitHub on every merged PR, for about $33 a month in hosting (LLM usage is separate, §7).
 A second goal: learn the core AWS services by using them for real.
 
 *Revised 2026-10-30 (#98): EC2 with AWS-native services replaced Lightsail, Tailscale and GHCR,
 so that the beta teaches real AWS. The Lightsail version costs ~$13 and stays in D-2 as the
 simpler option.*
 
+*Revised 2026-11-05 (#90): the D0 spike chose `t4g.medium` (4 GB), because 2 GB fills to 94%
+during a single hotel search even after the memory fixes in #101. Measurements in §1.*
+
 **The short version**
 
-- **One small server running the stack you already run locally:** an EC2 `t4g.small` (2 GB,
+- **One small server running the stack you already run locally:** an EC2 `t4g.medium` (4 GB,
   arm64) in the default VPC of us-east-2 (Ohio), running Docker Compose. Caddy serves HTTPS in front of
   Open WebUI. The security group opens 80 and 443 only. The agent API and Postgres are not
   reachable from the internet.
@@ -30,19 +33,20 @@ simpler option.*
   health check and rollback.
 - **Nightly database backups to S3, daily disk snapshots, and a restore drill** before inviting
   anyone.
-- **Hosting cost:** about **$21/month** for the 2 GB server, or about $33 if the memory check in
-  D0 says 4 GB is needed. New AWS accounts get up to $200 in credits for 6 months (§7).
+- **Hosting cost:** about **$33/month** for the 4 GB server that D0 chose. New AWS accounts get up
+  to $200 in credits for 6 months (§7).
 
 ---
 
 ## 1. What has to run in production
 
-| Piece | Today (local) | Memory (measured 2026-10-30) | In production |
+| Piece | Today (local) | Memory (measured in D0, 2026-11-05) | In production |
 |---|---|---|---|
-| Open WebUI | compose, `:main` tag | ~700 MB idle | Same container, pinned version |
-| Agent API (FastAPI) | `uv run travel-agent` (reload on) | ~300 MB | Container built by CI, no reload |
-| Chromium (hotel search) | started per `search_hotels` call | Up to ~1.5 GB for 2 parallel searches (macOS count, which overstates shared memory; Linux is lower) | Same, capped at 1 browser at a time |
-| Postgres 16 | compose, port 5433 open | ~85 MB | Same container, no published port, tuned small |
+| Open WebUI | compose, `:main` tag | 674 MB fresh, with its embedding model off (#101; 970 MB with it) | Same container, pinned version |
+| Agent API (FastAPI) | `uv run travel-agent` (reload on) | ~235 MB | Container built by CI, no reload |
+| Chromium (hotel search) | started per `search_hotels` call | +404 MB per search, +661–761 MB for two in parallel (Linux arm64, photos and fonts skipped since #101) | Same, capped at 2 browsers at a time |
+| Postgres 16 | compose, port 5433 open | ~74 MB | Same container, no published port, tuned small |
+| Ubuntu 24.04 | n/a | ~340 MB | The server's own OS |
 | Tracing | LangSmith (cloud) since #87; self-hosted Langfuse before, ~4.2 GB | none | **LangSmith** (free Developer plan), nothing to host |
 | Guidebooks | `data/guidebooks/*.md`, 16 MB | (in the API) | Copied to the server by hand; never in an image (copyrighted) |
 | Background loops | chat-deletion sync, consolidation | (in the API) | Same: needs an always-on process (rules out scale-to-zero hosting) |
@@ -51,14 +55,17 @@ Tracing used to be the one thing that couldn't come along: self-hosted Langfuse 
 memory than the rest of the app combined. Since #87 traces go to LangSmith, so nothing is left
 to move.
 
-Peak memory is about Open WebUI 0.7 + API 0.3 + Postgres 0.1 + OS 0.3 GB,
-plus Chromium during hotel searches:
+D0 measured these on a throwaway `t4g.small` (ARM, Ubuntu 24.04); details are on #90. Idle, the
+stack uses about **1.3 GB**. Then Chromium adds memory during hotel searches:
 
-- one browser at a time: ~0.4–0.6 GB;
-- two in parallel: ~1 GB or more.
+| | 2 GB server (1.83 GB usable) | 4 GB server (~3.8 GB usable) |
+|---|---|---|
+| Idle | 1.32 GB (72%) | 1.32 GB (35%) |
+| One hotel search | 1.73 GB (**94%**) | 1.73 GB (45%) |
+| Two at once | 1.98–2.08 GB, **doesn't fit** | ~2.1 GB (55%) |
 
-So **2 GB fits only with hotel searches serialised and swap as a safety net. 4 GB fits
-comfortably.** D0 measures this on the real Linux server before you commit to a size.
+So the beta uses **`t4g.medium` (4 GB)**. These are empty-database numbers. Postgres and Open
+WebUI grow with users, and 4 GB leaves room for that.
 
 Other properties of the app that shape the design:
 
@@ -81,7 +88,7 @@ Other properties of the app that shape the design:
   ┌─ AWS us-east-2 · default VPC · public subnet ──────────────────────────────────┐
   │                                   │ security group: 80, 443 in (no 22)          │
   │  ┌────────────────────────────────▼──────────────────────────────────────────┐ │
-  │  │ EC2 t4g.small (Ubuntu 24.04 arm64, 2 GB) · 20 GB EBS gp3 · IMDSv2          │ │
+  │  │ EC2 t4g.medium (Ubuntu 24.04 arm64, 4 GB) · 20 GB EBS gp3 · IMDSv2         │ │
   │  │ IAM role "asktravel-ec2": SSM, ECR pull, S3 put, Parameter Store read, logs│ │
   │  │                                                                            │ │
   │  │  caddy :80/:443 ── HTTPS (Let's Encrypt), reverse proxy                    │ │
@@ -126,13 +133,13 @@ explainer page shows the same decisions with diagrams.
   secrets, CI/CD, backups, monitoring.
 - **Revisit when:** paying users, an uptime promise, or more traffic than one server handles.
 
-### D-2. EC2 t4g.small (2 GB, arm64), not Lightsail
+### D-2. EC2 t4g.medium (4 GB, arm64), not Lightsail
 
 | Option | Monthly | RAM | What you learn | Catch |
 |---|---|---|---|---|
-| **EC2 t4g.small** (chosen) | **~$17.50** server part (instance $12.26 + public IPv4 $3.65 + 20 GB gp3 $1.60) | 2 GB, 2 vCPU (Graviton, arm64) | Real AWS: VPC, subnets, security groups, AMIs, EBS, Elastic IPs, IAM roles, IMDSv2, SSM, CloudWatch | More parts to set up; images must be built for arm64; burstable CPU credits |
-| EC2 t4g.medium | ~$29.80 server part | 4 GB | Same | The fallback if D0 says 2 GB is too tight. Resizing is stop → change type → start |
-| EC2 t3.small (x86) | ~$20.40 server part | 2 GB | Same | ~$3 more; the fallback if D0 finds an arm64 problem in a dependency |
+| **EC2 t4g.medium** (chosen in D0) | **~$29.80** server part (instance $24.53 + public IPv4 $3.65 + 20 GB gp3 $1.60) | 4 GB, 2 vCPU (Graviton, arm64) | Real AWS: VPC, subnets, security groups, AMIs, EBS, Elastic IPs, IAM roles, IMDSv2, SSM, CloudWatch | More parts to set up; images must be built for arm64; burstable CPU credits |
+| EC2 t4g.small | ~$17.50 server part | 2 GB | Same | The first choice. D0 measured 94% memory during one hotel search, and two parallel searches don't fit (§1) |
+| EC2 t3.medium (x86) | ~$35.60 server part | 4 GB | Same | The fallback if an arm64 problem turns up later. D0 found none |
 | Lightsail 2 GB | $12, all included | 2 GB | Instance, static IP, firewall, DNS, snapshots; little AWS beyond that | The previous choice: cheapest AWS option, fixed price, but it hides the AWS concepts this plan now wants to teach |
 | Hetzner CX23 / CAX11 | ~€6–7 incl. IPv4 | 4 GB | The same VM skills, not AWS | EU data centres at that price, where Google shows cookie-consent walls that break the scrapers |
 
@@ -142,7 +149,7 @@ explainer page shows the same decisions with diagrams.
   same VPC, security group and IAM role concepts. Here you learn them on one server.
 - With an IAM role, the server needs **no AWS access keys**. That's also what makes ECR,
   Parameter Store and S3 backups clean. Lightsail can't attach a role.
-- **arm64 (Graviton)** is ~20% cheaper than the x86 `t3.small` for the same memory. GitHub's free
+- **arm64 (Graviton)** is ~20% cheaper than the x86 `t3.medium` for the same memory. GitHub's free
   arm64 runners build the image natively (D-4).
 - A US region keeps the Google scrapers working as they do from your laptop.
 
@@ -276,15 +283,21 @@ These aren't engineering tasks, but each one can stop the beta.
      tools), or replace the guides with sources you're allowed to use, such as Wikivoyage
      (CC BY-SA).
    - Decide in D0. (Not legal advice; if in doubt, ask someone qualified.)
+   - **Decided in D0 (2026-11-05):** keep them, for an invite-only closed beta. The guidebook files
+     go to the server privately (§6.10) and never into git or an image.
 2. **Open WebUI's licence and your logo.** `docker-compose.yml` replaces Open WebUI's logo. Its
    licence allows custom branding only for deployments of up to 50 users in a rolling 30 days;
    more needs an enterprise licence ([docs.openwebui.com/license](https://docs.openwebui.com/license)).
    - Either cap the beta at 50 users with the AskTravel logo, or drop the logo overrides in prod
      (keeping `WEBUI_NAME` and the "(Open WebUI)" attribution) before going past 50.
+   - **Decided in D0:** cap the beta at 50 users and keep the AskTravel logo.
 3. **Scraping Google.** `search_flights` and `search_hotels` read Google's pages, and Google often
    challenges traffic from cloud IP ranges ("unusual traffic", captchas).
    - D0 tests this from the real server. If it's blocked, the tools return their error strings
      and the agent still works without live prices, a weaker product.
+   - **D0 result:** from a us-east-2 EC2 address, flights (SFO→JFK) and hotels (Kailua-Kona, and
+     Lisbon in parallel) came back with prices, with no captcha or consent page. One spike
+     isn't volume; `e2e_hotels.py` on the server (D4) and the error rate in the beta will tell.
    - Scraping also sits against Google's terms of service; keep volumes low and be aware of the
      risk.
 4. **Model rate limit (#51).** The provider allows ~20 model calls a minute, and a turn averages
@@ -301,7 +314,7 @@ These aren't engineering tasks, but each one can stop the beta.
 | API auth + invite-only signup | #27 | Require `Authorization: Bearer $AGENT_API_KEY` on everything except `/health`. Open WebUI sends it via `OPENAI_API_KEY`. Prod compose: `DEFAULT_USER_ROLE=pending` (you approve each sign-up in the admin panel), `WEBUI_SECRET_KEY` set |
 | CI | #29 | `.github/workflows/ci.yml`: on pull requests and pushes to `main`, `uv sync --frozen`, `ruff check`, `ruff format --check`, `pytest` (offline; no Postgres or browser needed). Then make it a required check in the "Protect main" ruleset |
 | Dockerfile + prod compose | #28 | See §5.1–5.3. Run the e2e suites against it locally before merging |
-| Memory diet | new (part of #28) | `HOTEL_BROWSERS=1`: an `asyncio.Semaphore` around the browser in `search_hotels`, so parallel calls queue instead of starting two Chromiums. Compose memory reservations; Postgres `shared_buffers=128MB`; Open WebUI with RAG/embedding features off |
+| Memory diet | #101 (done) + part of #28 | Done in #101: Open WebUI without its embedding model (−300 MB), and hotel pages that skip photos, fonts and media (−60 MB per search). Still to do in #28: `HOTEL_BROWSERS=2`, an `asyncio.Semaphore` around the browser in `search_hotels`, so a third parallel call queues instead of starting a third Chromium. Compose memory limits; Postgres `shared_buffers=128MB` |
 | Per-user cap + health route | #32 | Daily turn limit per email (e.g. 40), answered with a clear chat message; `/agent-health` route in Caddy |
 | Guidebook switch | new, if §4.1 needs it | `GUIDEBOOKS_ENABLED=false` hides the three guidebook tools and the guidebook skills' references |
 
@@ -317,8 +330,9 @@ These aren't engineering tasks, but each one can stop the beta.
 - **Kept out of the image** (via `.dockerignore`): `data/`, `reference/`, `.env`, `notebooks/`,
   `docs/`, `.venv`, `tests/`.
 - **Built for `linux/arm64`** (the t4g server is Graviton). Your Apple-silicon laptop is arm64
-  too, so local builds already match. D0 checks that every dependency has arm64 Linux wheels
-  (Playwright's Chromium, `psycopg`, `fast-flights`' `primp`).
+  too, so local builds already match. D0 confirmed that every dependency runs on arm64 Linux:
+  `uv sync --no-default-groups`, psycopg 3.3.6, `fast-flights` with `primp`, and Playwright's
+  Chromium 156 (linux-arm64).
 
 ### 5.2 `docker-compose.prod.yml`
 
@@ -394,9 +408,13 @@ code later.
    - **Fixed region:** the project's region follows the contact address: **us-east-2 (Ohio)** for
      the US. Confirm it in settings.aws.com → Project → Additional info before creating anything.
      Another region needs "activate advanced features".
-   - **AWS CLI:** sign in without access keys (the login method is part of D0).
-   - **Budgets:** an AWS Budget of $25/month with email alerts at 50%, 80% and 100% (actual) and at
-     100% (forecast). Turn on Cost Anomaly Detection (free).
+   - **AWS CLI:** `aws login --profile asktravel --region us-east-2` (CLI v2.32+). It reuses your
+     Console sign-in in the browser and stores only temporary credentials that renew themselves,
+     so there are no access keys. Run it again when the CLI says the session has expired.
+   - **Budgets:** a monthly cost budget of $25 (`asktravel-monthly`), plus a $5 early-warning
+     budget (`asktravel-early-warning`) that fires as soon as anything costs real money. Cost
+     Anomaly Detection isn't available on the new sign-up type ("enterprise AWS" only); the $5
+     budget replaces it.
    - **Free plan:** if the account is on the 6-month free plan, upgrade it to the paid plan before
      the beta. When a free-plan account reaches 6 months or uses up its credits, AWS closes it.
 2. **Network (default VPC, us-east-2):**
@@ -419,8 +437,9 @@ code later.
 4. **ECR:** private repository `asktravel-api`, scan on push, lifecycle policy "keep the last 15
    images".
 5. **EC2:**
-   - **AMI:** Ubuntu 24.04 LTS, arm64. **Type:** `t4g.small` (or `t4g.medium` after D0), credit
-     specification `standard`.
+   - **AMI:** Ubuntu 24.04 LTS, arm64. In the launch form, pick the image first and then set
+     **Architecture: 64-bit (Arm)**: changing the image resets the security group and the disk.
+     **Type:** `t4g.medium`, credit specification `standard`.
    - **No key pair.** Security group `asktravel-web`, instance profile `asktravel-ec2`, tag
      `app=asktravel`.
    - **Storage:** 20 GB gp3, encrypted, "delete on termination" off (the data survives a mistake).
@@ -468,7 +487,7 @@ WEBUI_SECRET_KEY=...         # keeps Open WebUI sessions valid across restarts
 LANGSMITH_TRACING=true
 LANGSMITH_API_KEY=...        # a write-only tracing key
 LANGSMITH_PROJECT=asktravel-prod
-HOTEL_BROWSERS=1
+HOTEL_BROWSERS=2
 DAILY_TURN_LIMIT=40
 DOMAIN=asktravel.<domain>
 ```
@@ -477,7 +496,7 @@ DOMAIN=asktravel.<domain>
 
 | Item | Monthly (USD) |
 |---|---|
-| EC2 `t4g.small`, on demand ($0.0168/h) | $12.26 (`t4g.medium`: $24.53) |
+| EC2 `t4g.medium`, on demand ($0.0336/h) | $24.53 (`t4g.small`, too small in D0: $12.26) |
 | Public IPv4 address (Elastic IP, $0.005/h) | $3.65 |
 | EBS gp3, 20 GB ($0.08/GB) | $1.60 |
 | EBS snapshots (7 daily, incremental) | ~$0.50 |
@@ -489,7 +508,7 @@ DOMAIN=asktravel.<domain>
 | SSM, Parameter Store (standard), IAM, OIDC, DLM, Budgets, CloudTrail (90-day history) | $0 |
 | GitHub Actions (incl. arm64 runners) on a public repo, UptimeRobot, Healthchecks.io | $0 |
 | LangSmith Developer | $0 (pay per extra trace over 5k a month) |
-| **Hosting total** | **~$21** (4 GB: ~$33) |
+| **Hosting total** | **~$33** |
 | OpenRouter (LLM) | **Usage-based; likely more than hosting.** Read your real cost per chat from OpenRouter's activity page or LangSmith, multiply by expected chats, and set the prod key's credit limit to that plus a margin |
 
 Prices are for us-east-2 (the same as us-east-1 for these services) from the AWS and LangSmith pricing pages, checked 2026-10-30; recheck
@@ -506,7 +525,7 @@ first months, but the free plan ends after 6 months and closes the account unles
 Each phase ends with checks you can run. They follow the repo's workflow: issue → branch →
 PR → approval → merge.
 
-### D0. Decide and spike (1–2 evenings, ~$0.20) — #90
+### D0. Decide and spike (1–2 evenings, ~$0.20) — #90 ✅ done 2026-11-05
 
 1. **Decide the blockers in §4.** Guidebooks: on, off or replaced. Beta size or branding.
 2. **Set up the account (§6.1)**, including budgets.
@@ -522,10 +541,20 @@ PR → approval → merge.
 
 **Exit checks**
 
-- [ ] Every dependency installs and runs on arm64 Linux (otherwise choose `t3.small`).
-- [ ] Scrapers work from AWS (or the fallback is decided).
-- [ ] Peak memory with one browser fits under ~1.7 GB, so 2 GB will do; otherwise choose 4 GB.
-- [ ] Budget alerts are live, and nothing from the spike is still billing.
+- [x] Every dependency installs and runs on arm64 Linux (otherwise choose x86). All of them do
+  (§5.1). The image build moves to D3, since there's no Dockerfile yet.
+- [x] Scrapers work from AWS (or the fallback is decided). They do (§4.3).
+- [x] Peak memory with one browser fits under ~1.7 GB, so 2 GB will do; otherwise choose 4 GB.
+  It doesn't fit: 1.73 GB (94%), so the beta uses 4 GB (§1).
+- [x] Budget alerts are live, and nothing from the spike is still billing. Two budgets are set; the
+  spike was terminated, with 0 instances, volumes or IPs left.
+
+**What the spike taught** (for D4):
+
+- **Session Manager:** the browser terminal starts a bare `sh`. Run `bash` first.
+- **Ubuntu's SSM agent** registers within a minute of boot, with no setup beyond the instance role.
+- **No inbound rules at all:** the spike's security group had none, and Session Manager still
+  worked. The production group only adds 80 and 443.
 
 ### D1. API auth and invite-only signup — #27
 
@@ -543,7 +572,7 @@ PR → approval → merge.
 - [ ] `docker compose -f docker-compose.prod.yml up` on your laptop, with Caddy on
   `localhost`, serves the full app (the `awslogs` driver swapped for `json-file` locally).
 - [ ] `e2e_progress.py`, `e2e_branching.py`, `e2e_memory.py` and `e2e_hotels.py` pass against it.
-- [ ] Two parallel hotel searches run one after the other and both succeed.
+- [ ] Three parallel hotel searches all succeed; the third waits for a free browser.
 
 ### D4. AWS setup and first deploy, by hand — #30
 
@@ -629,13 +658,14 @@ jobs:
 
 | Issue | Phase | Points |
 |---|---|---|
-| #90 Prod D0: spike, arm64 check, server size and Google scraping from AWS | D0 | 1 |
+| #90 Prod D0: spike, arm64 check, server size and Google scraping from AWS (done) | D0 | 1 |
+| #100 Lower memory: Open WebUI without its embedding model, lean hotel pages (done, #101) | D0 | 2 |
 | #91 Prod D5: continuous deployment (OIDC, ECR, SSM Run Command, rollback) | D5 | 3 |
 | #92 Prod D7: beta launch, invite waves, privacy note, weekly review | D7 | 1 |
-| Not filed yet: guidebook switch (only if D0 decides "off" in §4.1) | D3 | 1 |
+The guidebook switch isn't needed: D0 kept the guidebooks (§4.1).
 
 The existing #27–#32 keep their scope. #30 becomes "AWS setup and first deploy by hand" (§6),
-with the server size decided in D0. #14's ECS design stays in PLAN.md as the path after the
+on the `t4g.medium` that D0 chose. #14's ECS design stays in PLAN.md as the path after the
 beta.
 
 ## 10. What you'll have learned by the end

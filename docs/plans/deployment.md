@@ -1,6 +1,6 @@
 # Deployment plan: AskTravel beta on AWS
 
-Status: D0 and D1 done (2026-11-05); D2 (CI) next. Covers issues #27–#32 and #14, plus #90 (spike), #91 (deploy
+Status: D0–D2 done (2026-11-05); D3 (Docker image, prod compose) next. Covers issues #27–#32 and #14, plus #90 (spike), #91 (deploy
 pipeline) and #92 (beta launch); see §9. Key terms and the reasoning behind each
 decision are explained visually in [deployment-explainer.html](../deployment-explainer.html).
 New to cloud? Start with the 8-minute primer and quiz,
@@ -563,10 +563,11 @@ PR → approval → merge.
 - [x] A new sign-up lands in "pending" until approved, with `DEFAULT_USER_ROLE=pending`, which
   the prod compose sets (D3).
 
-### D2. CI — #29
+### D2. CI — #29 ✅
 
-- [ ] A PR with a failing test shows a red check and can't be merged.
-- [ ] A clean PR goes green in under ~3 min.
+- [x] A PR with a failing test shows a red check and can't be merged (throwaway #105: red, merge
+  state `BLOCKED` by the required `test` check).
+- [x] A clean PR goes green in under ~3 min (#104: 26 s, 187 tests).
 
 ### D3. Containerise and run prod compose locally — #28 + memory diet
 

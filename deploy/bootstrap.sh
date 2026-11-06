@@ -10,11 +10,12 @@ REPO_URL=https://github.com/stoicdataguy/asktravel-agent-harness.git
 export DEBIAN_FRONTEND=noninteractive
 
 apt-get update -q
-apt-get install -yq ca-certificates curl git unzip unattended-upgrades amazon-ecr-credential-helper
+apt-get install -yq ca-certificates curl git unzip unattended-upgrades
 systemctl enable --now unattended-upgrades
 
 # Docker, from Docker's own repository
-if ! command -v docker >/dev/null; then
+if ! docker compose version >/dev/null 2>&1; then
+  apt-get remove -yq docker.io docker-compose-v2 containerd runc || true
   install -m 0755 -d /etc/apt/keyrings
   curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
   echo "deb [arch=arm64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu noble stable" \
@@ -23,6 +24,8 @@ if ! command -v docker >/dev/null; then
   apt-get install -yq docker-ce docker-ce-cli containerd.io docker-compose-plugin
 fi
 systemctl enable --now docker
+# After Docker, and without recommends: it would otherwise pull in Ubuntu's older docker.io
+apt-get install -yq --no-install-recommends amazon-ecr-credential-helper
 
 # AWS CLI v2: deploy.sh reads secrets and guidebooks with it, using the instance role
 if ! command -v aws >/dev/null; then

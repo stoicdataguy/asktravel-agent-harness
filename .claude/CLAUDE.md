@@ -14,6 +14,8 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
   `AGENT_DISPLAY_NAME` (AskTravel).
 
 ## Commands
+- Prod stack on a laptop: see `docker-compose.prod.local.yml`'s header (`Dockerfile`, `docker-compose.prod.yml`,
+  `deploy/Caddyfile`). Its own Compose project and database; only stop the dev Open WebUI (port 3000).
 - Infra: `docker compose up -d` → Postgres :5433, Open WebUI http://localhost:3000
   (Open WebUI's tables live in our Postgres, schema `open_webui`; an old SQLite install is copied over
   once with `scripts/migrate_owui_to_postgres.py`, see its docstring)
@@ -162,6 +164,9 @@ behind an off-the-shelf chat UI. Living document: append new conventions as sect
 - Open WebUI runs with `ENABLE_PERSISTENT_CONFIG=false`: docker-compose.yml is the source of truth for
   its settings (it otherwise disables signup in its DB after the first account). Admin-panel changes
   don't survive restarts; put them in compose instead.
+- Production images hold code only: `.dockerignore` allows just `pyproject.toml`, `uv.lock`,
+  `README.md` and `src/`. Guidebooks are mounted at runtime. Open WebUI's settings live in both
+  compose files: change them together. `HOTEL_BROWSERS` (default 2) caps Chromiums at once.
 - Open WebUI's document chat (RAG) is off (`RAG_EMBEDDING_ENGINE=openai`,
   `BYPASS_EMBEDDING_AND_RETRIEVAL=true`) so it doesn't load a local embedding model: ~300 MB
   less RAM (#100). Hotel search skips images, fonts and media (`hotels.SKIPPED_RESOURCES`);

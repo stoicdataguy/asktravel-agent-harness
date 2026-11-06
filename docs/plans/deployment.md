@@ -1,6 +1,6 @@
 # Deployment plan: AskTravel beta on AWS
 
-Status: D0–D2 done (2026-11-05); D3 (Docker image, prod compose) next. Covers issues #27–#32 and #14, plus #90 (spike), #91 (deploy
+Status: D0–D3 done (2026-11-05); D4 (AWS setup, first deploy) next. Covers issues #27–#32 and #14, plus #90 (spike), #91 (deploy
 pipeline) and #92 (beta launch); see §9. Key terms and the reasoning behind each
 decision are explained visually in [deployment-explainer.html](../deployment-explainer.html).
 New to cloud? Start with the 8-minute primer and quiz,
@@ -320,15 +320,16 @@ These aren't engineering tasks, but each one can stop the beta.
 
 ### 5.1 `Dockerfile` (agent API)
 
-- **Build:** a multi-stage build with uv (`uv sync --frozen --no-dev` into `/app/.venv`) on
-  `python:3.12-slim-bookworm`, then `playwright install --with-deps chromium`.
+- **Build:** a multi-stage build with uv (`uv sync --frozen --no-default-groups --no-editable` into
+  `/app/.venv`) on `python:3.12-slim-bookworm`, then `playwright install --with-deps --only-shell
+  chromium` (the headless shell is all we launch). The image is 1.08 GB.
 - **Runtime:**
   - Runs as a non-root `app` user.
   - Starts with `uvicorn travel_agent.api.app:app --host 0.0.0.0 --port 8000`, with no
     `--reload`. Today's `travel_agent:main` reloads, which prod must not do.
-  - `HEALTHCHECK` curls `/health`.
-- **Kept out of the image** (via `.dockerignore`): `data/`, `reference/`, `.env`, `notebooks/`,
-  `docs/`, `.venv`, `tests/`.
+  - `HEALTHCHECK` requests `/health` (with Python: the slim image has no curl).
+- **Kept out of the image:** `.dockerignore` allows only `pyproject.toml`, `uv.lock`, `README.md`
+  and `src/`, so guidebooks and secrets can't slip in.
 - **Built for `linux/arm64`** (the t4g server is Graviton). Your Apple-silicon laptop is arm64
   too, so local builds already match. D0 confirmed that every dependency runs on arm64 Linux:
   `uv sync --no-default-groups`, psycopg 3.3.6, `fast-flights` with `primp`, and Playwright's
@@ -340,30 +341,36 @@ Differences from the dev file:
 
 - **Tracing:** LangSmith settings in `.env`; nothing to run.
 - **Pinned versions:**
-  - Open WebUI is pinned to a release (e.g. `ghcr.io/open-webui/open-webui:v0.12.4`), not
-    `:main`. Upgrades are their own PR, followed by `e2e_chat_deletion.py`.
-  - `api` uses `<account>.dkr.ecr.us-east-2.amazonaws.com/asktravel-api:${IMAGE_TAG}`.
+  - Open WebUI is pinned to a release (`ghcr.io/open-webui/open-webui:v0.12.5`), not `:main`.
+    Upgrades are their own PR, followed by `e2e_chat_deletion.py`.
+  - `api` uses `$API_IMAGE`, on the server
+    `<account>.dkr.ecr.us-east-2.amazonaws.com/asktravel-api:<sha>`.
+- **Its own Compose project** (`name: asktravel`), so on a laptop it has separate containers and
+  volumes and can't touch the dev database.
 - **Published ports:** only Caddy's 80/443; nothing else is published.
 - **Services:**
-  - **`api`** mounts `./guidebooks:/app/data/guidebooks:ro`, has `stop_grace_period: 60s` (lets
-    a running turn finish), and `restart: unless-stopped`.
-  - **`caddy`** (`caddy:2`) has volumes for its certificates and its config file
+  - **`api`** mounts `$GUIDEBOOKS_DIR` (default `./guidebooks`) at `/app/data/guidebooks:ro`, has
+    `stop_grace_period: 60s` (lets a running turn finish), and `restart: unless-stopped`.
+  - **`caddy`** (`caddy:2.11.8-alpine`) has volumes for its certificates and its config file
     (`deploy/Caddyfile`).
-  - **`postgres`**: a strong password from `.env` and `restart: unless-stopped`.
-- **Logs:** the `awslogs` driver sends every container's log to a CloudWatch Logs group
-  `/asktravel/prod` (14-day retention). The instance role allows it; no keys needed.
+  - **`postgres`**: a strong password from `.env`, `shared_buffers=128MB`, and
+    `restart: unless-stopped`.
+- **Memory limits:** Caddy 128 MB, Open WebUI 1.2 GB, API 1.6 GB (including its Chromiums),
+  Postgres 512 MB. That's 3.4 of the server's 3.8 GB, so one runaway container can't take the
+  others down.
+- **Logs:** D4 adds the `awslogs` driver, which sends every container's log to a CloudWatch Logs
+  group `/asktravel/prod` (14-day retention). The instance role allows it; no keys needed.
 - **Open WebUI** reaches the API at `http://api:8000/v1` instead of `host.docker.internal`.
+- **On a laptop:** `docker-compose.prod.local.yml` (see its header) publishes Caddy on `:3000`, the
+  API on `:8001` and Postgres on `:5434`, for the e2e scripts.
 
 ### 5.3 `deploy/` folder (new)
 
-- `Caddyfile`:
-  ```
-  asktravel.<domain> {
-      handle /agent-health { rewrite * /health
-                             reverse_proxy api:8000 }
-      reverse_proxy open-webui:8080
-  }
-  ```
+`Caddyfile` came with D3. The scripts below are written in D4, because only the real server can
+test them.
+
+- `Caddyfile`: serves `$DOMAIN` over HTTPS. `/agent-health` goes to the API's `/health`, and
+  everything else goes to Open WebUI, so nothing else of the API is reachable from outside.
 - `bootstrap.sh`: turns a fresh Ubuntu server into an AskTravel host. It runs once as the
   instance's **user data** at launch, and it's idempotent, so re-running it is safe. Its steps:
   - Install Docker from Docker's own repository, the AWS CLI v2 (arm64) and the
@@ -379,8 +386,10 @@ Differences from the dev file:
   1. `git fetch && git checkout <sha>`, to get the compose file, Caddyfile and branding.
   2. Write `.env` from Parameter Store (`aws ssm get-parameters-by-path --with-decryption`).
   3. A quick `pg_dump`, a safety net just before the change.
-  4. `IMAGE_TAG=<sha> docker compose pull && docker compose up -d --wait`.
-  5. Health checks: `curl -fsS localhost/agent-health`, then Open WebUI's `/health`.
+  4. Set `API_IMAGE` to the image for `<sha>`, then `docker compose pull && docker compose up -d
+     --wait`.
+  5. Health checks: `curl -fsS https://$DOMAIN/agent-health` (Caddy only answers for `$DOMAIN`),
+     then Open WebUI's `/health`.
   6. If either fails, redeploy the previous good tag (in `.last-good`) and exit non-zero, so
      the SSM command, and with it the workflow, fails red.
   7. Record `<sha>` in `.last-good`; `docker image prune -f`.
@@ -492,6 +501,8 @@ DAILY_TURN_LIMIT=40
 DOMAIN=asktravel.<domain>
 ```
 
+`deploy.sh` adds `API_IMAGE=<ecr repo>:<sha>` when it writes `.env`.
+
 ## 7. Cost
 
 | Item | Monthly (USD) |
@@ -569,12 +580,16 @@ PR → approval → merge.
   state `BLOCKED` by the required `test` check).
 - [x] A clean PR goes green in under ~3 min (#104: 26 s, 187 tests).
 
-### D3. Containerise and run prod compose locally — #28 + memory diet
+### D3. Containerise and run prod compose locally — #28 + memory diet ✅
 
-- [ ] `docker compose -f docker-compose.prod.yml up` on your laptop, with Caddy on
-  `localhost`, serves the full app (the `awslogs` driver swapped for `json-file` locally).
-- [ ] `e2e_progress.py`, `e2e_branching.py`, `e2e_memory.py` and `e2e_hotels.py` pass against it.
-- [ ] Three parallel hotel searches all succeed; the third waits for a free browser.
+- [x] `docker compose -f docker-compose.prod.yml -f docker-compose.prod.local.yml up` on your
+  laptop, with Caddy on `localhost:3000`, serves the full app.
+- [x] `e2e_progress.py` (13/13), `e2e_branching.py` (3/3), `e2e_memory.py` (2/2) and
+  `e2e_hotels.py` (3/3) pass against it, and so do `e2e_auth.py` (5/5) and
+  `e2e_chat_deletion.py` (3/3), on the pinned Open WebUI v0.12.5.
+- [x] Three parallel hotel searches all succeed; the third waits for a free browser (at most 2 at
+  once, 17 s in all). The API container peaked at 1,415 MiB of its 1,600 limit, including
+  reclaimable disk cache; its process alone is 250 MB.
 
 ### D4. AWS setup and first deploy, by hand — #30
 
@@ -583,7 +598,9 @@ Do every step yourself once before automating it: the best way to learn what the
 1. Set up AWS (§6.2–6.11).
 2. Push an image to ECR from your laptop (`aws ecr get-login-password | docker login …`).
 3. In a Session Manager shell: run `deploy.sh <sha>` by hand.
-4. Create your admin account first, while signup is still in your hands.
+4. Create your admin account first, while signup is still in your hands. **Then restart Open
+   WebUI** (`docker compose restart open-webui`): it switches sign-ups off after the first account
+   until it restarts, and invitees would get an error (seen in D3).
 
 **Exit checks**
 

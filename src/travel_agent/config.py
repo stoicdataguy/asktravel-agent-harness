@@ -61,6 +61,9 @@ class Settings(BaseSettings):
     consolidation_idle_minutes: float = 10
     consolidation_users_per_cycle: int = 2
 
+    # Hotel searches each run a Chromium (~400 MB on the server); more at once wait their turn
+    hotel_browsers: int = 2
+
     # Raw guidebook PDFs (local only, gitignored) and their extracted markdown
     reference_dir: Path = Path("reference")
     guidebooks_dir: Path = Path("data/guidebooks")

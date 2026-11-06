@@ -49,6 +49,10 @@ PLAIN: dict[str, Callable[[dict], str]] = {
         f"{a.get('destination', '')}, {a.get('depart_date', '')}"
     ),
     "search_hotels": lambda a: f"Searching hotels in {a.get('location', '')}",
+    "search_trains": lambda a: (
+        f"Checking trains {a.get('origin', '')} → "
+        f"{a.get('destination', '')}, {a.get('travel_date', '')}"
+    ),
     "load_skill": lambda a: f"Loading the {a.get('name', '')} playbook",
     "save_memory": lambda a: f"Remembering {a.get('key', '')}",
     "delete_memory": lambda a: f"Forgetting {a.get('key', '')}",
@@ -102,6 +106,12 @@ def summarize(name: str, text: str) -> tuple[bool, str]:
             cheapest = _cheapest(options, r"\$([\d,]+)/night")
             return True, f"{len(options)} hotels" + (f", from {cheapest}/night" if cheapest else "")
         return False, "no hotels found" if text.startswith("No hotels") else _first_line(text)
+    if name == "search_trains":
+        options = _numbered(text)
+        if text.startswith("Trains ") and options:
+            fares = [int(f.replace(",", "")) for f in re.findall(r"₹([\d,]+)", text)]
+            return True, f"{len(options)} trains" + (f", from ₹{min(fares):,}" if fares else "")
+        return False, "no trains found" if text.startswith("No ") else _first_line(text)
     if name == "load_skill":
         return (
             (False, _first_line(text)) if text.startswith("No skill") else (True, "playbook loaded")

@@ -18,6 +18,7 @@ from travel_agent.tools.guidebooks import GUIDEBOOK_TOOLS
 from travel_agent.tools.hotels import search_hotels
 from travel_agent.tools.itinerary import present_itinerary
 from travel_agent.tools.memory import MEMORY_TOOLS, format_memories, load_memories
+from travel_agent.tools.trains import search_trains
 from travel_agent.tools.trips import TRIP_TOOLS, format_trips, load_trips
 
 __all__ = ["UserContext", "build_agent", "render_system_prompt"]
@@ -53,6 +54,7 @@ def build_agent(
             *GUIDEBOOK_TOOLS,
             search_flights,
             search_hotels,
+            search_trains,
             load_skill,
             *MEMORY_TOOLS,
             *TRIP_TOOLS,

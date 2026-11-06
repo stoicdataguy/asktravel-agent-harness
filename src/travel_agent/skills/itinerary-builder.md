@@ -52,6 +52,8 @@ validated and shown to the user as a formatted itinerary.
 - `hotels`: only hotels the user chose from `search_hotels` results.
 - `flights`: only flights the user chose from `search_flights` results (keep the airline,
   legs and price exactly as returned).
+- `trains`: only trains the user chose from `search_trains` results (keep the number, stations,
+  times and classes exactly as returned).
 - `assumptions`: anything you assumed (pace, budget, travellers).
 - `bookings_to_make`: tours, permits, trains or restaurants to reserve ahead.
 - `caveats`: possibly outdated prices, hours or closures, and conditions to check.

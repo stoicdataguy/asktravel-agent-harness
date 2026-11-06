@@ -531,6 +531,10 @@ body { margin: 0; }
             <h3>Hotel search</h3>
             <ul><li class="mono">search_hotels</li><li>Live Google Hotels rates via Playwright</li></ul>
           </div>
+          <div class="unit">
+            <h3>Train search (India)</h3>
+            <ul><li class="mono">search_trains</li><li>Fares and availability via ConfirmTkt's JSON endpoint, no browser</li></ul>
+          </div>
           <div class="unit planned">
             <h3>Web page fetch</h3>
             <ul><li class="mono">fetch_page (#7)</li></ul>
@@ -946,6 +950,7 @@ conversations. What you know so far:
           <tr class="group"><td colspan="4">Live travel search</td></tr>
           <tr><td>Search flights</td><td class="sig">search_flights(origin, destination, depart_date, return_date?, adults?, children?, cabin?, max_stops?, max_results?)</td><td>Live Google Flights results via fast-flights, cheapest first: airline, times, stops, duration, total and per-person price, plus a booking link. Round trips list outbound flights at round-trip prices.</td><td><span class="badge">Google Flights</span></td></tr>
           <tr><td>Search hotels</td><td class="sig">search_hotels(location, check_in, check_out, max_price_per_night?, min_rating?, include_vacation_rentals?, max_results?)</td><td>Live Google Hotels results via Playwright (dates picked in Google's calendar): nightly price, stay total, star class, rating, deals, amenities, plus a booking link with the dates set.</td><td><span class="badge">Google Hotels</span></td></tr>
+          <tr><td>Search trains</td><td class="sig">search_trains(origin, destination, travel_date, travel_class?, max_results?)</td><td>Indian trains via ConfirmTkt's JSON endpoint: requested stations first, per-class fare and availability, how old the availability is, booking link</td><td>No (read-only)</td></tr>
           <tr class="group"><td colspan="4">Skills</td></tr>
           <tr><td>Load skill</td><td class="sig">load_skill(name)</td><td>Returns a playbook's full instructions. Unknown names get the list of available skills.</td><td><span class="badge files">skills/*.md</span></td></tr>
           <tr class="group"><td colspan="4">Long-term memory</td></tr>

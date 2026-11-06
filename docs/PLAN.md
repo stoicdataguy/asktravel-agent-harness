@@ -66,6 +66,7 @@ Open WebUI (:3000) ── OpenAI-compatible HTTP + X-OpenWebUI-User-Email / -Cha
 | Guidebooks | PDFs in `reference/` → `travel-agent-ingest` → `data/guidebooks/<slug>.md`, keyword search (no embeddings). Both gitignored. | Built |
 | Flights | `search_flights` via `fast-flights` (reads Google Flights; no API key). Prices are totals for all travellers; results come with a Google Flights booking link. | Built |
 | Hotels | `search_hotels`: Playwright drives Google Hotels (picks dates in its calendar, reads result cards). Nightly prices as Google shows them, stay totals, star class, rating, deals, amenities, booking link. | Built |
+| Trains (India) | `search_trains` via ConfirmTkt's undocumented JSON endpoint (no key, no browser): per-class fares and availability, how old that availability is, booking link ([#108](https://github.com/stoicdataguy/asktravel-agent-harness/issues/108)). | Built |
 | Web pages | Playwright: fetch URL → extract readable text. No search provider. | Planned (#7) |
 | Deployment | ECS Fargate + RDS + Cognito, CDK in Python. | Planned (#14) |
 

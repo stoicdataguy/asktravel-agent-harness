@@ -73,6 +73,12 @@ TRIP = "- [trip-1] Rome …\n\nSaved itinerary:\n\n# Plan"
 CHATS = 'Chat "a" (2026-10-29):\n…\n\nChat "b" (2026-10-28):'
 
 
+TRAINS = """Trains NDLS → AGC, Sun Dec 6, 2026, 2 of 2. Fares in rupees per person:
+1. 12002 Shatabdi · NDLS 06:00 → AGC 07:50 · CC ₹565 AVL 101 · EC ₹1,960 AVL 71
+2. 20434 Jammu Mail · DLI 04:20 → TDL 07:03 · SL ₹200 WL 12
+Check and book: https://www.confirmtkt.com/x"""
+
+
 @pytest.mark.parametrize(
     ("name", "result", "expected"),
     [
@@ -88,6 +94,13 @@ CHATS = 'Chat "a" (2026-10-29):\n…\n\nChat "b" (2026-10-28):'
         ),
         ("search_hotels", HOTELS, (True, "2 hotels, from $189/night")),
         ("search_hotels", "No hotels in Nowhere matched for …", (False, "no hotels found")),
+        ("search_trains", TRAINS, (True, "2 trains, from ₹200")),
+        ("search_trains", "No direct trains found NDLS → XYZ on …", (False, "no trains found")),
+        (
+            "search_trains",
+            "Train search failed (ConnectError). …",
+            (False, "Train search failed (ConnectError). …"),
+        ),
         ("get_trip", TRIP, (True, "trip loaded, with itinerary")),
         ("recall_conversations", CHATS, (True, "2 earlier chats")),
         ("recall_conversations", "No earlier chats mention 'x'.", (False, "nothing found")),

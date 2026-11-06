@@ -1,0 +1,21 @@
+# Runs the production stack on a laptop for testing. It is its own Compose project (asktravel),
+# with its own database, so the dev stack's data is untouched. Stop the dev Open WebUI first
+# (`docker compose stop open-webui`), since both want port 3000. The e2e scripts need :3000.
+#
+#   docker compose --env-file .env.prod.local -f docker-compose.prod.yml \
+#     -f docker-compose.prod.local.yml up -d --build
+#
+# .env.prod.local holds what deploy.sh writes on the server, with DOMAIN=:80 (plain HTTP),
+# APP_ENV_FILE=.env.prod.local, API_IMAGE=asktravel-api:local, GUIDEBOOKS_DIR=./data/guidebooks and
+# DEFAULT_USER_ROLE=user (e2e scripts sign up test accounts).
+services:
+  caddy:
+    ports: !override
+      - "3000:80"
+  api:
+    build: .
+    ports:
+      - "8001:8000"  # e2e_memory.py and e2e_chat_deletion.py: --api http://localhost:8001
+  postgres:
+    ports:
+      - "5434:5432"  # e2e scripts read threads: DATABASE_URL=postgresql://travel:…@localhost:5434/…

@@ -6,6 +6,7 @@ separate from the browser (`parse_card`) so it can be unit-tested against captur
 Google's markup changes over time; failures come back as a message with a search link.
 """
 
+import asyncio
 import logging
 import re
 from collections.abc import Callable
@@ -16,6 +17,7 @@ from langchain.tools import ToolRuntime, tool
 from playwright.async_api import async_playwright
 
 from travel_agent.agent.schemas import HotelOption
+from travel_agent.config import get_settings
 from travel_agent.tools.report import done, report
 
 logger = logging.getLogger(__name__)
@@ -28,6 +30,17 @@ PAGE_TIMEOUT_MS = 45_000
 # ~60 MB less per search on the server (#100). /dev/shm is tiny in containers.
 SKIPPED_RESOURCES = {"image", "media", "font"}
 CHROME_ARGS = ["--disable-dev-shm-usage", "--disable-gpu", "--disable-extensions"]
+
+_browser_slots: asyncio.Semaphore | None = None
+
+
+def browser_slots() -> asyncio.Semaphore:
+    """At most HOTEL_BROWSERS Chromiums at once (~400 MB each); later searches wait their turn."""
+    global _browser_slots
+    if _browser_slots is None:
+        _browser_slots = asyncio.Semaphore(get_settings().hotel_browsers)
+    return _browser_slots
+
 
 # One card per hotel: from each "Prices starting from $X, <name>" link, climb to the largest
 # ancestor that still contains exactly one hotel name (h2)
@@ -204,9 +217,13 @@ async def search_hotels(
         return "Google Hotels only takes dates within about the next year; ask for nearer dates."
 
     try:
-        cards, url = await fetch_hotel_cards(
-            location, check_in, check_out, on_step=lambda text: report(runtime, text)
-        )
+        slots = browser_slots()
+        if slots.locked():
+            report(runtime, "waiting for a free browser")
+        async with slots:
+            cards, url = await fetch_hotel_cards(
+                location, check_in, check_out, on_step=lambda text: report(runtime, text)
+            )
         report(runtime, f"{len(cards)} hotels read, applying filters")
     except Exception as exc:  # timeouts, consent pages, Google layout changes
         logger.warning("hotel search failed for %s: %s", location, exc)

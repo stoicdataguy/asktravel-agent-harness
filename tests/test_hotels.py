@@ -1,3 +1,4 @@
+import asyncio
 from datetime import date, timedelta
 
 import pytest
@@ -163,6 +164,24 @@ async def test_failures_and_no_matches_become_messages(google):
     google.error = TimeoutError("page")
     out = await search()
     assert "Hotel search failed (TimeoutError)" in out and "google.com/travel/hotels" in out
+
+
+async def test_at_most_hotel_browsers_searches_run_at_once(monkeypatch):
+    monkeypatch.setattr(hotels, "_browser_slots", None)  # the default limit, 2
+    running, peak = 0, 0
+
+    async def fake_fetch(location, check_in, check_out, on_step=lambda text: None):
+        nonlocal running, peak
+        running += 1
+        peak = max(peak, running)
+        await asyncio.sleep(0.01)
+        running -= 1
+        return [{"label": c[0], "name": c[1], "text": c[2]} for c in CARDS], "https://x"
+
+    monkeypatch.setattr(hotels, "fetch_hotel_cards", fake_fetch)
+    results = await asyncio.gather(search(), search(), search())
+    assert peak == 2
+    assert all(r.startswith("Hotels in Kailua-Kona") for r in results)
 
 
 def test_itinerary_renders_chosen_hotels():

@@ -1,0 +1,11 @@
+# HTTPS in front of Open WebUI. Caddy gets and renews the certificate for $DOMAIN itself.
+{$DOMAIN} {
+	# For uptime monitoring: says the agent API is up, and nothing else of the API is reachable
+	handle /agent-health {
+		rewrite * /health
+		reverse_proxy api:8000
+	}
+	handle {
+		reverse_proxy open-webui:8080
+	}
+}

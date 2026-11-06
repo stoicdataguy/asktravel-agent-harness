@@ -1,0 +1,127 @@
+# Production stack on the EC2 server (#28): Caddy (HTTPS) → Open WebUI → agent API → Postgres.
+# Only Caddy publishes ports. Secrets come from .env, which deploy.sh writes from Parameter Store.
+# Open WebUI's settings mirror docker-compose.yml: keep the two in step.
+# Run it on a laptop with docker-compose.prod.local.yml (see that file).
+name: asktravel
+
+services:
+  caddy:
+    image: caddy:2.11.8-alpine
+    restart: unless-stopped
+    mem_limit: 128m
+    depends_on:
+      - open-webui
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"  # HTTP/3
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data  # certificates: losing them means asking Let's Encrypt again
+      - caddy-config:/config
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:v0.12.5  # upgrades are their own PR; rerun e2e_chat_deletion.py
+    restart: unless-stopped
+    mem_limit: 1200m
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql://travel:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/travel_agent
+      DATABASE_SCHEMA: open_webui
+      OPENAI_API_BASE_URL: http://api:8000/v1
+      OPENAI_API_KEY: ${AGENT_API_KEY:?set AGENT_API_KEY in .env}
+      ENABLE_OLLAMA_API: "false"
+      # Keeps sessions valid across restarts
+      WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY:?set WEBUI_SECRET_KEY in .env}
+      # Open WebUI turns sign-ups off after the first (admin) account: restart it once after
+      # creating that account, and this file's settings apply again.
+      ENABLE_PERSISTENT_CONFIG: "false"
+      WEBUI_NAME: AskTravel
+      WEBUI_AUTH: "true"
+      ENABLE_SIGNUP: "true"
+      # Invite-only: a new sign-up waits until an admin approves it (#27)
+      DEFAULT_USER_ROLE: ${DEFAULT_USER_ROLE:-pending}
+      DEFAULT_MODELS: travel-agent
+      DEFAULT_PROMPT_SUGGESTIONS: >-
+        [{"title": ["Plan 3 days on the Big Island", "using Lonely Planet's picks"],
+          "content": "Plan 3 days on the Big Island of Hawaii using Lonely Planet's recommendations."},
+         {"title": ["Eat like a local in Rome", "food tips from the guidebook"],
+          "content": "What should I eat in Rome, and where? Use the Lonely Planet guide."},
+         {"title": ["Getting to Machu Picchu", "tickets, trains and timing"],
+          "content": "How do I get to Machu Picchu, and what should I know about tickets?"}]
+      BYPASS_MODEL_ACCESS_CONTROL: "true"
+      ENABLE_FORWARD_USER_INFO_HEADERS: "true"
+      ENABLE_TITLE_GENERATION: "false"
+      ENABLE_TAGS_GENERATION: "false"
+      ENABLE_FOLLOW_UP_GENERATION: "false"
+      ENABLE_AUTOCOMPLETE_GENERATION: "false"
+      ENABLE_SEARCH_QUERY_GENERATION: "false"
+      ENABLE_RETRIEVAL_QUERY_GENERATION: "false"
+      RAG_EMBEDDING_ENGINE: "openai"
+      BYPASS_EMBEDDING_AND_RETRIEVAL: "true"
+    volumes:
+      - open-webui:/app/backend/data
+      # AskTravel logo: allowed for up to 50 users (the beta's cap); https://docs.openwebui.com/license
+      - ./branding/favicon.png:/app/build/static/favicon.png:ro
+      - ./branding/favicon-96x96.png:/app/build/static/favicon-96x96.png:ro
+      - ./branding/favicon.ico:/app/build/static/favicon.ico:ro
+      - ./branding/favicon.svg:/app/build/static/favicon.svg:ro
+      - ./branding/apple-touch-icon.png:/app/build/static/apple-touch-icon.png:ro
+      - ./branding/logo.png:/app/build/static/logo.png:ro
+      - ./branding/splash.png:/app/build/static/splash.png:ro
+      - ./branding/splash-dark.png:/app/build/static/splash-dark.png:ro
+      - ./branding/web-app-manifest-192x192.png:/app/build/static/web-app-manifest-192x192.png:ro
+      - ./branding/web-app-manifest-512x512.png:/app/build/static/web-app-manifest-512x512.png:ro
+      - ./branding/favicon.png:/app/build/favicon.png:ro  # default assistant avatar
+
+  api:
+    image: ${API_IMAGE:?set API_IMAGE in .env}
+    restart: unless-stopped
+    mem_limit: 1600m  # the API (~235 MB) plus HOTEL_BROWSERS Chromiums (~400 MB each)
+    stop_grace_period: 60s  # lets a running turn finish
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file: ${APP_ENV_FILE:-.env}
+    environment:
+      DATABASE_URL: postgresql://travel:${POSTGRES_PASSWORD}@postgres:5432/travel_agent
+    volumes:
+      # Copyrighted: copied to the server by hand, never in the image or in git
+      - ${GUIDEBOOKS_DIR:-./guidebooks}:/app/data/guidebooks:ro
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    mem_limit: 512m
+    command: postgres -c shared_buffers=128MB
+    environment:
+      POSTGRES_USER: travel
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: travel_agent
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U travel -d travel_agent"]
+      interval: 5s
+      retries: 10
+
+  # Creates the schema Open WebUI keeps its tables in (see docker-compose.yml)
+  db-init:
+    image: postgres:16-alpine
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    command: psql -h postgres -U travel -d travel_agent -c "create schema if not exists open_webui"
+    restart: "no"
+
+volumes:
+  pgdata:
+  open-webui:
+  caddy-data:
+  caddy-config:

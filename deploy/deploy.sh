@@ -8,7 +8,7 @@ SHA=${1:?usage: deploy.sh <git sha>}
 REGION=us-east-2
 APP_DIR=/opt/asktravel
 PARAMS=/asktravel/prod
-HEALTH_TIMEOUT_SECONDS=180
+HEALTH_TIMEOUT_SECONDS=${HEALTH_TIMEOUT_SECONDS:-300}
 
 cd "$APP_DIR"
 export COMPOSE_FILE=docker-compose.prod.yml
@@ -41,37 +41,44 @@ healthy() {
   done
 }
 
+# Every step checks for failure itself: this runs inside `if start`, where `set -e` is off.
+# Compose only starts the containers; healthy() decides, because Open WebUI is slow to start.
 start() {
-  git fetch --quiet origin
-  git checkout --quiet --detach "$1"
-  write_env "$1"
-  docker compose pull --quiet
-  docker compose up -d --remove-orphans --wait --wait-timeout "$HEALTH_TIMEOUT_SECONDS"
-  healthy
+  git fetch --quiet origin &&
+    git checkout --quiet --detach "$1" &&
+    write_env "$1" &&
+    docker compose pull --quiet &&
+    docker compose up -d --remove-orphans &&
+    healthy
 }
 
-# A safety net just before the change; the three newest are kept
-if docker compose ps --status running --services 2>/dev/null | grep -q '^postgres$'; then
-  mkdir -p pre-deploy
-  docker compose exec -T postgres pg_dump -U travel -Fc travel_agent >"pre-deploy/$(date +%F-%H%M%S).dump"
-  find pre-deploy -name '*.dump' | sort | head -n -3 | xargs -r rm --
-fi
+# In a function so bash has read all of it before git checkout can replace this file
+main() {
+  # A safety net just before the change; the three newest are kept
+  if docker compose ps --status running --services 2>/dev/null | grep -q '^postgres$'; then
+    mkdir -p pre-deploy
+    docker compose exec -T postgres pg_dump -U travel -Fc travel_agent >"pre-deploy/$(date +%F-%H%M%S).dump"
+    find pre-deploy -name '*.dump' | sort | head -n -3 | xargs -r rm --
+  fi
 
-BUCKET=$(aws ssm get-parameter --region "$REGION" --name "$PARAMS/BACKUP_BUCKET" --query Parameter.Value --output text)
-aws s3 sync --region "$REGION" --only-show-errors "s3://$BUCKET/guidebooks/" guidebooks/
+  BUCKET=$(aws ssm get-parameter --region "$REGION" --name "$PARAMS/BACKUP_BUCKET" --query Parameter.Value --output text)
+  aws s3 sync --region "$REGION" --only-show-errors "s3://$BUCKET/guidebooks/" guidebooks/
 
-if start "$SHA"; then
-  echo "$SHA" >.last-good
-  docker image prune -f >/dev/null
-  echo "deployed $SHA"
-  exit 0
-fi
+  if start "$SHA"; then
+    echo "$SHA" >.last-good
+    docker image prune -f >/dev/null
+    echo "deployed $SHA"
+    exit 0
+  fi
 
-echo "deploy of $SHA failed its health checks" >&2
-docker compose ps >&2 || true
-if [ -f .last-good ]; then
-  PREVIOUS=$(cat .last-good)
-  echo "rolling back to $PREVIOUS" >&2
-  start "$PREVIOUS" && echo "rolled back to $PREVIOUS" >&2 || echo "ROLLBACK FAILED" >&2
-fi
-exit 1
+  echo "deploy of $SHA failed its health checks" >&2
+  docker compose ps >&2 || true
+  if [ -f .last-good ]; then
+    PREVIOUS=$(cat .last-good)
+    echo "rolling back to $PREVIOUS" >&2
+    start "$PREVIOUS" && echo "rolled back to $PREVIOUS" >&2 || echo "ROLLBACK FAILED" >&2
+  fi
+  exit 1
+}
+
+main
